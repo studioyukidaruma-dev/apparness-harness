@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/architecture.schema.json",
+  "title": "Architecture",
+  "description": "apps/<app-id>/02-design/architecture.machine.yaml の検証スキーマ。features[] は互いに depends_on を持たない（独立機能の原則）。機能間のつながりは interfaces[] でのみ表現する。",
+  "type": "object",
+  "required": ["app_id", "design_version", "based_on_requirements_version", "status", "features", "interfaces"],
+  "additionalProperties": false,
+  "properties": {
+    "app_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "design_version": { "type": "integer", "minimum": 1 },
+    "based_on_requirements_version": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["DRAFT", "APPROVED", "SUPERSEDED"] },
+    "shared_kernel_ref": { "type": "string" },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "contract_ref", "status_ref", "tech_stack"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "contract_ref": { "type": "string" },
+          "status_ref": { "type": "string" },
+          "tech_stack": {
+            "type": "object",
+            "required": ["language", "libraries"],
+            "additionalProperties": false,
+            "properties": {
+              "language": { "type": "string" },
+              "framework": { "type": "string" },
+              "libraries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "version", "license"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "type": "string" },
+                    "version": { "type": "string" },
+                    "license": { "type": "string" },
+                    "notes": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "interfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["producer_feature", "producer_output", "consumer_feature", "consumer_input"],
+        "additionalProperties": false,
+        "properties": {
+          "producer_feature": { "type": "string" },
+          "producer_output": { "type": "string" },
+          "consumer_feature": { "type": "string" },
+          "consumer_input": { "type": "string" }
+        }
+      }
+    },
+    "superseded_by": { "type": ["integer", "null"] },
+    "updated_at": { "type": ["string", "null"], "format": "date-time" },
+    "approved_by": { "type": ["string", "null"] },
+    "approved_at": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "if": { "properties": { "status": { "const": "APPROVED" } } },
+  "then": { "properties": { "approved_by": { "type": "string", "minLength": 1 }, "approved_at": { "type": "string" } } }
+}

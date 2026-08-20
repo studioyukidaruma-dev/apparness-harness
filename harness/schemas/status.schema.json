@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/status.schema.json",
+  "title": "Feature Status",
+  "description": "apps/<app-id>/03-features/<feature-id>/status.yaml の検証スキーマ。render_progress.py がこのファイル群を集約して PROGRESS.md / STATE.machine.yaml を生成する。",
+  "type": "object",
+  "required": ["feature_id", "app_id", "state", "last_updated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "app_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "state": {
+      "type": "string",
+      "enum": [
+        "NOT_STARTED",
+        "CONTRACT_DRAFTED",
+        "CONTRACT_APPROVED",
+        "IN_PROGRESS",
+        "IMPLEMENTED",
+        "TESTED",
+        "INTEGRATED",
+        "BLOCKED",
+        "SUPERSEDED"
+      ]
+    },
+    "state_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["state", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "state": { "type": "string" },
+          "at": { "type": "string", "format": "date-time" },
+          "by": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "assignee": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "worktree_path": { "type": ["string", "null"] },
+    "contract_version": { "type": ["integer", "null"] },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "superseded_by": { "type": ["string", "null"] },
+    "last_updated_at": { "type": "string", "format": "date-time" },
+    "updated_by": { "type": ["string", "null"] }
+  }
+}

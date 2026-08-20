@@ -1,0 +1,43 @@
+# schema: harness/schemas/feature-contract.schema.json
+# この機能の入出力の唯一の情報源。担当者はこのファイルと SPEC.md だけを見れば実装できる。
+# CONTRACT_APPROVED 以降は harness/hooks/pre_tool_use_guard.py により書き込みが凍結される。
+feature_id: "{{FEATURE_ID}}"
+feature_name: "{{FEATURE_NAME}}"
+version: 1
+description: ""
+inputs: []
+# 例:
+# inputs:
+#   - name: "todo_title"
+#     json_schema: { "type": "string", "minLength": 1 }
+#     required: true
+#     description: ""
+#     example: "牛乳を買う"
+outputs: []
+# 例:
+# outputs:
+#   - name: "todo_item"
+#     json_schema: { "type": "object", "properties": { "id": { "type": "string" } } }
+#     description: ""
+side_effects: []
+error_cases: []
+# 例:
+# error_cases:
+#   - code: "INVALID_TITLE"
+#     condition: "title が空文字"
+#     response_shape: { "type": "object" }
+tech_stack:
+  language: ""
+  framework: ""
+  libraries: []
+  # 例:
+  # libraries:
+  #   - name: ""
+  #     version: ""
+  #     license: ""
+  #     notes: "選定理由（保守状況・既知脆弱性の確認結果）"
+non_functional: {}
+test_strategy: ""
+created_at: null
+approved_at: null
+approved_by: null

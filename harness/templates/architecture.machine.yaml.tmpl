@@ -1,0 +1,30 @@
+# schema: harness/schemas/architecture.schema.json
+# features[] は互いに depends_on を持たない。つながりは interfaces[] でのみ表現する。
+app_id: "{{APP_ID}}"
+design_version: 1
+based_on_requirements_version: {{REQUIREMENTS_VERSION}}
+status: DRAFT
+shared_kernel_ref: "../01-foundation/shared-kernel.yaml"
+features: []
+# 例:
+# features:
+#   - id: "todo-list-api"
+#     name: ""
+#     description: ""
+#     contract_ref: "features/todo-list-api.contract.yaml"
+#     status_ref: "../03-features/todo-list-api/status.yaml"
+#     tech_stack:
+#       language: ""
+#       framework: ""
+#       libraries: []
+interfaces: []
+# 例:
+# interfaces:
+#   - producer_feature: "todo-list-api"
+#     producer_output: "todo_created_event"
+#     consumer_feature: "notification-service"
+#     consumer_input: "todo_created_event"
+superseded_by: null
+updated_at: null
+approved_by: null
+approved_at: null

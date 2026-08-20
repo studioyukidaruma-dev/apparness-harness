@@ -1,0 +1,29 @@
+# 全機能が依存してよい最小限の共有契約（DDD でいう Shared Kernel）。
+# ここに置くものは変更コストが高いことを認識し、本当に全機能共通のものだけに限定する。
+app_id: "{{APP_ID}}"
+version: 1
+# 例:
+# common_types:
+#   - name: UserId
+#     json_schema: { "type": "string", "format": "uuid" }
+# auth:
+#   scheme: ""
+#   token_format: ""
+# data_store:
+#   policy: ""
+common_types: []
+auth: {}
+data_store: {}
+# solution-architect が設計時にユーザーへ確認し、プラグインとして追加インストールが必要な
+# Skill（デザイン系・専門的なルール集など）を使うと決めたらここに列挙する。ここに書かれた
+# Skill は「実装フェーズの必須要件」になる。feature-builder は実装開始前に、各 plugin_ref が
+# 有効化されているか Hook で機械的に検証され、欠けていればブロックされる
+# （harness/CONVENTIONS.md 10節参照）。Claude Code 標準搭載の security-review/code-review は
+# ここに含めない（常時利用可能という前提のため）。
+# 例:
+# required_skills:
+#   - name: "frontend-design"
+#     plugin_ref: "frontend-design@claude-plugins-official"
+#     purpose: "UIデザインの品質担保"
+required_skills: []
+notes: ""

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/feature-contract.schema.json",
+  "title": "Feature Contract",
+  "description": "apps/<app-id>/03-features/<feature-id>/contract.yaml の検証スキーマ。この機能の入出力の唯一の情報源。担当者はこのファイルと SPEC.md だけを見れば実装できる。",
+  "type": "object",
+  "required": ["feature_id", "feature_name", "version", "description", "inputs", "outputs", "tech_stack"],
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "feature_name": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "json_schema", "required"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "json_schema": { "type": "object" },
+          "required": { "type": "boolean" },
+          "description": { "type": "string" },
+          "example": {}
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "json_schema"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "json_schema": { "type": "object" },
+          "description": { "type": "string" },
+          "example": {}
+        }
+      }
+    },
+    "side_effects": { "type": "array", "items": { "type": "string" } },
+    "error_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "condition"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "condition": { "type": "string" },
+          "response_shape": { "type": "object" }
+        }
+      }
+    },
+    "tech_stack": {
+      "type": "object",
+      "required": ["language", "libraries"],
+      "additionalProperties": false,
+      "properties": {
+        "language": { "type": "string" },
+        "framework": { "type": "string" },
+        "libraries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version", "license"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "license": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "non_functional": { "type": "object" },
+    "test_strategy": { "type": "string" },
+    "created_at": { "type": ["string", "null"], "format": "date-time" },
+    "approved_at": { "type": ["string", "null"], "format": "date-time" },
+    "approved_by": { "type": ["string", "null"] }
+  }
+}

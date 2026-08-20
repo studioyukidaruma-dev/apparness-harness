@@ -1,0 +1,19 @@
+# schema: harness/schemas/status.schema.json
+# このファイルは頻繁に更新される。更新されると post_tool_use_sync.py が
+# apps/<app_id>/PROGRESS.md と STATE.machine.yaml を自動再生成する。
+feature_id: "{{FEATURE_ID}}"
+app_id: "{{APP_ID}}"
+state: NOT_STARTED
+state_history:
+  - state: NOT_STARTED
+    at: "{{TIMESTAMP}}"
+    by: "{{ACTOR}}"
+    note: "scaffold created"
+assignee: null
+branch: null
+worktree_path: null
+contract_version: null
+blockers: []
+superseded_by: null
+last_updated_at: "{{TIMESTAMP}}"
+updated_by: "{{ACTOR}}"

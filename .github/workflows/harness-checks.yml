@@ -1,0 +1,66 @@
+name: harness-checks
+
+# harness/CONVENTIONS.md 7節の Hook ルールのうち、アプリの技術スタックに依存しない範囲を
+# git リポジトリの最終状態に対してサーバーサイドで再検証する（ci-check job）。
+# 詳細は harness/scripts/ci_check.py のモジュール docstring を参照。
+#
+# feature-builder/integrator が書く単体・結合テストの実行はアプリごとの技術スタックに
+# 依存するためこのワークフローの対象外（各アプリ側で用意する）。
+#
+# vuln-scan job は上記とは別の関心事（Hook規約の遵守ではなく、依存ライブラリの既知の脆弱性）を
+# 扱う。詳細は harness/scripts/vuln_scan.py のモジュール docstring を参照。
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  ci-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r harness/requirements.txt
+
+      - name: ハーネス規約の決定論チェック
+        env:
+          CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "${CI_BASE_SHA}" ] || [ "${CI_BASE_SHA}" = "0000000000000000000000000000000000000000" ]; then
+            python3 harness/scripts/ci_check.py --branch "${CI_BRANCH}"
+          else
+            python3 harness/scripts/ci_check.py --branch "${CI_BRANCH}" --base "${CI_BASE_SHA}"
+          fi
+
+  vuln-scan:
+    runs-on: ubuntu-latest
+    env:
+      OSV_SCANNER_VERSION: "v2.5.1"
+      OSV_SCANNER_SHA256: "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r harness/requirements.txt
+
+      - name: OSV-Scanner のインストール（バージョン固定・チェックサム検証）
+        run: |
+          curl -sSL -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  osv-scanner" | sha256sum -c -
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/osv-scanner
+
+      - name: 依存ライブラリの脆弱性スキャン（OSV-Scanner）
+        run: python3 harness/scripts/vuln_scan.py

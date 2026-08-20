@@ -1,0 +1,16 @@
+# schema: harness/schemas/autonomy.schema.json
+# このアプリでどこまで人間の承認を必須とするかを定める、全 subagent 共通の情報源。
+# 変更したい場合はユーザーに確認してから書き換えること（無断でモードを緩めない）。
+#
+# MANUAL:      各フェーズの節目（要件承認・設計承認・各機能の完了・統合完了）ごとに毎回人間に確認する
+# SUPERVISED:  要件定義の承認だけは常に人間必須。それ以降は妥当なら自動で進めるが、
+#              技術スタック選定など重要な決定は都度提示する
+# AUTONOMOUS:  明らかにブロッキングな疑問がない限り、最後まで確認なしで進める
+#
+# ※ モードに関わらず、要件定義 (00-requirements) の承認だけは常に人間の明示的な承認が必須。
+#    harness/CONVENTIONS.md 9節を参照。
+app_id: "{{APP_ID}}"
+mode: "{{AUTONOMY_MODE}}"
+set_at: "{{TIMESTAMP}}"
+set_by: "{{ACTOR}}"
+notes: ""

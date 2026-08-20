@@ -1,0 +1,4 @@
+# harness/scripts/* が使う依存関係（hooks/ は依存ゼロを保つため対象外）。
+# インストール: pip install -r harness/requirements.txt
+pyyaml>=6.0
+jsonschema>=4.20

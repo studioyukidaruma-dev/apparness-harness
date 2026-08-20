@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/autonomy.schema.json",
+  "title": "Autonomy Mode",
+  "description": "apps/<app-id>/AUTONOMY.yaml の検証スキーマ。このアプリでどこまで人間の承認を必須とするかを定める。全 subagent がこれを参照する単一の情報源。",
+  "type": "object",
+  "required": ["app_id", "mode", "set_at"],
+  "additionalProperties": false,
+  "properties": {
+    "app_id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "mode": {
+      "type": "string",
+      "enum": ["MANUAL", "SUPERVISED", "AUTONOMOUS"],
+      "description": "MANUAL: 各フェーズの節目ごとに毎回人間に確認する。SUPERVISED: 要件定義の承認だけは常に人間必須、それ以降は妥当なら自動で進めるが重要な決定は都度提示する。AUTONOMOUS: ブロッキングな疑問がない限り最後まで自動で進める。"
+    },
+    "set_at": { "type": "string", "format": "date-time" },
+    "set_by": { "type": ["string", "null"] },
+    "notes": { "type": "string" }
+  }
+}
