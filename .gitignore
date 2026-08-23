@@ -1,0 +1,10 @@
+apps/*/.worktrees/
+# 検証コマンドが生成する成果物（CONVENTIONS.md 12節）。コミットすると受領書より後に
+# 機能ディレクトリが変更されたことになり、CI の項目 I が不合格になる。
+.verify/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.claude/scheduled_tasks.lock
+.claude/settings.local.json

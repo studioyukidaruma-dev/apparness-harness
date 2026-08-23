@@ -1,0 +1,433 @@
+<title>ハーネスのしくみ案内</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  :root {
+    --ground: #F7F6F3;
+    --surface: #FFFFFF;
+    --surface-2: #EFEDE8;
+    --ink: #201D1A;
+    --muted: #6B655D;
+    --line: #E0DCD4;
+    --line-strong: #C8C2B7;
+    --accent: #35657A;
+    --accent-soft: #E2EDF1;
+    --amber: #99621B;
+    --amber-soft: #F7EBDA;
+    --red: #A33A2C;
+    --red-soft: #F8E5E1;
+    --green: #35704F;
+    --green-soft: #E3F0E8;
+    --shadow: 0 1px 2px rgba(32, 29, 26, .06), 0 10px 28px -20px rgba(32, 29, 26, .35);
+
+    --f-round: "Zen Maru Gothic", system-ui, "Hiragino Maru Gothic ProN", sans-serif;
+    --f-body: "Zen Kaku Gothic New", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #161513;
+      --surface: #1E1D1A;
+      --surface-2: #272522;
+      --ink: #EDEAE4;
+      --muted: #A39C92;
+      --line: #322F2B;
+      --line-strong: #48443E;
+      --accent: #7FB4C6;
+      --accent-soft: #1B3038;
+      --amber: #D5A063;
+      --amber-soft: #33281A;
+      --red: #E08A79;
+      --red-soft: #37231E;
+      --green: #74BE94;
+      --green-soft: #1A2E22;
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #161513;
+    --surface: #1E1D1A;
+    --surface-2: #272522;
+    --ink: #EDEAE4;
+    --muted: #A39C92;
+    --line: #322F2B;
+    --line-strong: #48443E;
+    --accent: #7FB4C6;
+    --accent-soft: #1B3038;
+    --amber: #D5A063;
+    --amber-soft: #33281A;
+    --red: #E08A79;
+    --red-soft: #37231E;
+    --green: #74BE94;
+    --green-soft: #1A2E22;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -20px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--f-body); font-size: 16.5px; line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 56px; }
+  h1, h2, h3 { font-family: var(--f-round); text-wrap: balance; line-height: 1.4; margin: 0; font-weight: 700; }
+  h1 { font-size: 36px; letter-spacing: -.01em; }
+  h2 { font-size: 25px; }
+  h3 { font-size: 17px; font-weight: 500; }
+  p { margin: 0; }
+  code, .mono { font-family: var(--f-mono); font-size: .86em; }
+  .muted { color: var(--muted); }
+  .prose { max-width: 64ch; display: flex; flex-direction: column; gap: 14px; }
+
+  header .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); margin-bottom: 12px; }
+  header .lede { font-size: 18px; color: var(--muted); max-width: 62ch; margin-top: 18px; }
+
+  section { display: flex; flex-direction: column; gap: 22px; }
+  .sec-head { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid var(--line-strong); padding-top: 18px; }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
+
+  .lane { min-width: 1000px; display: grid; grid-template-columns: 150px 178px 1fr 200px 220px; }
+  .lane > div { padding: 14px 16px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px; line-height: 1.72; }
+  .lane > div:nth-child(5n) { border-right: none; }
+  .lane .hd { background: var(--surface-2); font-family: var(--f-round); font-size: 13px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--line-strong); }
+  .lane .phase { background: var(--surface-2); }
+  .lane .phase b { display: block; font-family: var(--f-round); font-size: 16px; }
+  .lane .phase .pid { font-family: var(--f-mono); font-size: 11px; color: var(--accent); }
+  .gate-cell { grid-column: 1 / -1; padding: 14px 16px; background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); font-size: 14px; }
+  .gate-cell .gid { font-family: var(--f-round); font-weight: 700; color: var(--amber); display: block; margin-bottom: 4px; }
+
+  ul.none { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  ul.tight { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: 5px; }
+
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 20px; border: 1px solid currentColor; white-space: nowrap; line-height: 1.6; font-weight: 500; }
+  .t-det { color: var(--green); background: var(--green-soft); }
+  .t-ai { color: var(--red); background: var(--red-soft); }
+  .t-ops { color: var(--amber); background: var(--amber-soft); }
+  .size { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+  .warnmark { color: var(--red); font-weight: 700; }
+
+  table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  th { background: var(--surface-2); font-family: var(--f-round); font-size: 13px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--line-strong); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 26px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
+  .legend div { display: flex; align-items: center; gap: 9px; }
+
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: 0 10px 10px 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; box-shadow: var(--shadow); }
+  .callout.warn { border-left-color: var(--red); }
+  .callout h3 { font-weight: 700; font-size: 16px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+  .card p, .card li { font-size: 14px; line-height: 1.75; }
+  .card .where { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  dl.glossary { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 0; margin: 0; }
+  dl.glossary dt { font-family: var(--f-round); font-weight: 700; padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); }
+  dl.glossary dd { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+  dl.glossary dt:last-of-type, dl.glossary dd:last-of-type { border-bottom: none; }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 640px) {
+    .wrap { padding: 36px 16px 64px; } h1 { font-size: 28px; }
+    dl.glossary { grid-template-columns: 1fr; }
+    dl.glossary dt { border-bottom: none; padding-bottom: 0; }
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">apparness のしくみ</div>
+  <h1>ハーネスのしくみ案内</h1>
+  <p class="lede">
+    アプリが「思いつき」から「動くもの」になるまでに、誰が何をして、どこで足止めを食らうのか。
+    仕組みが<b>自動で止めてくれること</b>と、<b>AI の判断に任されていること</b>を分けて示します。
+  </p>
+</header>
+
+<section>
+  <div class="sec-head">
+    <h2>そもそも何をする仕組みか</h2>
+  </div>
+  <div class="prose">
+    <p>
+      AI にアプリを作らせると、話が進むうちに「作ったつもり」「テストしたつもり」が混ざります。
+      この仕組みは、<b>その「つもり」を機械が確かめられる形に変える</b>ためのものです。
+    </p>
+    <p>
+      やり方は 2 つ。ひとつは、作業を <b>順番の決まった 6 つの段階</b>に切り、
+      段階の変わり目に<b>関所（ゲート）</b>を置くこと。もうひとつは、
+      <b>今どの作業をしているかによって、書き換えられるフォルダを機械的に制限する</b>ことです。
+      制限は git のブランチと作業フォルダで決まり、AI が自分で外すことはできません。
+    </p>
+    <p>
+      アプリは「入り口と出口さえ分かれば中身を知らなくていい」小さな機能に分割されます。
+      だから機能ごとに担当を分けて、同時に作れます。
+    </p>
+  </div>
+</section>
+
+<div class="legend">
+  <div><span class="tag t-det">自動で止まる</span> 仕組みが機械的に判定。AI はごまかせない</div>
+  <div><span class="tag t-ops">お願いベース</span> 指示に書いてあるだけ。やったか確認されない</div>
+  <div><span class="tag t-ai">AI まかせ</span> 中身の良し悪しの判断。機械では確かめられない</div>
+</div>
+
+<section>
+  <div class="sec-head">
+    <h2>全工程の図</h2>
+    <p class="muted" style="font-size:15px;max-width:64ch">
+      上から下へ進みます。オレンジ色の帯が<b>関所</b>で、条件を満たさないと次に進めません。
+      「読む資料」の数字は文書の大きさ（バイト数）で、<span class="warnmark">▲</span> は<b>まるごと読んでいる</b>ところです。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <div class="lane">
+      <div class="hd">段階</div>
+      <div class="hd">担当</div>
+      <div class="hd">読む資料</div>
+      <div class="hd">動く道具</div>
+      <div class="hd">作業場所と、<br>触れないフォルダ</div>
+
+      <div class="phase"><span class="pid">1</span><b>下ごしらえ</b></div>
+      <div>人間 ＋ 雛形作成の手順書<br><span class="muted">（init-app）</span></div>
+      <div><ul class="none">
+        <li>ルールブックの「自動化の度合い」の章だけ</li>
+        <li>各種ひな形ファイル</li>
+      </ul></div>
+      <div>フォルダとファイルの雛形を作る道具<br><span class="muted">進捗表も一緒に作られる</span></div>
+      <div>このアプリ専用の作業枝を作る<br><span class="muted">仕組み本体のフォルダには触れない</span></div>
+
+      <div class="phase"><span class="pid">2</span><b>要件を決める</b></div>
+      <div>要件の担当 AI<br><span class="muted">（requirements-analyst）</span></div>
+      <div><ul class="none">
+        <li><span class="warnmark">▲</span> ルールブック <b>まるごと</b> <span class="size">35,813 B</span></li>
+        <li>自動化の度合いの設定ファイル</li>
+        <li>要件の書式定義</li>
+      </ul></div>
+      <div>書式が正しいか確かめる道具<br>進捗表を作り直す道具</div>
+      <div>アプリ専用の作業枝<br><span class="muted">書けるのは「要件」フォルダだけ</span></div>
+
+      <div class="gate-cell">
+        <span class="gid">関所 1 ── 要件の承認</span>
+        <span class="tag t-det">自動で止まる</span> 承認済みにするなら、承認した人の名前と日時が空欄ではいけない。
+        　<span class="tag t-ai">AI まかせ</span> <b>「本当に人間が承認したか」は確かめられません。</b>
+        名前欄に文字が入っていれば通ってしまいます。ここは仕組みの一番の弱点です。
+      </div>
+
+      <div class="phase"><span class="pid">3</span><b>設計する</b></div>
+      <div>設計の担当 AI<br><span class="muted">（solution-architect）</span></div>
+      <div><ul class="none">
+        <li><span class="warnmark">▲</span> ルールブック <b>まるごと</b> <span class="size">35,813 B</span><br><span class="muted">「特にこの章」とは書いてあるが、実際は全部読む</span></li>
+        <li>決まった要件</li>
+        <li>安全面の最低ライン <span class="size">4,165 B</span></li>
+        <li>技術ごとの作法の決まりごと <span class="size">5,456 B</span></li>
+      </ul></div>
+      <div>書式を確かめる道具<br>機能どうしの受け渡しが噛み合うか確かめる道具<br>要件の取りこぼしを探す道具</div>
+      <div>アプリ専用の作業枝<br><span class="muted">書けるのは「共通の土台」と「設計」フォルダ。承認後は設計の契約書が凍結される</span></div>
+
+      <div class="gate-cell">
+        <span class="gid">関所 2 ── 設計の承認</span>
+        <span class="tag t-det">自動で止まる</span> 設計が「どの版の要件にもとづくか」の記載が、実際の要件の版と一致しないと承認できない。
+        承認後は設計の契約書を書き換えられない。
+        　<span class="tag t-ai">AI まかせ</span> 機能の分け方が本当に独立しているか、選んだ技術やテストの手順が妥当か。
+      </div>
+
+      <div class="phase"><span class="pid">4</span><b>作業場を分ける</b></div>
+      <div>人間 ＋ 作業場作成の手順書<br><span class="muted">（new-feature-worktree）</span></div>
+      <div><ul class="none">
+        <li>設計書の機能一覧</li>
+        <li>その機能の契約書（作業場へ複製）</li>
+      </ul></div>
+      <div>機能ごとの作業フォルダを切り出す道具<br><span class="muted">必要な資料が揃っているか先に確かめる</span></div>
+      <div>機能ごとの作業枝を作る<br><span class="muted">実体は専用フォルダの中</span></div>
+
+      <div class="gate-cell">
+        <span class="gid">関所 3 ── 作業場を作れる条件</span>
+        <span class="tag t-det">自動で止まる</span> 設計が承認済みであること。機能一覧にその機能があること。
+        <b>要件・共通の土台・設計の 3 つが、切り出し元にちゃんと入っていること。</b>
+        欠けていたら作業場を作らずに止まります。
+      </div>
+
+      <div class="phase"><span class="pid">5</span><b>機能を作る</b></div>
+      <div>実装の担当 AI<br><span class="muted">（feature-builder）</span><br>作業場ごとに<b>別々の会話</b>で動かす<br><br>審査の担当 AI<br><span class="muted">（gate-reviewer）書き換え権限なし</span></div>
+      <div><ul class="none">
+        <li>その機能の仕様書・契約書・状態ファイル <span class="size">自分の担当分だけ</span></li>
+        <li>共通の土台のうち<b>必要な項目だけ</b></li>
+        <li>安全面の最低ライン <span class="size">4,165 B</span></li>
+        <li>見た目の最低ライン <span class="size">3,576 B・画面がある時だけ</span></li>
+        <li>審査担当は<b>審査基準だけ</b> <span class="size">4,871 B</span></li>
+        <li class="muted">ルールブックは読まない</li>
+      </ul></div>
+      <div>宣言されたテストを<b>実際に走らせて</b>結果を記録する道具<br><span class="muted">成績表（受領書）が作られる</span></div>
+      <div>機能ごとの作業枝<br>
+        <span class="muted"><b>触れない:</b> 他の人の機能フォルダ／要件・土台・設計／承認済みの契約書／仕組み本体</span></div>
+
+      <div class="gate-cell">
+        <span class="gid">関所 4 ── 「テスト済み」にできる条件</span>
+        <span class="tag t-det">自動で止まる</span> ここが仕組みの心臓部です。
+        <b>成績表があること・宣言された全コマンドが成功していること・成績表が今の状態に対して取られたものであること・
+        宣言したテストが実在して通っていること。</b>成績表を手書きすることはできません。
+        状態は 1 段ずつしか進められません。
+        <br>　<span class="tag t-ai">AI まかせ</span> 審査担当が「これは重大な問題だ」と判断する部分。
+        しかも<b>審査結果は記録されるだけで、通せんぼはしません</b>。
+        　<span class="tag t-ops">お願いベース</span> コードレビューを実際にやったかどうか。
+      </div>
+
+      <div class="phase"><span class="pid">6</span><b>組み上げる</b></div>
+      <div>統合の担当 AI<br><span class="muted">（integrator）</span><br>元の作業場所で動かす</div>
+      <div><ul class="none">
+        <li>設計書の<b>機能どうしの受け渡し一覧</b></li>
+        <li>共通の土台</li>
+        <li>進捗表（全機能の状態を見る）</li>
+        <li>安全面・見た目の最低ライン</li>
+      </ul></div>
+      <div>受け渡しが噛み合うか確かめる道具<br>各機能の作業枝を合流させる</div>
+      <div>元の作業枝<br><span class="muted">仕組み本体には触れない</span></div>
+
+      <div class="gate-cell" style="border-bottom:none">
+        <span class="gid">関所 5 ── 組み上げ完了</span>
+        <span class="tag t-det">自動で止まる</span> 機能どうしの受け渡しの型が食い違っていないか、
+        要件がテストまで辿れるか、各機能の成績表が今も有効か。これらは後から自動で再検査されます。
+        <br>　<span class="tag t-ai">AI まかせ</span> <b>「全機能が本当に終わっているか」の確認</b>／結合テストで何を試すかの選び方／つなぎ方が意味的に正しいか。
+        　<span class="tag t-ops">お願いベース</span> セキュリティ点検とコードレビューの実施。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>作業場所によって、触れる場所が変わる</h2>
+    <p class="muted" style="font-size:15px;max-width:64ch">
+      これが「分担して同時に作業できる」ことの土台です。約束ごとではなく、機械が拒否します。
+      うっかりコマンドで書き換えてしまった場合も、あとから比べて<b>元に戻されます</b>。
+    </p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>どんな作業をしているとき</th><th>書き換えられる場所</th><th>止められる場所</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>仕組み自体を直しているとき</b><br><span class="muted">専用の作業枝が必要</span></td>
+          <td>仕組み本体のフォルダすべて ＋ アプリのフォルダ</td>
+          <td>なし。<b>仕組みを直せる唯一の状態</b></td>
+        </tr>
+        <tr>
+          <td><b>アプリの要件・設計を書いているとき</b></td>
+          <td>そのアプリの要件・共通の土台・設計のフォルダ</td>
+          <td>仕組み本体のフォルダ<br>承認後の設計の契約書</td>
+        </tr>
+        <tr>
+          <td><b>ひとつの機能を作っているとき</b><br><span class="muted">その機能専用の作業場にいる</span></td>
+          <td>自分の担当機能のフォルダ<br>どの機能の状態ファイルも</td>
+          <td><b>他の人の機能フォルダ</b><br>要件・共通の土台・設計<br>承認済みの契約書<br>必要な道具が揃っていない時のプログラム本体<br>仕組み本体</td>
+        </tr>
+        <tr>
+          <td><b>組み上げているとき</b></td>
+          <td>アプリのフォルダ全般</td>
+          <td>仕組み本体のフォルダ</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <h3>なぜこうしているか</h3>
+    <p>担当者が「ついでに」他人の機能や設計を直せてしまうと、分担が成り立ちません。
+      <b>触れないようにしておけば、他人の中身を知らなくても安心して自分の担当に集中できます。</b>
+      設計を変えたくなったら、実装を止めて設計からやり直す、というルートに戻されます。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>気をつけて見たほうがいいところ</h2>
+    <p class="muted" style="font-size:15px;max-width:64ch">
+      「自動で止まる」ように見えて、実は止まらないところ。実際のファイルを調べて確かめたものです。
+    </p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <h3><span class="tag t-ai">読みすぎ</span> ルールブックを 2 回まるごと</h3>
+      <p>要件担当と設計担当が、35,813 バイトのルールブックを<b>それぞれ全部読んでいます</b>。
+        設計担当には「特にこの章」と書いてありますが、必要な章だけを取り出す指示はありません。</p>
+      <p><b>改善案:</b> 章の見出しの形が揃っているので、コマンドで<b>その章だけを切り出して渡す</b>ことができます。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">お手本</span> 実装担当と審査担当</h3>
+      <p>実装担当は<b>ルールブックを読みません</b>（必要な決まりは担当者向けの指示書に書いてある）。
+        審査担当は<b>審査基準の 1 ファイルだけ</b>を見て、それ以外の指摘は無効と決めています。
+        必要なものだけ渡す、という考え方が既に実践されている場所です。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">機械にできそう</span> 「全部終わったか」の確認</h3>
+      <p>組み上げに入る前の「全機能が終わっているか」を、今は AI が進捗表を読んで判断しています。
+        でも進捗表は<b>機械が読める形</b>で用意されているので、
+        「終わっていない機能が 1 つでもあれば止める」を自動化できます。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-ai">記録だけで止めない</span> 審査の結果</h3>
+      <p>審査担当は「重大な問題が 1 件でもあれば不合格」と機械的に決めますが、
+        <b>何を重大とみなすかは AI の判断</b>です。しかも<b>不合格でも先に進めてしまいます</b>
+        （結果は記録されるだけ）。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-ops">やったか確かめていない</span> レビューの実施</h3>
+      <p>コードレビューとセキュリティ点検は「必須の手順」とされていますが、
+        <b>実際にやったかを確かめる仕組みがありません</b>。見つからなければ報告して先へ進む設計です。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">会話をリセットできる場所</span></h3>
+      <p>各段階の成果はすべてファイルに残ります（要件 → 設計 → 契約書 → 成績表 → 組み上げ記録）。
+        つまり<b>段階をまたいで会話を覚えておく必要はありません</b>。
+        次の段階は、前の段階が残したファイルだけを見れば始められます。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-ai">抜け道</span> コマンドで書き換えた場合</h3>
+      <p>状態の進め方・要件と設計のつじつま・成績表の 3 つのチェックは、
+        <b>書き換え前と後を見比べる</b>やり方なので、コマンドで直接書き換えると<b>一度も動きません</b>。</p>
+      <p><b>改善案:</b> これらのファイルへのコマンド経由の書き換えを<b>まるごと禁止</b>すれば、
+        必ず見比べる経路を通ります。</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-ai">いちばんの弱点</span> 承認が伝聞になる</h3>
+      <p>要件担当の AI は、本来なら人間に直接たずねる道具を持っているはずが<b>実際には使えません</b>。
+        そのため承認は「親が人間に聞いて、担当 AI に伝える」形になり、
+        <b>AI が AI の伝聞をもとに「承認済み」と書き込む</b>ことになります。
+        承認の書き込みは親側の仕事にまとめるのが素直な直し方です。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>用語の言いかえ</h2>
+  </div>
+  <dl class="glossary">
+    <dt>ハーネス</dt><dd>AI にアプリを作らせるための、手順と安全装置ひとまとめ。馬具の「引き綱」から。</dd>
+    <dt>担当 AI（エージェント）</dt><dd>ひとつの役割だけを与えられた AI。役割ごとに、読める資料と使える道具が決まっている。</dd>
+    <dt>手順書（スキル）</dt><dd>「こういう時はこの順でやる」と書かれた作業手順。人が呼び出して使う。</dd>
+    <dt>安全装置（フック）</dt><dd>ファイルを書き換えようとした瞬間に割り込んで、良し悪しを判定する仕組み。AI は迂回できない。</dd>
+    <dt>作業枝（ブランチ）</dt><dd>git で作業を枝分かれさせたもの。どの枝にいるかで、書き換えられる場所が変わる。</dd>
+    <dt>作業場（ワークツリー）</dt><dd>枝ごとに用意された独立した作業フォルダ。機能ごとに分けることで同時作業ができる。</dd>
+    <dt>契約書（コントラクト）</dt><dd>機能の入り口と出口の取り決め。これさえ守れば中身は自由、という境界線。</dd>
+    <dt>成績表（受領書）</dt><dd>テストを実際に走らせた結果の記録。手書きできない。これが無いと「テスト済み」にできない。</dd>
+    <dt>関所（ゲート）</dt><dd>段階の変わり目にある通過条件。満たさないと次に進めない。</dd>
+  </dl>
+</section>
+
+<footer class="prose" style="border-top:1px solid var(--line);padding-top:22px">
+  <p class="muted" style="font-size:13.5px">
+    この案内は、実際のファイルを調べて書いています。文書の大きさは実測値です。
+    正確な用語つきの版は「実行フロー精査図」を参照してください。
+  </p>
+</footer>
+
+</div>

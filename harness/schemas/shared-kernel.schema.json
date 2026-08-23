@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/shared-kernel.schema.json",
+  "title": "Shared Kernel",
+  "description": "apps/<app-id>/01-foundation/shared-kernel.yaml の検証スキーマ。全機能が共通で依存してよい最小限の契約（DDD でいう Shared Kernel）。アプリ固有の共有事項を自由に追加できるよう additionalProperties は許可し、ハーネスが解釈するキーだけを検証する。",
+  "type": "object",
+  "required": [
+    "app_id",
+    "version"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "common_types": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "auth": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "data_store": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "required_skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "plugin_ref",
+          "purpose"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "plugin_ref": {
+            "type": "string",
+            "minLength": 1,
+            "description": "<plugin-name>@<marketplace> 形式。Rule 5 が enabledPlugins と突き合わせる。"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "skill",
+              "stack-pack"
+            ],
+            "description": "stack-pack はスタック固有の標準を外部化したプラグイン（CONVENTIONS.md 13節）。省略時は skill。"
+          },
+          "applies_to": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            "description": "この Skill を必須とする feature_id の一覧。省略または空配列なら全機能に適用する（既定は従来どおりの全機能適用）。特定機能だけが必要な Skill（デザイン系など）を、無関係な機能の実装にまで要求しないために使う。"
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "description": "検証コマンドの宣言（ハーネスは値を一切解釈せず、そのまま実行して終了コードだけを見る）。CONVENTIONS.md 12節。shared-kernel.yaml に全機能共通の宣言を置き、contract.yaml でキー単位に上書きできる。",
+      "additionalProperties": false,
+      "properties": {
+        "working_dir": {
+          "type": "string",
+          "description": "コマンドを実行するディレクトリ（03-features/<feature-id>/ からの相対）。省略時は機能ディレクトリ直下。"
+        },
+        "test_command": {
+          "type": "string",
+          "description": "単体テストを実行するコマンド。TESTED にするには宣言が必須。"
+        },
+        "build_command": {
+          "type": "string"
+        },
+        "typecheck_command": {
+          "type": "string"
+        },
+        "lint_command": {
+          "type": "string"
+        },
+        "junit_xml": {
+          "type": "string",
+          "description": "test_command が出力する JUnit XML のパス（working_dir からの相対）。宣言すると空振り検出・スキップ率・テスト識別子の照合が有効になる。出力できない技術なら宣言しなくてよい（終了コードによるゲートは効き続ける）。"
+        },
+        "max_skip_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "スキップされたテストの許容割合（既定 0.2）。junit_xml を宣言した場合のみ有効。"
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+# ハーネス自身のテスト（harness/tests/*.py）を実行するための依存関係。
+# アプリ側の技術スタックとは無関係で、ハーネスを保守する人間と CI だけが使う。
+# インストール: pip install -r harness/requirements-dev.txt
+-r requirements.txt
+pytest>=8.0

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/integration.schema.json",
+  "title": "Integration Record",
+  "description": "apps/<app-id>/04-integration/integration.machine.yaml の検証スキーマ。architecture.machine.yaml の interfaces[] に列挙された各エッジ（producer_feature.output → consumer_feature.input）が、実装同士を実際に繋いだ結合テストで検証されたことを機械的に確認するための宣言と受領書。check_interfaces.py が契約同士（JSON Schema）の整合を見るのに対し、こちらは integrator が書いた実行可能なテストが実際に通ったことを見る。",
+  "type": "object",
+  "required": [
+    "app_id",
+    "interface_coverage",
+    "verification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "interface_coverage": {
+      "type": "array",
+      "description": "architecture.machine.yaml の interfaces[] の各エントリに対応づけて、それを実地に検証する結合テストの識別子を宣言する。全エッジが1件以上のtest_idsを持つことをcheck_integration_traceability.pyが機械検証する。",
+      "items": {
+        "type": "object",
+        "required": [
+          "producer_feature",
+          "producer_output",
+          "consumer_feature",
+          "consumer_input",
+          "test_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "producer_feature": {
+            "type": "string"
+          },
+          "producer_output": {
+            "type": "string"
+          },
+          "consumer_feature": {
+            "type": "string"
+          },
+          "consumer_input": {
+            "type": "string"
+          },
+          "test_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "JUnit XML の <testcase> と照合される識別子（feature-contract.schema.json の test_strategy.coverage[].test_ids と同じ規約）。"
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "description": "assembly の検証コマンドの宣言（ハーネスは値を一切解釈せず、そのまま実行して終了コードだけを見る）。working_dir は 04-integration/ からの相対（既定 'assembly'）。",
+      "additionalProperties": false,
+      "properties": {
+        "working_dir": {
+          "type": "string"
+        },
+        "test_command": {
+          "type": "string"
+        },
+        "build_command": {
+          "type": "string"
+        },
+        "typecheck_command": {
+          "type": "string"
+        },
+        "lint_command": {
+          "type": "string"
+        },
+        "junit_xml": {
+          "type": "string"
+        },
+        "max_skip_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "verification_receipt": {
+      "type": "object",
+      "description": "run_integration_verification.py が生成する。手書き禁止（Rule 11）。"
+    }
+  }
+}

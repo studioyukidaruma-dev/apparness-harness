@@ -1,0 +1,42 @@
+# 設計書: {{APP_NAME}}
+
+> このファイルは人間向けです。機械向けの構造化データは `architecture.machine.yaml` と
+> `features/<feature-id>.contract.yaml` を参照してください。
+
+- app_id: `{{APP_ID}}`
+- design_version: {{DESIGN_VERSION}}
+- based_on_requirements_version: {{REQUIREMENTS_VERSION}}
+- status: {{STATUS}}
+
+## 全体アーキテクチャ概要
+
+(機能同士のつながりを図または文章で説明する。個々の内部実装には立ち入らない)
+
+## 共有基盤 (Shared Kernel)
+
+全機能が依存してよい最小限の共有契約。詳細は `../01-foundation/shared-kernel.yaml`。
+むやみに増やさないこと（増やすほど機能の独立性が損なわれる）。
+
+## 機能一覧 (Features)
+
+| ID | 名前 | 概要 | 技術スタック | 契約ファイル |
+|---|---|---|---|---|
+| | | | | `features/<feature-id>.contract.yaml` |
+
+## 機能間のつながり (Interfaces)
+
+| 出力元機能 | 出力 | 入力先機能 | 入力 |
+|---|---|---|---|
+| | | | |
+
+機能同士は上表の入出力接続でのみ結合する。`depends_on` のような直接依存は持たせない
+（`harness/CONVENTIONS.md` 6節を参照）。
+
+## 技術スタック選定の根拠
+
+各ライブラリについて、ライセンス・保守状況・既知の脆弱性を確認したうえで選定すること。
+選定理由をここに記録する（機能ごとの詳細は各 `contract.yaml` の `tech_stack` に記載）。
+
+## 進捗
+
+進捗そのものはここに手書きしない。`apps/{{APP_ID}}/PROGRESS.md`（自動生成）を参照。

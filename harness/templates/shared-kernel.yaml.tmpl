@@ -1,0 +1,59 @@
+# 全機能が依存してよい最小限の共有契約（DDD でいう Shared Kernel）。
+# ここに置くものは変更コストが高いことを認識し、本当に全機能共通のものだけに限定する。
+app_id: "{{APP_ID}}"
+version: 1
+# 例:
+# common_types:
+#   - name: UserId
+#     json_schema: { "type": "string", "format": "uuid" }
+# auth:
+#   scheme: ""
+#   token_format: ""
+# data_store:
+#   policy: ""
+common_types: []
+auth: {}
+data_store: {}
+# solution-architect が設計時にユーザーへ確認し、プラグインとして追加インストールが必要な
+# Skill（デザイン系・専門的なルール集など）を使うと決めたらここに列挙する。ここに書かれた
+# Skill は「実装フェーズの必須要件」になる。feature-builder は実装開始前に、各 plugin_ref が
+# 有効化されているか Hook で機械的に検証され、欠けていればブロックされる
+# （harness/CONVENTIONS.md 10節参照）。Claude Code 標準搭載の security-review/code-review は
+# ここに含めない（常時利用可能という前提のため）。
+# 選んだ技術スタックに対応する「スタックパック」（スタック固有の標準を外部化したプラグイン。
+# harness/STACK_PACK.md）を使う場合も、ここに kind: stack-pack として登録する。
+# applies_to（任意）: この Skill を必須とする feature_id の配列。省略・空なら全機能に適用する。
+# UI を持つ機能だけが必要とするデザイン系 Skill 等、特定機能にしか関係しない Skill を、
+# 無関係な機能の実装にまで要求しないために使う（スタックパックのように全機能で使うものは省略でよい）。
+# 例:
+# required_skills:
+#   - name: "frontend-design"
+#     plugin_ref: "frontend-design@claude-plugins-official"
+#     purpose: "UIデザインの品質担保"
+#     applies_to: ["web-frontend"]
+#   - name: "python-stack-pack"
+#     plugin_ref: "python-stack-pack@your-marketplace"
+#     purpose: "Python + FastAPI の標準（バージョン下限・禁止パターン・テスト規約）"
+#     kind: "stack-pack"
+required_skills: []
+# 全機能共通の検証コマンドの宣言（CONVENTIONS.md 12節）。ハーネスは値を一切解釈せず、
+# そのままシェルに渡して実行し、終了コードだけを見る。機能ごとに違うコマンドが必要な場合は
+# contract.yaml の `verification:` でキー単位に上書きする。
+# **`test_command` を宣言しない限り、どの機能も `state: TESTED` にできない**
+# （Rule 10 が拒否する）。solution-architect が技術スタックを決めたときに必ず埋めること。
+# Lint は**有効にするルールを明示**すること。既定のルールセットに任せると、ランナーを
+# 更新しただけでゲートの意味が勝手に変わる（ruff 0.16 では既定の有効ルールが 59 → 413 に増えた）。
+# 例（Python の場合。他の言語なら当然まったく別のコマンドになる）:
+# verification:
+#   working_dir: "."
+#   test_command: "pytest -q --junitxml=.verify/junit.xml"
+#   typecheck_command: "mypy src"
+#   lint_command: "ruff check --select E,F,I ."
+#   junit_xml: ".verify/junit.xml"
+#   max_skip_ratio: 0.2   # 0.0 にする前に下を読むこと
+# max_skip_ratio を 0.0 にすると、環境依存で skip するテスト（root では再現できない権限エラー、
+# OS 依存の分岐など）を 1 件でも書いた時点でその機能を TESTED にできなくなる。実装者は
+# skip を避けるためにテスト側へ環境判定の分岐を持ち込むことになり、テストが読みにくくなる。
+# 「スキップを許さない」ではなく「許容する割合」を決める欄なので、0.0 は慎重に選ぶこと。
+verification: {}
+notes: ""

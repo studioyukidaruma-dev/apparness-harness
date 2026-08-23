@@ -1,0 +1,73 @@
+# schema: harness/schemas/feature-contract.schema.json
+# この機能の入出力の唯一の情報源。担当者はこのファイルと SPEC.md だけを見れば実装できる。
+# CONTRACT_APPROVED 以降は harness/hooks/pre_tool_use_guard.py により書き込みが凍結される。
+feature_id: "{{FEATURE_ID}}"
+feature_name: "{{FEATURE_NAME}}"
+version: 1
+description: ""
+inputs: []
+# 例:
+# inputs:
+#   - name: "todo_title"
+#     json_schema: { "type": "string", "minLength": 1 }
+#     required: true
+#     description: ""
+#     example: "牛乳を買う"
+outputs: []
+# 例:
+# outputs:
+#   - name: "todo_item"
+#     json_schema: { "type": "object", "properties": { "id": { "type": "string" } } }
+#     description: ""
+side_effects: []
+error_cases: []
+# 例:
+# error_cases:
+#   - code: "INVALID_TITLE"
+#     condition: "title が空文字"
+#     response_shape: { "type": "object" }
+tech_stack:
+  language: ""
+  framework: ""
+  libraries: []
+  # 例:
+  # libraries:
+  #   - name: ""
+  #     version: ""
+  #     license: ""
+  #     notes: "選定理由（保守状況・既知脆弱性の確認結果）"
+# shared-kernel.yaml の `verification:` をこの機能だけ上書きしたい場合のみ書く
+# （キー単位の上書き。書かなければ共通の宣言がそのまま使われる）。
+# 例:
+# verification:
+#   test_command: "pytest -q tests/ --junitxml=.verify/junit.xml"
+non_functional: {}
+# 何をどう検証するかの方針（approach）と、要件の受入基準 → テスト識別子の対応（coverage）。
+# coverage[] に書いたテスト識別子は run_verification.py が JUnit XML と突合し、
+# 「実在して成功したこと」を機械検証する（CONVENTIONS.md 14節）。
+# この機能が covers_requirements で覆うと宣言した要件は、すべてここに現れる必要がある。
+# さらに、その要件を覆う全機能の coverage[] を合算して acceptance_criteria を全て覆うこと
+# （受入基準の分担ルール。CONVENTIONS.md 13節）。
+# 例:
+# test_strategy:
+#   approach: "契約の inputs/outputs/error_cases を単体テストで網羅する"
+#   coverage:
+#     - requirement: "FR-1"
+#       acceptance_criterion: "空のタイトルは拒否される"
+#       test_ids: ["tests/test_todo.py::test_empty_title"]
+test_strategy:
+  approach: ""
+  coverage: []
+created_at: null
+approved_at: null
+approved_by: null
+# 承認欄は new_feature_scaffold.py が設計承認（architecture.machine.yaml）から引き継ぐ。
+# 凍結後に見つかった契約の穴の申し送り。**末尾への追記のみ**許可されている（Rule 3）。
+# 例:
+# open_issues:
+#   - id: "OI-1"
+#     summary: "エラー時の終了コードが契約に書かれていない"
+#     found_at: "2026-08-22T10:00:00Z"
+#     found_by: "feature-builder"
+#     severity: "Minor"
+open_issues: []

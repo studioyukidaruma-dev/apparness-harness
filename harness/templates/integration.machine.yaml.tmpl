@@ -1,0 +1,11 @@
+# schema: harness/schemas/integration.schema.json
+# integrator が統合フェーズで埋める。architecture.machine.yaml の interfaces[] の各エッジに、
+# それを実地に検証する結合テストの識別子（interface_coverage[].test_ids）を対応づけ、
+# `python3 harness/scripts/run_integration_verification.py --app {{APP_ID}}` で検証コマンドを
+# 実行して受領書を作る。verification_receipt は手書き禁止（Rule 11）。
+# 全エッジがカバーされ、受領書が現在の HEAD と一致するまで各機能の status.yaml を
+# state: INTEGRATED にできない。
+app_id: "{{APP_ID}}"
+interface_coverage: []
+verification:
+  working_dir: "assembly"
