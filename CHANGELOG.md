@@ -58,6 +58,9 @@
 
 ### Documentation
 
+- `harness/README.md` を 12 ルール・SessionStart 自己診断・`CLAIMS.md` / `procedures/` /
+  `VERSION` の追加に追随させた。
+
 - `HARNESS_GUIDE.md` 11節（既知の制約）を **4 点セット**（症状 / 根本原因 / 適用中の緩和策 /
   再検討の条件）に統一し、「ハーネスの制御外に根本原因があるもの（A-1〜A-5）」と
   「apparness 側で直せるもの（B-1〜B-5）」に分けた。B は改修計画の `tasks[]` に昇格させ、

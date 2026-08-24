@@ -84,7 +84,12 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 - `harness/quality/` — セキュリティ・デザインの最低ラインと、レビューの判断基準
   （`review-rubric.md`）を定める文書
 - `harness/tests/` — ハーネス自身の決定論ロジックの pytest（CI の `harness-selftest` ジョブ）
+- `harness/procedures/` — フェーズ固有の長い手順（オンデマンド読み込み。コンテキスト予算の対象外）
+- `harness/CLAIMS.md` — **主張と証跡の対応表。** 「何をブロックすると主張するか」と
+  「それを実証しているテスト」の対応。CI の項目 P が表と実体の drift を機械的に見張る
 - `harness/STACK_PACK.md` — スタック固有の標準を外部プラグインとして接続するための仕様
+- `VERSION` / `CHANGELOG.md`（リポジトリルート）— ハーネスの版と変更履歴。CI の項目 Q が、
+  ハーネス本体を触ったコミットで CHANGELOG が更新されていることを要求する
 
 ## 品質保証（セキュリティ・デザイン）
 
@@ -115,10 +120,19 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 
 `CONVENTIONS.md` 7 節を参照。ハーネス非侵襲性・担当外ガード・契約凍結・進捗自動再生成・
 必須Skillの充足ゲート・上位文書ガード・要件↔設計の整合性ゲート・フェーズ節目のコミット強制・
-状態遷移の妥当性チェック・**検証受領書ゲート**の 10 つを Claude Code の
-PreToolUse / PostToolUse / Stop / SubagentStop hooks で強制しています。Bash 経由の間接的な
-書き込みは、静的検知でブロックしたうえ、すり抜けた場合も**実行後の `git status` 比較で検出して
-巻き戻します**。AI の自己申告には頼っていません。
+状態遷移の妥当性チェック・**検証受領書ゲート**・統合の受領書ゲート・**危険操作フロア**の
+12 個を Claude Code の SessionStart / PreToolUse / PostToolUse / Stop / SubagentStop hooks で
+強制しています。Bash 経由の間接的な書き込みは、静的検知でブロックしたうえ、すり抜けた場合も
+**実行後の内容ハッシュ比較で検出して巻き戻します**。AI の自己申告には頼っていません。
+
+強制レイヤ自身が壊れていないかは、セッション開始時に
+`harness/hooks/session_start_healthcheck.py` が自己診断し、異常があれば警告と
+`PROGRESS.md` の表示で知らせます（Hook が起動に失敗すると Claude Code はそれを「通過」として
+扱うため、黙って無効化されることを防ぐ）。手動で確認するには:
+
+```
+python3 harness/hooks/session_start_healthcheck.py < /dev/null
+```
 
 ## テストを実際に走らせたことの強制（検証受領書）
 
