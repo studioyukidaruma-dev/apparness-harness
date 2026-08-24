@@ -146,6 +146,7 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
     lines.append(f"- 要件定義 (00-requirements): **{req_status}**")
     lines.append(f"- 設計 (02-design): **{design_status}**")
     lines.append(_enforcement_line(app_dir))
+    lines.append(_harness_version_line(app_dir))
     lines.append("")
 
     if not statuses:
@@ -201,6 +202,21 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
     lines.append("")
 
     write_if_changed(app_dir / "PROGRESS.md", "\n".join(lines))
+
+
+def _harness_version_line(app_dir: pathlib.Path) -> str:
+    """このアプリを作っているハーネスの版（`VERSION`）。
+
+    どの版のハーネスで作られたアプリなのかが成果物から辿れないと、不具合報告と改修の
+    対応が取れない（CI 項目 Q）。
+    """
+    try:
+        version = (_common.harness_root(app_dir).parent / "VERSION").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError:
+        return "- ハーネス版: **不明**（`VERSION` が読めません）"
+    return f"- ハーネス版: **v{version}**"
 
 
 def _enforcement_line(app_dir: pathlib.Path) -> str:

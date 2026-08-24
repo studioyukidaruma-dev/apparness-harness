@@ -34,6 +34,8 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
   O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。凍結の経緯は DOGFOODING-LOG.md 参照）
   P. harness/CLAIMS.md（主張と証跡の対応表）に書かれた実証テストが harness/tests/ に実在し、
      実証テストが無い行には「なぜ実証できないか」が書かれている（表と実体の drift 防止）
+  Q. VERSION / CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは CHANGELOG.md の
+     Unreleased セクションが更新されている（導入された版を機械的に特定できるようにする）
 
 Rule 5（必須Skillの充足）は CI に実行環境の Skill 有効化状態が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既にコミット済みであるため、
@@ -723,6 +725,74 @@ def check_claims_coverage(root: pathlib.Path) -> list[str]:
     return violations
 
 
+# 項目 Q: 版管理（VERSION / CHANGELOG.md）
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+HARNESS_PREFIXES = ("harness/", ".claude/", ".github/")
+UNRELEASED_HEADING_RE = re.compile(r"^##\s*\[?Unreleased\]?", re.MULTILINE | re.IGNORECASE)
+
+
+def read_harness_version(root: pathlib.Path) -> str | None:
+    """`VERSION` の内容（`1.2.3`）。無い・書式違反なら None。"""
+    try:
+        value = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value if SEMVER_RE.match(value) else None
+
+
+def unreleased_entries(changelog_text: str) -> list[str]:
+    """`## [Unreleased]` セクションの箇条書き項目を返す（見出しだけの空セクションは空）。"""
+    m = UNRELEASED_HEADING_RE.search(changelog_text)
+    if not m:
+        return []
+    rest = changelog_text[m.end():]
+    next_section = re.search(r"^## ", rest, re.MULTILINE)
+    body = rest[: next_section.start()] if next_section else rest
+    return [line.strip() for line in body.splitlines() if line.strip().startswith("- ")]
+
+
+def check_versioning(changed: list[tuple[str, str]], root: pathlib.Path) -> list[str]:
+    """項目 Q: 導入されたハーネスの版を機械的に特定できる状態を保つ。
+
+    版が分からないと、不具合報告と改修の対応が取れない（「どの版で起きたか」が言えない）。
+    `VERSION` の存在だけでは腐るので、**ハーネス本体を触ったコミットでは `CHANGELOG.md` の
+    Unreleased セクションが更新されていること**まで機械的に要求する。
+
+    CHANGELOG の**内容が正しいか**は判定しない（記述の有無だけを見る。文章の妥当性を
+    機械が判定できるふりをしない、というのがこのハーネスの一貫した方針）。
+    """
+    violations = []
+    if read_harness_version(root) is None:
+        violations.append(
+            "VERSION: 存在しないか、セマンティック バージョニングの書式（例 1.2.3）ではありません"
+        )
+    changelog_path = root / "CHANGELOG.md"
+    if not changelog_path.exists():
+        return violations + ["CHANGELOG.md: 存在しません（Keep a Changelog 形式で作成してください）"]
+
+    harness_changes = [
+        path for _status, path in changed
+        if path.startswith(HARNESS_PREFIXES) and path != ".claude/settings.local.json"
+    ]
+    if not harness_changes:
+        return violations
+
+    changed_paths = {path for _status, path in changed}
+    if "CHANGELOG.md" not in changed_paths:
+        violations.append(
+            f"CHANGELOG.md: ハーネス本体に {len(harness_changes)} 件の変更"
+            f"（{harness_changes[0]} ほか）がありますが、CHANGELOG.md が更新されていません。"
+            "`## [Unreleased]` に何を変えたかを追記してください"
+        )
+        return violations
+    if not unreleased_entries(changelog_path.read_text(encoding="utf-8")):
+        violations.append(
+            "CHANGELOG.md: `## [Unreleased]` セクションに項目がありません"
+            "（見出しだけでは、何が変わったのか導入側から分かりません）"
+        )
+    return violations
+
+
 def _strip_timestamp(text: str) -> str:
     return TIMESTAMP_LINE_RE.sub("", text)
 
@@ -812,6 +882,7 @@ def main(argv: list[str]) -> int:
     violations += check_progress_freshness(root, branch)
     violations += check_conventions_frozen_section_count(root)
     violations += check_claims_coverage(root)
+    violations += check_versioning(changed, root)
 
     if violations:
         print(f"\nNG: {len(violations)} 件の違反が見つかりました:", file=sys.stderr)
