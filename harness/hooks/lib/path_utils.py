@@ -254,9 +254,13 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
     ヒアドキュメント（`<<EOF` 等）の本体をコマンド境界と誤認しないよう、本体行・終端子行の
     直後は区切りにしない。終端子行が最後に保留していたヒアドキュメントを閉じたら、その行の
     直後からは通常のコマンド境界判定を再開する。
+
+    戻り値は `(行, 区切り文字, 種別)` の列。種別は `"command"`（通常のコマンド行）か
+    `"heredoc"`（ヒアドキュメントの本体行・終端子行）。本体行は**コマンドではなくデータ**なので、
+    パス候補の抽出対象から外せるように区別して返す（F-A4。`_normalize_bash_newlines` 参照）。
     """
     lines = command.split("\n")
-    result: list[tuple[str, str]] = []
+    result: list[tuple[str, str, str]] = []
     quote: str | None = None  # None / "'" / '"'
     heredoc_queue: list[str] = []  # 保留中のヒアドキュメント終端子（出現順、複数連結にも対応）
 
@@ -268,7 +272,7 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
                 sep = ";" if not heredoc_queue else "\n"
             else:
                 sep = "\n"
-            result.append((line, sep))
+            result.append((line, sep, "heredoc"))
             continue
 
         i, n = 0, len(line)
@@ -336,18 +340,32 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
             sep = "\n"
         else:
             sep = ";"
-        result.append((line, sep))
+        result.append((line, sep, "command"))
 
     return result
 
 
-def _normalize_bash_newlines(command: str) -> str:
+def _normalize_bash_newlines(command: str, drop_heredoc_bodies: bool = False) -> str:
     """`_classify_bash_lines` の分類に従い、コマンド境界として扱ってよい改行だけを `;` に
-    変換した文字列を返す（トークン化前の前処理）。"""
+    変換した文字列を返す（トークン化前の前処理）。
+
+    `drop_heredoc_bodies` が真なら、**ヒアドキュメントの本体行と終端子行を落とす**。
+    本体はコマンドではなくデータであり、そこに現れる文字列をコマンドとして解釈すると
+    誤検知になる（F-A4。文書を `cat > x.html <<'EOF' ... EOF` で書き出そうとしたところ、
+    本文の HTML に含まれる `>` が**リダイレクト演算子**として、直後の
+    `harness/hooks/...` が**書き込み先**としてトークン化され、Rule 1 が発火した）。
+
+    落とすのは本体だけで、**ヒアドキュメントを開始した行そのもの**（`cat > path <<EOF` の
+    `> path`）は残す。リダイレクト先は依然として本物の書き込み先だからである。
+
+    本体行は削除するのではなく**中身を空にして行そのものは残す**。行ごと落とすと、終端子行が
+    持っていたコマンド境界（`;`）まで消え、ヒアドキュメントの**後ろにあるコマンド**
+    （`cat <<EOF ... EOF` の次の行の `cp`）が前のセグメントに融合して検知漏れになる。
+    """
     classified = _classify_bash_lines(command)
     parts: list[str] = []
-    for idx, (line, sep) in enumerate(classified):
-        parts.append(line)
+    for idx, (line, sep, kind) in enumerate(classified):
+        parts.append("" if (drop_heredoc_bodies and kind == "heredoc") else line)
         if idx < len(classified) - 1:
             parts.append(sep)
     return "".join(parts)
@@ -361,7 +379,7 @@ def _tokenize_bash_command(command: str) -> list[str] | None:
     クォート不整合等でトークン化できない場合は None を返す（判定不能として安全側＝許可に倒す）。
     """
     try:
-        normalized = _normalize_bash_newlines(command)
+        normalized = _normalize_bash_newlines(command, drop_heredoc_bodies=True)
         lexer = shlex.shlex(normalized, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         return list(lexer)

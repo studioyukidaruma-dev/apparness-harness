@@ -39,7 +39,7 @@
 
 | 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
 |---|---|---|---|---|
-| 静的検知 | `sed -i`/`cp`/`mv`/`tee`/リダイレクトによるガード対象への書き込み | `test_pre_tool_use_guard.py::test_bash_indirect_write_to_a_guarded_path_is_blocked` / `test_pre_tool_use_guard.py::test_bash_cannot_write_files_judged_by_content_comparison` | 2026-08-24 | 変数展開されたパスは原理的に検知できない（だから事後検証がある） |
+| 静的検知 | `sed -i`/`cp`/`mv`/`tee`/リダイレクトによるガード対象への書き込み | `test_pre_tool_use_guard.py::test_bash_indirect_write_to_a_guarded_path_is_blocked` / `test_pre_tool_use_guard.py::test_bash_cannot_write_files_judged_by_content_comparison` / `test_path_utils_bash.py::test_the_heredoc_redirect_target_is_still_detected` | 2026-08-24 | 変数展開されたパスは原理的に検知できない（だから事後検証がある）。ヒアドキュメント本体は**データ**として抽出対象から外している（T-020） |
 | 事後検証 | 静的検知をすり抜けた書き込みの検出と巻き戻し | `test_post_tool_use_guard.py::test_variable_expanded_path_is_detected_and_reverted` / `test_post_tool_use_guard.py::test_write_through_a_script_is_detected_and_reverted` | 2026-08-24 | 実行そのものは止められない（PostToolUse なので事後）。巻き戻せるのはファイル内容だけ |
 
 ## CI 項目（`ci_check.py`）
