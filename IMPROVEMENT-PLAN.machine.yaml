@@ -501,6 +501,30 @@ tasks:
       - "python3 -m pytest harness/tests -q"
     blocked_by: [T-000, T-002]
 
+  # --- T-031（既知の制約の 4 点セット化）で「apparness 側で直せる」に分類され、
+  #     tasks[] に昇格した項目。追加日: 2026-08-24
+  - id: T-040
+    priority: 4
+    title: "Rule 12 の読み取り・外部送信に対する事後検知の追加"
+    why: >
+      HARNESS_GUIDE.md 11節 B-1。Rule 12 の静的検知をすり抜けた秘密ファイルの読み取り・
+      外部送信は、事後に検出する手段が無い。事後検証（post_tool_use_guard.py）は作業ツリーの
+      内容ハッシュ差分を見る仕組みで、読み取りと送信は作業ツリーを変えないため。
+    trigger: >
+      **条件付きタスク。実地で 1 件でもすり抜けが観測されるまで着手しない。**
+      予防的に着手すると、検知手段（プロセス監視・ネットワーク監視）が INV-5（標準ライブラリのみ）
+      と衝突し、監査可能性という優位を失う可能性が高い。
+    targets:
+      - harness/hooks/post_tool_use_guard.py
+      - harness/CLAIMS.md
+    acceptance:
+      - "すり抜けた実例が DOGFOODING-LOG.md に摩擦点として記録されている（着手の前提）。"
+      - "追加した検知が INV-5（Python 標準ライブラリのみ）を満たしている。"
+      - "CLAIMS.md の Rule 12 の行から『未実証の残余』が減っている。"
+    verification:
+      - "python3 -m pytest harness/tests -q"
+    blocked_by: [T-010]
+
 # ---------------------------------------------------------------------------
 # 5. やらないこと
 # ---------------------------------------------------------------------------
@@ -564,6 +588,11 @@ done_criteria:
   phase_3:
     tasks: [T-030, T-031, T-032]
     statement: "運用面の底上げ。非エンジニアが判断でき、制約と失敗が資産化されている。"
+  conditional:
+    tasks: [T-040]
+    statement: >
+      条件付きタスク。trigger に書かれた事象が観測されるまで着手しない。
+      done_criteria には含めない（着手しないことが正しい状態）。
 
 global_verification:
   - "python3 -m pytest harness/tests -q"

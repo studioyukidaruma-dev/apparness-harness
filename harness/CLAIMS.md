@@ -69,3 +69,38 @@
 |---|---|---|---|---|
 | fail-closed | ガード本体で想定外の例外が起きたとき、通過ではなく拒否になること | `test_healthcheck.py::test_unexpected_exception_denies_instead_of_passing` / `test_healthcheck.py::test_the_guard_still_passes_normally_when_nothing_is_wrong` | 2026-08-24 | `python3` 自体が存在しない場合は Hook が起動できないため、ハーネスからは何もできない（SessionStart の自己診断と PROGRESS.md 表示で**可視化**するのが対策） |
 | 自己診断 | 強制レイヤが壊れている状態を検出して報告すること | `test_healthcheck.py::test_broken_hook_import_is_reported` / `test_healthcheck.py::test_missing_hook_registration_is_reported` / `test_healthcheck.py::test_progress_line_reports_the_problem_when_broken` | 2026-08-24 | 検出できても Claude Code 側の Hook 実行を止める手段は無い（報告と可視化まで） |
+
+## 深刻度 最高・高 の摩擦点 → 再発防止テスト
+
+`DOGFOODING-LOG.md` の 79 件の摩擦点は、このハーネスが実地で壊れた記録であり、いちばん価値の高い
+入力である。ところが**テストへの変換が場当たり**だった（改修計画 F-A10）。
+
+**ルール: 深刻度が「最高」または「高」の摩擦点は、再発を検出するテストが無い状態でクローズしない。**
+テストが書けないものは、この表の「未実証の残余」列に**なぜ書けないか**を書く（空欄は CI 項目 P が拒否する）。
+中・低の摩擦点はこの表の対象外（テストがあれば書いてよいが、必須ではない）。
+
+手順は `harness/procedures/friction-to-test.md`。
+
+| 規則 | 何が起きたか | 再発防止テスト | 最終実証日 | 未実証の残余（テスト不要の理由） |
+|---|---|---|---|---|
+| F-004（高） | subagent に `AskUserQuestion` が実際には渡らない | — | — | ハーネス外（どのツールを subagent に渡すかは Claude Code の挙動）。プロンプト側で「渡らない前提で書く」ことでしか対処できない |
+| F-008（高） | 要件・設計の承認では `PROGRESS.md` が再生成されない | `test_dogfooding_fixes.py::test_progress_sync_triggers_on_approval_documents` | 2026-08-24 | — |
+| F-010（高） | 承認の「人間性」が subagent 経由で構造的に失われる | `test_pre_tool_use_guard.py::test_rule7_rejects_requirements_approved_without_approver` | 2026-08-24 | 承認者が**本当に人間か**は機械的に判定できない（`HARNESS_GUIDE.md` 11節 A-3）。テストで固定できるのは「承認記録を伴わない APPROVED を拒否する」ところまで |
+| F-014（最高） | feature worktree が `main` から切られ、上位文書が入らない | `test_dogfooding_fixes.py::test_tracked_in_head_detects_documents_on_another_branch` / `test_dogfooding_fixes.py::test_tracked_in_head_is_false_for_uncommitted_file` | 2026-08-24 | — |
+| F-015（高） | `check_traceability.py` が設計フェーズで実質何も検証しない（指示どおり実行すると偽の安心を得る） | `test_traceability.py::test_design_phase_drafts_are_loaded` / `test_traceability.py::test_design_phase_gap_is_detected_before_any_worktree_exists` | 2026-08-24 | — |
+| F-016（高） | CI 項目 D が、設計フェーズを 1 ブランチで完結させると必ず不合格 | `test_dogfooding_fixes.py::test_contract_freeze_allows_draft_then_approve_in_one_branch` / `test_dogfooding_fixes.py::test_contract_freeze_still_blocks_edit_after_approval` | 2026-08-24 | — |
+| F-021（高） | Bash 経由の書き込みが Rule 7・9・10 を回避できる | `test_pre_tool_use_guard.py::test_bash_cannot_write_files_judged_by_content_comparison` / `test_pre_tool_use_guard.py::test_bash_can_still_read_those_files` | 2026-08-24 | — |
+| F-029（高） | `.worktrees/` を通るパスでは Rule 2・3・5・10 が一切発火しない | `test_worktree_scope.py::test_rule2_blocks_write_into_other_worktree_from_main` / `test_rule_coverage.py::test_rule3_blocks_a_frozen_contract_through_a_worktree_path` / `test_rule_coverage.py::test_rule5_blocks_missing_required_skills_through_a_worktree_path` | 2026-08-24 | — |
+| F-030（最高） | 受領書なしで `state: TESTED` を書き込めた | `test_worktree_scope.py::test_rule10_blocks_tested_without_receipt_via_worktree_path` / `test_worktree_scope.py::test_rule9_blocks_multi_step_jump_via_worktree_path` | 2026-08-24 | — |
+| F-031（高） | `feature-builder` を subagent として起動する経路が存在しない | — | — | 起動経路は Claude Code の Task ツールと agent 定義の問題で、ハーネスからは実行して確かめられない。`harness/procedures/feature-build.md` の手順で担保する |
+| F-033（高） | 受領書とコミットの順序が罠になっており、Rule 8 と噛み合わない | `test_pre_tool_use_guard.py::test_rule10_rejects_a_receipt_from_another_commit` / `test_rule_coverage.py::test_rule8_blocks_stopping_with_an_uncommitted_status_yaml` | 2026-08-24 | 「正しい順序を踏むか」は手順の問題でテストできない。テストで固定できるのは、順序を間違えたときに**両方のルールが期待どおり拒否する**ことまで |
+| F-036（高） | CI 項目 G と項目 C（Rule 2）が feature ブランチ上で両立しない | `test_dogfooding_fixes.py::test_progress_freshness_is_skipped_on_feature_branch` / `test_dogfooding_fixes.py::test_feature_branch_may_carry_regenerated_progress_files` | 2026-08-24 | — |
+| F-048（高） | `CONVENTIONS.md` と agent プロンプトの二重管理 | `test_context_budget.py::test_near_verbatim_copy_into_an_agent_is_detected` / `test_context_budget.py::test_this_repository_has_no_duplication` | 2026-08-24 | 言い換えを伴う重複は検出しない（閾値を上げると正当な具体化まで落ちる） |
+| F-049（高） | worktree 内の `harness/` と、実際に走る Hook の `harness/` がバージョンずれする | `test_dogfooding_fixes.py::test_harness_root_from_a_worktree_points_at_the_main_repo` / `test_dogfooding_fixes.py::test_resolve_harness_path_remaps_a_stale_worktree_copy` | 2026-08-24 | — |
+| F-050（高） | `git add` が事後検証を誤発火させ、正当な `open_issues[]` 追記を巻き戻す | `test_post_tool_use_guard.py::test_git_add_alone_does_not_trigger_a_revert` / `test_post_tool_use_guard.py::test_further_change_to_an_already_dirty_path_is_detected` | 2026-08-24 | — |
+| F-055（高） | worktree の外へ出る書き込みは、どの Rule にも掛からない | `test_dogfooding_fixes.py::test_writing_outside_the_worktree_is_blocked` / `test_dogfooding_fixes.py::test_writing_outside_the_worktree_through_a_relative_path_is_blocked` | 2026-08-24 | — |
+| F-061（高） | `parse_simple_yaml` が `- >-` を解釈できず、以降のトップレベルキーが丸ごと消える | `test_yaml_parser.py::test_block_scalar_as_sequence_item_does_not_lose_following_keys` / `test_yaml_parser.py::test_literal_block_scalar_as_sequence_item` | 2026-08-24 | — |
+| F-063（高） | セッションが自分から Agent/Skill をバックグラウンド起動すると cwd 追跡が失われる | — | — | ハーネス外（Claude Code のセッション管理）。ハーネスから観測も再現もできない。`harness/procedures/feature-build.md` の Bash 注意事項で回避する |
+| F-073（高） | Rule 10/11 の commit 照合が worktree の HEAD ではなく生の cwd を見ていた | `test_worktree_scope.py::test_rule10_uses_worktree_head_not_session_cwd_head` | 2026-08-24 | — |
+| F-074（高） | 統合カバレッジ判定の「統合前は許可する」免除が、scaffold の空テンプレートで機能していなかった | `test_check_integration_traceability.py::test_scaffolded_empty_template_is_treated_as_not_started` / `test_check_integration_traceability.py::test_partial_coverage_still_reports_gaps` | 2026-08-24 | — |
+| F-080（高） | Bash の `cd` 誤操作で Edit/Write のツール cwd 追跡が復旧不能になった | — | — | ハーネス外（Claude Code の cwd 追跡）。F-063 と同根。回避手順は `harness/procedures/feature-build.md` |
