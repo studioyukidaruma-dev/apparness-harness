@@ -6,7 +6,9 @@
 - app_id: `equipment-lending`
 - design_version: 1
 - based_on_requirements_version: 1
-- status: DRAFT（`AUTONOMY.yaml` は `SUPERVISED`。技術スタックの承認後に親セッションが APPROVED を書く）
+- status: APPROVED
+- approved_by: たくみのせ
+- approved_at: 2026-08-24T14:57:54Z（技術スタック・マスタ登録方法・返却単位・貸出数量の 4 点をユーザーが承認）
 
 ## 全体アーキテクチャ概要
 

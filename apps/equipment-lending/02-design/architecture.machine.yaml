@@ -3,7 +3,7 @@
 app_id: "equipment-lending"
 design_version: 1
 based_on_requirements_version: 1
-status: DRAFT
+status: APPROVED
 shared_kernel_ref: "../01-foundation/shared-kernel.yaml"
 features:
   - id: "equipment-master"
@@ -92,6 +92,6 @@ interfaces:
     consumer_feature: "lending-registry"
     consumer_input: "return_registration_request"
 superseded_by: null
-updated_at: "2026-08-24T14:40:00Z"
-approved_by: null
-approved_at: null
+updated_at: "2026-08-24T14:57:54Z"
+approved_by: "たくみのせ"
+approved_at: "2026-08-24T14:57:54Z"
