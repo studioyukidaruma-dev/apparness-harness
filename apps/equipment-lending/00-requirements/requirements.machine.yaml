@@ -4,21 +4,46 @@ app_id: "equipment-lending"
 app_name: "備品貸出管理"
 version: 1
 status: DRAFT
-summary: ""
-goals: []
-non_goals: []
-target_users: []
-functional_requirements: []
-# 例:
-# functional_requirements:
-#   - id: FR-1
-#     title: ""
-#     description: ""
-#     priority: MUST   # MUST | SHOULD | COULD
-#     acceptance_criteria: []
-non_functional_requirements: []
-constraints: []
-open_questions: []
+summary: "会社の備品の在庫の数を管理するアプリ。現在は貸出を紙で管理しているため、どこに何が何個あるかがすぐ分からない。現場の作業員がスマホのブラウザから、備品の保管場所と在庫数を確認でき、誰がいつ何を借りたかを登録できる状態にする。"
+goals:
+  - "スマホから在庫がわかる"
+non_goals:
+  - "権限管理はしない。"
+target_users:
+  - "現場の作業員。スマホから入力する。"
+functional_requirements:
+  - id: FR-1
+    title: "備品の場所確認、在庫数確認"
+    description: "どこに何が何個あるかすぐ確認できる"
+    priority: MUST
+    acceptance_criteria:
+      - "地図上に、ものと、数が表示される"
+  - id: FR-2
+    title: "備品の貸出登録"
+    description: "誰がいつ何を借りたかを記録する"
+    priority: MUST
+    acceptance_criteria:
+      - "貸出を登録すると、一覧に借用者名と日時が表示される"
+non_functional_requirements:
+  - category: "セキュリティ"
+    description: "借用者名という個人情報を扱うため、業務に関係のない第三者が貸出履歴を閲覧・改変できない状態にする（具体的な保護の範囲は未解決事項 Q4 で確定させる）。"
+  - category: "利用形態"
+    description: "スマホのブラウザから操作することを前提とした画面とする。"
+constraints:
+  - "有償ライセンスのライブラリは使用しない。"
+  - "フロントエンドの実装方針は frontend-design skill の方針に寄せる（必須依存としては登録しない）。"
+  - "UI あり（ブラウザで動作する画面を持つ）。"
+  - "実行環境はブラウザ。"
+  - "オフラインで動作する必要はない。"
+  - "外部サービスとの連携はない。"
+  - "配置先（デプロイ先）は未定（未解決事項 Q5）。"
+open_questions:
+  - "Q1: 受け入れ基準にある「地図」が何を指すか（建物のフロア図／屋外の地理的な地図／保管場所の一覧、のいずれか）。"
+  - "Q2: データの永続化がブリーフでは「未定」だが、貸出履歴を記録する以上どこかに保存が必要ではないか。保存が必要か否か。"
+  - "Q3: 返却の登録をスコープに含めるか（ブリーフに記述がなく、non_goals にも入っていない）。"
+  - "Q4: 借用者名（個人情報）をどこまで守るか。権限管理をしない前提で、URL を知る人なら誰でも閲覧できる状態で問題ないか。"
+  - "Q5: 配置先（ローカル実行／社内サーバ／クラウド）と、同時に使う人数・想定利用規模。"
+  - "Q6: あると嬉しい機能、期限・予算などの制約、画面や操作の要望、アプリ全体としての完成条件の有無。"
 approved_by: null
 approved_at: null
 superseded_by: null
