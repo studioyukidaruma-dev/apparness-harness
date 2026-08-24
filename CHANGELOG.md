@@ -33,8 +33,12 @@
 - **`VERSION` / `CHANGELOG.md`**: 導入されたハーネスの版を機械的に特定できるようにした。
 - **`harness/procedures/feature-build.md`**: `feature-builder` の実装フェーズ手順（オンデマンド
   読み込み。コンテキスト予算の対象外）。
+- **`render_progress.py --html`**: 同じデータから非エンジニア向けの単一ファイル HTML
+  （`apps/<app-id>/PROGRESS.html`）を生成する。入力は `status.yaml` / `contract.yaml` の
+  `open_issues` / `VERSION` / 強制レイヤの診断だけで、AI に作文させない。生成物は
+  `.gitignore` 対象。skill / subagent は増やしていない。
 - 実証が無かった Rule 4・6・8 と、worktree 経由での Rule 1・3・5、CI 項目 A・B・E・F・G・I の
-  テストを追加（454 → 598 テスト）。
+  テストを追加（454 → 629 テスト）。
 
 ### Changed
 
@@ -46,6 +50,12 @@
   `HARNESS_GUIDE.md` 18節へ移設（35,891 → 約 29,900 バイト）。
   `.claude/agents/feature-builder.md` の手順を `harness/procedures/feature-build.md` へ切り出し
   （11,981 → 3,599 バイト）。
+
+### Documentation
+
+- `DOGFOODING-LOG.md` の冒頭に「未処理の摩擦点（F-059 / F-060 / F-064）」と
+  「ドッグフーディング成果物の保全状況」を追加。3 アプリの成果物がどこからも辿れないこと、
+  何を探して無かったか、見つかったときに何を保全すべきかを記録した。
 
 ### Fixed
 

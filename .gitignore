@@ -11,3 +11,6 @@ __pycache__/
 
 claude-code-harness-main.zip
 claude-code-harness-main/
+
+# render_progress.py --html の生成物（派生物は判断の根拠にしない。CONVENTIONS.md 12節）
+apps/*/PROGRESS.html
