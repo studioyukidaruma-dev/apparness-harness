@@ -75,7 +75,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <p class="lead">
 このリポジトリの「ハーネス」が、いつ・何を・どうやって動かしているかの案内書です。
 専門用語をなるべく避けて書いています。正確な用語で読みたい方は
-<code>harness-flow-technical.html</code> をどうぞ。<br>
+<code>docs/flow/harness-flow-technical.html</code> をどうぞ。<br>
 対象バージョン: v1.0.0（Unreleased の変更を含む・2026-08-24 時点）
 </p>
 
@@ -379,7 +379,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <div class="box tip">
 <h4>「規約を全部読む担当者はいない」のがポイント</h4>
 <p style="margin-bottom:0">
-規約（<code>harness/CONVENTIONS.md</code>）は全体で 31,200 バイトありますが、これを丸ごと読む担当者は 1 人もいません。
+規約（<code>harness/CONVENTIONS.md</code>）は全体で 31,975 バイトありますが、これを丸ごと読む担当者は 1 人もいません。
 各担当者は指示書の先頭に「私は 6・9・10〜14 節だけ読みます」と<strong>宣言</strong>し、その節だけを取り出して読みます。
 宣言が「読まない」の担当者は、規約の本文を 1 文字も読みません（「7節 規則7」のような<strong>出典の書き置き</strong>はしてよい。
 これは読みに行けという指示ではなく、人が後で辿るための手がかりです）。
@@ -396,7 +396,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <tr><td><code>quality/design-baseline.md</code></td><td class="num">3,576</td><td><strong>画面のある機能のときだけ</strong></td></tr>
 <tr><td><code>quality/review-rubric.md</code></td><td class="num">4,871</td><td><code>gate-reviewer</code> が点検するとき（点検の唯一の判断基準）</td></tr>
 <tr><td><code>STACK_PACK.md</code></td><td class="num">7,011</td><td>技術ごとの流儀パックを採用したときだけ</td></tr>
-<tr><td><code>procedures/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネスを直す人が、失敗の記録をテストに変えるとき</td></tr>
+<tr><td><code>docs/maintenance/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネスを直す人が、失敗の記録をテストに変えるとき</td></tr>
 <tr><td><code>CLAIMS.md</code></td><td class="num">20,793</td><td><strong>アプリ作成では一切読まれない</strong>。CI のプログラムと、ハーネスを保守する人だけ</td></tr>
 </tbody>
 </table>
@@ -448,7 +448,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 </tr>
 <tr>
 <td><strong>なぜそうしているか</strong><br>（背景・設計の意図・経緯）</td>
-<td><code>HARNESS_GUIDE.md</code></td>
+<td><code>docs/HARNESS_GUIDE.md</code></td>
 <td>規約が太ると全担当者の読み込み量が増えるので、説明はこちらへ。18 節が「規約から移した説明」の置き場</td>
 </tr>
 <tr>
@@ -484,7 +484,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 </tr>
 <tr>
 <td><strong>使ってみて困ったこと</strong></td>
-<td><code>DOGFOODING-LOG.md</code></td>
+<td><code>docs/maintenance/DOGFOODING-LOG.md</code></td>
 <td>深刻度が「高」「最高」なら、<strong>再発を見つけるテストを書くまで完了にしない</strong>ルール</td>
 </tr>
 <tr>
@@ -507,7 +507,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <h4>迷ったときの 3 つの質問</h4>
 <ol style="margin-bottom:0">
 <li><strong>破ったら機械が止めるか？</strong> → はい なら <code>CONVENTIONS.md</code>（既存の節に）</li>
-<li><strong>「なぜ」の話か？</strong> → はい なら <code>HARNESS_GUIDE.md</code></li>
+<li><strong>「なぜ」の話か？</strong> → はい なら <code>docs/HARNESS_GUIDE.md</code></li>
 <li><strong>特定の担当者の作業手順か？</strong> → はい なら その指示書か <code>procedures/</code></li>
 </ol>
 </div>
@@ -801,7 +801,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <tr><td>状態の並び・受領書やレビューの書式</td><td>形式定義ファイル（機械が検証に使うもの）＋ 記録を書き込むプログラム</td></tr>
 <tr><td>フォルダ構成・ブランチ名・作業場所のパス</td><td>それらを<strong>実際に作るスクリプト</strong></td></tr>
 <tr><td>担当者ごとの読み込み量</td><td>CI が使っている計算関数を実際に呼び出して算出</td></tr>
-<tr><td>テスト件数</td><td>テストを実際に実行した結果（656 件）</td></tr>
+<tr><td>テスト件数</td><td>テストを実際に実行した結果（685 件）</td></tr>
 </tbody>
 </table>
 </div>
@@ -820,8 +820,8 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 </div>
 
 <footer>
-harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
-正確な用語版: <code>harness-flow-technical.html</code>　規約本体: <code>harness/CONVENTIONS.md</code>　設計意図: <code>HARNESS_GUIDE.md</code>
+docs/flow/harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
+正確な用語版: <code>docs/flow/harness-flow-technical.html</code>　規約本体: <code>harness/CONVENTIONS.md</code>　設計意図: <code>docs/HARNESS_GUIDE.md</code>
 </footer>
 
 </div>

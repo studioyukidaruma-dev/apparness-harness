@@ -31,11 +31,11 @@
 
 <br />
 <div align="right">
-    <a href="./harness-flow-plain.html"><strong>しくみ案内（やさしい版・HTML） »</strong></a>
+    <a href="./docs/flow/harness-flow-plain.html"><strong>しくみ案内（やさしい版・HTML） »</strong></a>
 </div>
 <br />
 <div align="right">
-    <a href="./harness-flow-technical.html"><strong>実行フロー精査書（技術版・HTML） »</strong></a>
+    <a href="./docs/flow/harness-flow-technical.html"><strong>実行フロー精査書（技術版・HTML） »</strong></a>
 </div>
 <br />
 
@@ -70,7 +70,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 | 依存ゼロの強制レイヤ | `harness/hooks/**` は Python 標準ライブラリのみ。**縛る側のコードが読める** |
 | 実行ベースの検証 | 受領書・JUnit XML・JSON Schema 突合。自己申告に頼らない |
 | アプリ非依存 | 技術スタックを規定しない。検証コマンドはアプリ側が宣言する |
-| 自己テスト | 656 件（`harness/tests/`）。CI で毎回実行 |
+| 自己テスト | 685 件（`harness/tests/`）。CI で毎回実行 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -109,7 +109,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   │   ├── new-feature-worktree/        機能用 worktree の作成
 │   │   ├── sync-progress/               ダッシュボード再生成（--html 可）
 │   │   └── diff-design/                 仕様変更の再設計
-│   └── settings.json                ← Hook 登録（SessionStart / PreToolUse / PostToolUse / Stop）
+│   └── settings.json                ← Hook 登録（SessionStart / PreToolUse / PostToolUse / Stop / SubagentStop）
 ├── .github/workflows/
 │   └── harness-checks.yml           ← selftest / ci-check / vuln-scan の 3 ジョブ
 ├── harness/                         ← ハーネス本体。harness/ ブランチでのみ書き込める
@@ -124,24 +124,31 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   │   ├── post_tool_use_sync.py        Rule 4（ダッシュボード再生成）
 │   │   ├── stop_commit_guard.py         Rule 8（未コミットで停止拒否）
 │   │   └── session_start_healthcheck.py 強制レイヤの自己診断
-│   ├── procedures/                  ← フェーズ固有の手順（オンデマンド読み込み）
+│   ├── procedures/                  ← フェーズ固有の手順（読む agent は always-reads 宣言が必須。CI 項目 L が計上）
 │   ├── quality/                     ← セキュリティ・デザイン・レビュー基準
 │   ├── schemas/                     ← 機械可読ファイルの JSON Schema（7 種）
 │   ├── scripts/                     ← 決定論ロジック（16 本）
 │   ├── templates/                   ← 各種ひな形（12 種）
-│   └── tests/                       ← ハーネス自身の pytest（656 件）
+│   └── tests/                       ← ハーネス自身の pytest（685 件）
 ├── apps/<app-id>/                   ← 生成物。init-app skill が都度生成する（未生成）
+├── docs/                            ← **人間専用。** アプリ作成中の subagent は読まない
+│   ├── README.md                        どこに何があるかの索引
+│   ├── HARNESS_GUIDE.md                 設計意図・背景・既知の制約（4 点セット）
+│   ├── flow/                            しくみの説明書（やさしい版 / 技術版の HTML）
+│   ├── plans/                           改修計画・改修指示書（機械可読 ＋ 人間向けの双子）
+│   ├── maintenance/                     実地の摩擦点 77 件と、それをテストへ変える手順
+│   └── archive/                         役目を終えた調査資料（他ハーネスとの比較）
 ├── VERSION                          ← ハーネスの版（セマンティックバージョニング）
 ├── CHANGELOG.md                     ← 変更履歴（CI 項目 Q が追随を要求）
-├── HARNESS_GUIDE.md                 ← 設計意図・背景・既知の制約（4 点セット）
-├── DOGFOODING-LOG.md                ← 実地の摩擦点 77 件
-├── IMPROVEMENT-PLAN.machine.yaml    ← 改修計画（機械可読）／ .md は人間向けの双子
-├── harness-flow-plain.html          ← しくみ案内（非エンジニア向け）
-├── harness-flow-technical.html      ← 実行フロー精査書（監査向け）
-├── harness-comparison-*.html        ← 他ハーネスとの比較調査
 ├── README.md
 └── pyrightconfig.json               ← 型チェッカ設定（実行には影響しない）
 ```
+
+ルート直下に残しているのは 4 つだけです。**実行物がパスとして解決するもの**
+（`VERSION` / `CHANGELOG.md` — `ci_check.py` と `render_progress.py` がルート基準で開きます）、
+**入口**（`README.md`）、**ツール設定**（`pyrightconfig.json`）。
+説明のための文書はすべて `docs/` にあり、**ハーネス内部（`harness/**`・`.claude/**`）から
+`docs/` 配下を名指しする箇所は 1 件もありません**（`docs/HARNESS_GUIDE.md` への出典注記を除く）。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -167,7 +174,7 @@ python3 harness/scripts/ci_check.py --branch $(git branch --show-current)
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-`656 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
+`685 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
 3 つ目は**強制レイヤ自身が健全か**の自己診断で、異常があればここに理由が出ます。
 
 ### ハーネスを改修するとき
@@ -207,7 +214,7 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 
 | Rule | 内容 |
 | --- | --- |
-| 1 | ハーネス本体は `harness/` ブランチでのみ書き込める |
+| 1 | ハーネス本体は `harness/` ブランチでのみ書き込める（唯一の緊急避難路 `HARNESS_UNLOCK=1` あり。使うと警告が出る） |
 | 2 | 担当外の機能ディレクトリは書けない |
 | 3 | 承認済みの契約は凍結（`open_issues[]` への追記のみ可） |
 | 4 | `status.yaml` 更新でダッシュボードを再生成（非ブロッキング） |
@@ -221,8 +228,15 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 | 12 | **危険操作フロア** — 再帰削除・秘密ファイル読み取り・履歴破壊・検証スキップ・外部送信・`sudo` を無条件で拒否 |
 
 Rule 12 は **確認（ask）ではなく拒否（deny）** です。自動で最後まで進めるモードでは AI が
-自分で確認に答えてしまうため、確認は歯止めになりません。またバイパス用の環境変数を
-**意図的に持ちません**（AI が自分で解除できたら決定論的強制の意味が消えるため）。
+自分で確認に答えてしまうため、確認は歯止めになりません。Rule 12 と Bash 経由の間接書き込み検知には
+バイパス用の環境変数を **意図的に持ちません**（AI が自分で解除できたら決定論的強制の意味が
+消えるため）。解除路があるのは Rule 1 の `HARNESS_UNLOCK=1` だけです。
+
+判定できないときは通しません。ブロックする hook（`pre_tool_use_guard.py` /
+`stop_commit_guard.py`）は、想定外の例外でも、入力そのものを解釈できない場合でも、
+通過ではなく **exit 2 ＋ 理由** で止まります（fail-closed）。逆に git 情報が取れず
+Rule の判定が劣化している場合は止めずに、`SessionStart` の診断が影響する Rule を名指しして
+警告します。
 
 ### CI（push 後・サーバーサイド再検証）
 
@@ -255,7 +269,7 @@ Rule 12 は **確認（ask）ではなく拒否（deny）** です。自動で�
 
 | コマンド | 実行する処理 |
 | --- | --- |
-| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（656 件） |
+| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（685 件） |
 | `python3 harness/scripts/ci_check.py --branch <name>` | 規約の決定論チェック 16 項目 |
 | `python3 harness/hooks/session_start_healthcheck.py < /dev/null` | 強制レイヤの健全性診断 |
 | `python3 harness/scripts/render_progress.py --app <app-id>` | ダッシュボード再生成 |
@@ -266,7 +280,7 @@ Rule 12 は **確認（ask）ではなく拒否（deny）** です。自動で�
 | `python3 harness/scripts/check_traceability.py [--app <app-id>]` | 要件→機能→テストの対応検証 |
 | `python3 harness/scripts/check_integration_traceability.py [--app <app-id>]` | 結線カバレッジの検証 |
 | `python3 harness/scripts/validate_yaml.py <yaml> <schema>` | 機械可読ファイルのスキーマ検証 |
-| `python3 harness/scripts/validate_status_transition.py --status-file <path>` | 状態遷移の妥当性を手動確認 |
+| `python3 harness/scripts/validate_status_transition.py <old_state> <new_state> [--status-file <path>]` | 状態遷移の妥当性を手動確認（状態は**位置引数で 2 つ必須**） |
 | `python3 harness/scripts/print_conventions.py --sections 6,9,13` | 規約の必要な節だけを出力 |
 | `python3 harness/scripts/diff_architecture.py <old> <new>` | 設計の差分を機械的に算出 |
 | `python3 harness/scripts/vuln_scan.py [--app <app-id>]` | 依存ライブラリの脆弱性スキャン |
@@ -283,18 +297,19 @@ Rule 12 は **確認（ask）ではなく拒否（deny）** です。自動で�
 | 書きたいこと | 置き場所 | 注意 |
 | --- | --- | --- |
 | 機械が強制する規範 | `harness/CONVENTIONS.md` | **15 節で凍結。**新しい節は CI 項目 O が拒否。既存節へ追記する |
-| 設計意図・背景・既知の制約 | `HARNESS_GUIDE.md` | 制約は 4 点セット（症状／根本原因／緩和策／**再検討の条件**） |
+| 設計意図・背景・既知の制約 | `docs/HARNESS_GUIDE.md` | 制約は 4 点セット（症状／根本原因／緩和策／**再検討の条件**） |
+| 人間が理解するための説明全般 | `docs/` 配下 | **アプリ作成中の subagent は読まない**（`CONVENTIONS.md` 15節）。agent/skill から読ませてはいけない。読ませたい内容は規範なので `CONVENTIONS.md` か `procedures/` へ |
 | フェーズ固有の手順 | agent/skill プロンプト、`harness/procedures/*.md` | `procedures/` に置いたら `always-reads` の宣言が必須（CI 項目 L） |
 | 品質の下限 | `harness/quality/*.md` | 外部依存ゼロで常に効くこと |
 | 「これを止める」主張と証拠 | `harness/CLAIMS.md` | 規則を足したら必ず行を追加（CI 項目 P がテスト名の実在を検証） |
 | 技術ごとの流儀 | 外部スタックパック（形式は `harness/STACK_PACK.md`） | **ハーネス本体には書かない** |
 | 機械可読ファイルの形式 | `harness/schemas/*.schema.json` | CI 項目 A が検証 |
-| 実地で困ったこと | `DOGFOODING-LOG.md` | 深刻度 高・最高 は**再発防止テストなしでクローズ禁止** |
+| 実地で困ったこと | `docs/maintenance/DOGFOODING-LOG.md` | 深刻度 高・最高 は**再発防止テストなしでクローズ禁止**（手順は同ディレクトリの `friction-to-test.md`）。ハーネス本体からは参照しない |
 | ハーネスの変更履歴 | `CHANGELOG.md` / `VERSION` | ハーネス本体を触ったら追記必須（CI 項目 Q） |
 
 迷ったら 3 つの質問で決まります。
 **① 破ったら機械が止めるか** → `CONVENTIONS.md`　
-**② 「なぜ」の話か** → `HARNESS_GUIDE.md`　
+**② 「なぜ」の話か** → `docs/HARNESS_GUIDE.md`　
 **③ 特定の担当者の手順か** → その指示書か `procedures/`
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
@@ -348,7 +363,7 @@ CI 項目 P です。`CLAIMS.md` に書いたテスト名が `harness/tests/` �
 
 ### 常時読み込みの合計が上限 46,000 バイトを超えています
 
-CI 項目 L です。まず**説明・背景・設計意図を `HARNESS_GUIDE.md` へ移して**ください。
+CI 項目 L です。まず**説明・背景・設計意図を `docs/HARNESS_GUIDE.md` へ移して**ください。
 手順を `harness/procedures/*.md` へ移す場合は `always-reads` の宣言が必要です
 （宣言しないと計上を逃れられてしまうため、CI が別途拒否します）。
 

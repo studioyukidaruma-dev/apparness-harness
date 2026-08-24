@@ -1,12 +1,12 @@
 # apparness 改修方針（人間向け）
 
 作成日: 2026-08-24
-根拠: `harness-comparison-technical.html` / `harness-comparison-plain.html`（apparness v1 と claude-code-harness v5.11.0 の比較）
-機械向けの対応ファイル: [`IMPROVEMENT-PLAN.machine.yaml`](IMPROVEMENT-PLAN.machine.yaml)
+根拠: `docs/archive/harness-comparison-technical.html` / `docs/archive/harness-comparison-plain.html`（apparness v1 と claude-code-harness v5.11.0 の比較）
+機械向けの対応ファイル: [`docs/plans/IMPROVEMENT-PLAN.machine.yaml`](IMPROVEMENT-PLAN.machine.yaml)
 
 > **この文書の役割**
 > 「なぜその改修をするのか」を人間が判断するための文書です。
-> 実際に AI に改修させるときは `IMPROVEMENT-PLAN.machine.yaml` を読ませてください。
+> 実際に AI に改修させるときは `docs/plans/IMPROVEMENT-PLAN.machine.yaml` を読ませてください。
 > 内容は 1 対 1 で対応しています（タスク ID が同じ）。
 
 ---
@@ -43,7 +43,7 @@ CI 項目 L がこの上限を機械的に強制しています。
 
 つまり **「Rule を 1 本足す」という最も自然な改修が、いまは実行できません。**
 これは不具合ではなく、設計どおりに肥大化防止が働いている状態です。
-**改修の 1 番目の作業は機能追加ではなく、説明文を `HARNESS_GUIDE.md` に引っ越して場所を空けること（T-001）になります。**
+**改修の 1 番目の作業は機能追加ではなく、説明文を `docs/HARNESS_GUIDE.md` に引っ越して場所を空けること（T-001）になります。**
 
 なお引っ越すときは **移設であって複製にしない** でください。
 両方に残すと今度は項目 M（二重管理の検出）が落ちます。
@@ -78,7 +78,7 @@ CI 項目 L がこの上限を機械的に強制しています。
 
 **なぜ**: 上記 2-1 のとおり満杯だから。他のすべての文書追加タスクがこれを待っています。
 
-**やること**: `CONVENTIONS.md` から「設計意図・背景・経緯」を `HARNESS_GUIDE.md` に移し、
+**やること**: `CONVENTIONS.md` から「設計意図・背景・経緯」を `docs/HARNESS_GUIDE.md` に移し、
 規範の一文と節番号だけを残す。移設候補の筆頭は 7 節の各 Rule に付いている経緯説明、
 7 節末尾の worktree 読み替えと二段検知の解説、12 節の設計意図、15 節の背景です。
 `feature-builder.md` はフェーズ固有の長い手順を `harness/procedures/feature-build.md`
@@ -189,7 +189,7 @@ PreToolUse 本体は、想定外の例外を握りつぶさず **拒否（fail-c
 `apps/` が存在せず git 履歴も潰れているため、**第三者が——そして半年後の自分が——追検証できません。**
 
 全部をこのリポジトリに戻す必要はありません。
-「どこに何が残っていて、そこで何を確認できるか」が `DOGFOODING-LOG.md` から辿れれば十分です。
+「どこに何が残っていて、そこで何を確認できるか」が `docs/maintenance/DOGFOODING-LOG.md` から辿れれば十分です。
 あわせて、未着手のまま残っている F-059 / F-060 / F-064 を記録の先頭付近に明示してください。
 
 ---
@@ -209,7 +209,7 @@ apparness には `render_progress.py` という決定論的レンダラが既に
 
 比較対象の `known-limitations.md` は **症状 / 根本原因 / 適用中の緩和策 / 再検討の条件** の
 4 点セットで統一されていて、とくに「いつ再検討するか」が全項目に書いてあるのが優れています。
-`HARNESS_GUIDE.md` 11 節をこの形式に揃え、
+`docs/HARNESS_GUIDE.md` 11 節をこの形式に揃え、
 「apparness 側で直せるもの」に分類された項目はタスクに昇格させてください。
 
 #### T-032 摩擦点から再発防止テストへの変換を手順化
@@ -229,7 +229,7 @@ apparness には `render_progress.py` という決定論的レンダラが既に
 | **マルチホスト対応**（Codex / Cursor / Grok） | apparness の Rule 3・7・9・10・11 は「書き込み前後の内容比較」に依存する。Bash-only の hook しか持たないホストでは**原理的に成立しない**。比較対象自身が「同じ機能名でも守りの強さは違う」と明記して false parity を禁じている。同じ罠に入らない |
 | **強制エンジンの Go 化・バイナリ配布** | 比較対象は 13 MB の Go バイナリのみを配布し、**その元になったソースが配布物に 1 ファイルも入っていなかった**（実測）。AI を縛る側のコードが全部読めることは apparness の明確な優位で、性能のために手放す価値はない。性能が問題になったら、まず Hook の発火回数と matcher の絞り込みで対処する |
 | **skill / subagent / ドキュメントの数を増やす** | 比較対象は skill 23・スクリプト 155・docs 143 に達し、**認知負荷そのものを扱う文書**を持つに至っている。apparness の CI 項目 L / M / O はまさにこれを防ぐ装置。新機能は既存の script のオプションとして実装するのを第一候補にする |
-| **既存リポジトリでの日常開発（brownfield）対応** | `apps/<app-id>` の構造と状態機械が前提になっており、対応は事実上の作り直し。その用途には claude-code-harness を併用するほうが合理的。**スコープ外であることを `HARNESS_GUIDE.md` に明記する**のが誠実 |
+| **既存リポジトリでの日常開発（brownfield）対応** | `apps/<app-id>` の構造と状態機械が前提になっており、対応は事実上の作り直し。その用途には claude-code-harness を併用するほうが合理的。**スコープ外であることを `docs/HARNESS_GUIDE.md` に明記する**のが誠実 |
 | **検証ゲートを「既定オフ」にできる設定** | 比較対象は TDD 強制を配布既定で無効にしている（`enabled = false`）。強制機構が存在しても効いていない状態が既定、というのは避ける。apparness の Rule 10 / 11 は既定で常に効く。この性質を設定可能にしない |
 | **危険操作を deny ではなく ask にする** | AUTONOMOUS モードでは AI が自分で確認に答えてしまう |
 

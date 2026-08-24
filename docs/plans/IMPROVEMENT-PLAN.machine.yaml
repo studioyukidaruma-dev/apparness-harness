@@ -8,14 +8,41 @@ derivation:
       subject_a: "apparness harness v1 (this repository, 851f07a)"
       subject_b: "claude-code-harness v5.11.0 (2026-08-22 snapshot, MIT)"
       reports:
-        - harness-comparison-technical.html
-        - harness-comparison-plain.html
-  human_readable_twin: IMPROVEMENT-PLAN.md
+        - docs/archive/harness-comparison-technical.html
+        - docs/archive/harness-comparison-plain.html
+  human_readable_twin: docs/plans/IMPROVEMENT-PLAN.md
   audience: machine
   purpose: >
     このファイルは「このファイルを見てハーネスを改修してください」と指示されたときに
     実行計画として読まれることを想定した機械向けの改修方針である。
     tasks[] を上から順に読み、preconditions を満たしてから着手すること。
+
+# ---------------------------------------------------------------------------
+# 0-A. 実施状況（R-001 で 2026-08-24 に実測して記録。推測ではない）
+# ---------------------------------------------------------------------------
+plan_status:
+  reviewed_at: "2026-08-24"
+  method: >
+    各タスクの acceptance を、作業ツリーの実物（ファイルの存在・テスト関数の実在・
+    ci_check の項目・wc -c の実測値）と突き合わせて判定した。
+  summary: "12 タスク中 10 件 done / 1 件 blocked（T-022）/ 1 件 未着手が正（T-040）。"
+  done: [T-000, T-001, T-002, T-010, T-011, T-020, T-021, T-030, T-031, T-032]
+  blocked:
+    - id: T-022
+      reason: >
+        ドッグフーディング成果物（3 アプリ）がこのマシンから見えるどのリポジトリにも
+        残っていない。調査結果は docs/maintenance/DOGFOODING-LOG.md の「★ ドッグフーディング成果物の
+        保全状況」にある。残っているのは改修ではなく探索。
+  not_started_by_design:
+    - id: T-040
+      reason: "条件付きタスク。trigger（実地でのすり抜け観測）が未成立のため着手しないのが正しい。"
+  caveats:
+    - >
+      T-001 は done だが、acceptance の「CONVENTIONS.md 29,000 バイト以下」は現時点で
+      未達（31,200B）。上限 36,000B には 4,800B の余裕があり CI 項目 L は通る。
+    - >
+      本計画とは別系統の docs/plans/REPAIR-ORDER.machine.yaml（実行して分かった残存欠陥）のうち
+      R-010・R-011・R-020・R-021・R-022 が 2026-08-24 に実施済み。R-001 が本ファイルの更新。
 
 # ---------------------------------------------------------------------------
 # 0. この計画に着手する前に必ず読むこと
@@ -90,41 +117,89 @@ hard_constraints:
       agent_prompt_bytes: 12000
       session_total_bytes: 46000
     measured_at: "2026-08-24"
+    measurement_note: >
+      T-001（予算の再配分）の実施後に `wc -c` で再実測した値である。実施前の値
+      （CONVENTIONS.md 35891B / feature-builder 11981B）は本計画の初版に記録されていたが、
+      それを前提にすると「1 行も追記できない」という誤った判断に至るため置き換えた。
+      日付が同じなのは、再配分と再実測が同じ日に行われたためである（R-001）。
+    # headroom の小さい順。先頭がいちばん危ない。
     current:
-      - path: harness/CONVENTIONS.md
-        bytes: 35891
-        limit: 36000
-        headroom_bytes: 109
-        utilization: 0.997
-      - path: .claude/agents/feature-builder.md
-        bytes: 11981
-        limit: 12000
-        headroom_bytes: 19
-        utilization: 0.998
-        conventions_sections: none
       - path: .claude/agents/solution-architect.md
         bytes: 11352
         limit: 12000
         headroom_bytes: 648
+        utilization: 0.946
         conventions_sections: "6,9,10,11,12,13,14"
+        note: "最も余裕が無い。ここへの追記は 1 行でも危険。"
+      - path: harness/CONVENTIONS.md
+        bytes: 31200
+        limit: 36000
+        headroom_bytes: 4800
+        utilization: 0.867
       - path: .claude/agents/integrator.md
         bytes: 8224
         limit: 12000
         headroom_bytes: 3776
+        utilization: 0.685
         conventions_sections: none
       - path: .claude/agents/gate-reviewer.md
         bytes: 4907
         limit: 12000
         headroom_bytes: 7093
+        utilization: 0.409
         conventions_sections: none
       - path: .claude/agents/requirements-analyst.md
         bytes: 4164
         limit: 12000
         headroom_bytes: 7836
+        utilization: 0.347
         conventions_sections: none
+      - path: .claude/agents/feature-builder.md
+        bytes: 3696
+        limit: 12000
+        headroom_bytes: 8304
+        utilization: 0.308
+        conventions_sections: none
+        always_reads: "harness/procedures/feature-build.md"
+        note: >
+          T-001 で手順を harness/procedures/feature-build.md へ切り出した（11981 → 3696B）。
+          切り出し先は予算の対象外ではなく、always-reads として session_total に計上される。
+    # 1 セッションの常時コスト＝ agent プロンプト ＋ 読む CONVENTIONS.md の節 ＋
+    # 起動直後に読むと宣言した手順書（CONVENTIONS.md 15節 / ci_check.py check_context_budget）。
+    # 上限に最も近い agent だけが項目 L の判定対象になる。
+    session_totals:
+      limit: 46000
+      worst: .claude/agents/solution-architect.md
+      by_agent:
+      - path: .claude/agents/solution-architect.md
+        prompt_bytes: 11352
+        conventions_bytes: 13647
+        always_reads_bytes: 0
+        total_bytes: 24999
+        headroom_bytes: 21001
+      - path: .claude/agents/feature-builder.md
+        prompt_bytes: 3696
+        conventions_bytes: 0
+        always_reads_bytes: 4701
+        total_bytes: 8397
+        headroom_bytes: 37603
+      - path: .claude/agents/integrator.md
+        total_bytes: 8224
+        headroom_bytes: 37776
+      - path: .claude/agents/gate-reviewer.md
+        total_bytes: 4907
+        headroom_bytes: 41093
+      - path: .claude/agents/requirements-analyst.md
+        total_bytes: 4164
+        headroom_bytes: 41836
     implication: >
-      CRITICAL: 規約本体と feature-builder は実質的に満杯であり、1 行の追記でも CI が落ちる。
-      本計画のあらゆる文書追加タスクは T-001（予算の再配分）を blocked_by に持つ。
+      T-001 実施済み。逼迫しているのは **`.claude/agents/solution-architect.md` だけ**で、
+      残り 648B しかない。ここへの追記は 1 行でも項目 L を落とす可能性がある。
+      `CONVENTIONS.md` は 31,200 / 36,000B（残り 4,800B）で、短い規範の追記なら収まる。
+      ただし solution-architect が読む節（6,9,10,11,12,13,14）を太らせると、その agent の
+      session_total（24,999 / 46,000B）にも同時に効く点に注意する。
+      文書追加タスクの blocked_by から T-001 を外してよいが、solution-architect への
+      追記を伴うタスクだけは、先に同ファイルの圧縮を済ませること。
 
   - id: HC-2
     name: conventions_freeze
@@ -141,7 +216,7 @@ hard_constraints:
     rule: "CONVENTIONS.md と agent/skill プロンプトの間に、ほぼ同一の段落があれば不合格。"
     implication: >
       T-001 の予算再配分は「移設」であって「複製」ではない。
-      HARNESS_GUIDE.md へ本文を移したら、CONVENTIONS.md 側は必ず削って参照に置き換える。
+      docs/HARNESS_GUIDE.md へ本文を移したら、CONVENTIONS.md 側は必ず削って参照に置き換える。
 
   - id: HC-4
     name: harness_write_protection
@@ -236,7 +311,7 @@ findings:
   - id: F-A10
     severity: low
     category: process
-    statement: "DOGFOODING-LOG.md の 77 件の摩擦点が、再発防止テストへ変換される手順として仕組み化されていない。"
+    statement: "docs/maintenance/DOGFOODING-LOG.md の 77 件の摩擦点が、再発防止テストへ変換される手順として仕組み化されていない。"
     comparison: "claude-code-harness の failure-codifier skill が対応物。"
     addressed_by: [T-032]
 
@@ -248,6 +323,9 @@ tasks:
   - id: T-000
     priority: 0
     title: "改修用ブランチの作成"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: "`git branch --show-current` → `harness/improvement-plan-v1`。"
     why: "HC-4。main のままではハーネス本体への書き込みが Rule 1 に拒否される。"
     steps:
       - "git switch -c harness/<topic>  # <topic> は改修の内容を表す kebab-case"
@@ -261,23 +339,34 @@ tasks:
   - id: T-001
     priority: 0
     title: "コンテキスト予算の再配分（他のすべての文書追加タスクの前提）"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      CONVENTIONS.md 35,891 → 31,200B、feature-builder.md 11,981 → 3,696B
+      （手順を harness/procedures/feature-build.md へ切り出し。always-reads で宣言済み）。
+      移設先は docs/HARNESS_GUIDE.md 18節。節数は 15 のまま（項目 O 通過）。
+    caveat: >
+      acceptance の「CONVENTIONS.md が 29,000 バイト以下」は**現時点では満たしていない**
+      （31,200B。T-001 直後は約 29,900B で、その後 Rule 12 等の追記で戻った）。
+      上限 36,000B に対しては 4,800B の余裕があり項目 L は通るが、
+      この数値目標を回復するかどうかは別途の判断。
     why: "F-A3 / HC-1。規約本体の残り 109B、feature-builder の残り 19B。この状態では Rule を 1 本足すだけで CI 項目 L が落ちる。"
     targets:
       - harness/CONVENTIONS.md
       - .claude/agents/feature-builder.md
-      - HARNESS_GUIDE.md
+      - docs/HARNESS_GUIDE.md
     method:
-      - "CONVENTIONS.md から『設計意図・背景・経緯の説明文』を HARNESS_GUIDE.md へ移す。規範の一文と節番号だけを残す。"
+      - "CONVENTIONS.md から『設計意図・背景・経緯の説明文』を docs/HARNESS_GUIDE.md へ移す。規範の一文と節番号だけを残す。"
       - "移設対象の筆頭: 7節の各 Rule に付随する経緯説明、7節末尾の worktree 読み替え・二段検知の解説、12節の設計意図、15節の背景。"
       - "feature-builder.md からフェーズ固有の長い手順を harness/procedures/feature-build.md（新規・オンデマンド読み込み）へ切り出す。"
       - "切り出した先は『該当フェーズで初めて読まれる文書』なので CONTEXT_BUDGET の対象外（CONVENTIONS.md 15節が harness/quality/*.md と同じ扱いを既に定めている）。"
     critical_warning: >
-      HC-3。これは移設であって複製ではない。HARNESS_GUIDE.md へ本文を移したら
+      HC-3。これは移設であって複製ではない。docs/HARNESS_GUIDE.md へ本文を移したら
       CONVENTIONS.md 側は必ず削ること。両方に残すと CI 項目 M（二重管理検出）が落ちる。
     acceptance:
       - "harness/CONVENTIONS.md が 29,000 バイト以下（残ヘッドルーム 19% 以上）。"
       - ".claude/agents/feature-builder.md が 10,000 バイト以下。"
-      - "移設した内容が HARNESS_GUIDE.md に欠落なく存在する。"
+      - "移設した内容が docs/HARNESS_GUIDE.md に欠落なく存在する。"
       - "CONVENTIONS.md の節数が 15 のまま（項目 O）。"
     verification:
       - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
@@ -288,6 +377,12 @@ tasks:
   - id: T-002
     priority: 0
     title: "Rule / CI 項目 と 実証テスト の対応表を作り、欠けているテストを埋める"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      harness/CLAIMS.md が Hook Rule 1-12・Bash 間接書き込み・CI 項目 A-Q・強制レイヤの健全性・
+      深刻度 最高/高 の摩擦点を網羅。ci_check.py の check_claims_coverage（項目 P）が
+      表と実体の drift を検証し、test_claims.py が項目 P 自体を固定している。
     why: >
       F-A5。F-029/F-030 は「中核ルール群が丸ごと空振りしていても気付ける経路が無かった」ことを示している。
       比較対象の claims-audit（主張と証跡の対応表）に相当する規律を、apparness では
@@ -316,6 +411,13 @@ tasks:
   - id: T-010
     priority: 1
     title: "Rule 12: 危険操作フロアの新設"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      path_utils の「Rule 12: 危険操作フロア」節と pre_tool_use_guard.check_rule12_dangerous_operation、
+      harness/tests/test_dangerous_ops.py（D-1〜D-6 の拒否と正当ケースの通過が対）、
+      CONVENTIONS.md 7節の Rule 12、CLAIMS.md の Rule 12 行。
+      INV-4（解除用環境変数なし）は test_rule12_has_no_bypass_environment_variable が固定。
     why: "F-A1。apparness には危険操作を防ぐルールが 1 件も存在しない。AUTONOMOUS モードで長時間走らせる前提のハーネスとして、これは実運用上いちばん重い穴。"
     targets:
       - harness/hooks/pre_tool_use_guard.py
@@ -359,6 +461,15 @@ tasks:
   - id: T-011
     priority: 1
     title: "強制レイヤの健全性自己診断（fail-open の可視化）"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      harness/hooks/session_start_healthcheck.py と .claude/settings.json の SessionStart 登録、
+      render_progress.py の強制レイヤ状態行、pre_tool_use_guard._fail_closed_main()。
+      harness/tests/test_healthcheck.py が診断・可視化・fail-closed・起動 1 秒未満を固定。
+    followup: >
+      R-010（入力破損の fail-closed 化）と R-011（git 情報が取れないときの劣化の可視化）で
+      この診断を拡張した。詳細は docs/plans/REPAIR-ORDER.machine.yaml。
     why: >
       F-A2。python3 が見つからない・import に失敗する・タイムアウトする、のいずれでも
       Hook は exit != 2 で終わり、Claude Code はそれを『判断なし＝通過』として扱う。
@@ -386,6 +497,15 @@ tasks:
   - id: T-020
     priority: 2
     title: "Bash 静的検知のヒアドキュメント誤検知を修正"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      path_utils._classify_bash_lines / _normalize_bash_newlines がヒアドキュメント本体を
+      "heredoc" として区別し、パス候補の抽出対象から外す。リダイレクト先は従来どおり抽出する。
+      test_path_utils_bash.py の test_heredoc_body_mentioning_guarded_paths_is_not_a_write_target /
+      test_heredoc_body_is_ignored_for_unquoted_delimiters_too /
+      test_heredoc_body_is_ignored_for_dash_delimiters /
+      test_the_heredoc_redirect_target_is_still_detected が両側を固定。
     why: "F-A4。本調査で実観測した誤検知。CONVENTIONS.md 7節が定める『誤検知は検知ロジック自体を修正する』の対象。"
     targets:
       - harness/hooks/lib/path_utils.py     # extract_bash_candidate_paths
@@ -407,6 +527,13 @@ tasks:
   - id: T-021
     priority: 2
     title: "版管理の導入（VERSION / CHANGELOG / 自己整合チェック）"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      VERSION（1.0.0）と CHANGELOG.md（Keep a Changelog 形式）が存在。
+      ci_check.py の check_versioning（項目 Q）が、ハーネス本体に差分のあるコミットで
+      [Unreleased] に項目があることを検証する（test_versioning.py が固定）。
+      render_progress.py が PROGRESS.md にハーネス版を表示する。
     why: "F-A7。どの版のハーネスが動いているかを機械的に特定できないため、不具合報告と改修の対応が取れない。"
     targets:
       - VERSION                # 新規
@@ -428,16 +555,29 @@ tasks:
   - id: T-022
     priority: 2
     title: "ドッグフーディング成果物の保全"
+    status: blocked
+    verified_at: "2026-08-24"
+    evidence: >
+      acceptance 2 件のうち「未処理の摩擦点が一覧として先頭付近にある」は満たしている
+      （docs/maintenance/DOGFOODING-LOG.md 冒頭の「★ 未処理の摩擦点」）。
+      「3 アプリの成果物の所在が辿れる」は**満たしていない**。
+    blocker: >
+      docs/maintenance/DOGFOODING-LOG.md の「★ ドッグフーディング成果物の保全状況」に調査結果がある:
+      このリポジトリの apps/ と git 履歴、ローカルの apparness リポジトリとその origin、
+      本文が参照するコミット（ebd68d8 / ac96c4e / 068363e）のいずれにも成果物が存在しない。
+      別のマシン・クローン・リモートにしか無い可能性がある。
+      保全すべき 4 種類と推奨パス（docs/dogfooding-artifacts/<app-id>/）は記録済みで、
+      成果物が見つかり次第この節を書き換えれば完了する。**残っているのは探索であって改修ではない。**
     why: "F-A6。3 アプリ完走という最重要の実績を、第三者（および将来の自分）が追検証できない。"
     targets:
-      - DOGFOODING-LOG.md
+      - docs/maintenance/DOGFOODING-LOG.md
       - "apps/ もしくは別リポジトリ"
     method:
       - "生成した 3 アプリ（md-todo-cli / bookmark-vault / habit-tui）の最終状態を、少なくとも status.yaml・受領書・PROGRESS.md だけでも保全する。"
-      - "全部をこのリポジトリに戻さない判断も可。その場合は DOGFOODING-LOG.md に保全場所と、そこで何を確認できるかを記録する。"
+      - "全部をこのリポジトリに戻さない判断も可。その場合は docs/maintenance/DOGFOODING-LOG.md に保全場所と、そこで何を確認できるかを記録する。"
       - "F-059 / F-060 / F-064 が未着手のまま残っている旨を、記録の冒頭に明示する。"
     acceptance:
-      - "3 アプリそれぞれについて、完走を裏付ける成果物の所在が DOGFOODING-LOG.md から辿れる。"
+      - "3 アプリそれぞれについて、完走を裏付ける成果物の所在が docs/maintenance/DOGFOODING-LOG.md から辿れる。"
       - "未処理の摩擦点が一覧として先頭付近にある。"
     verification: []
     blocked_by: [T-000]
@@ -445,6 +585,12 @@ tasks:
   - id: T-030
     priority: 3
     title: "非エンジニア向け HTML 面の追加（決定論的生成）"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      render_progress.py の --html（単一ファイル HTML、入力は status.yaml / contract.yaml の
+      open_issues / VERSION / 強制レイヤの診断のみ）、harness/templates/progress.html.tmpl、
+      .gitignore の apps/*/PROGRESS.html。skill 4 本・subagent 5 本のまま増えていない。
     why: >
       F-A8。比較対象の最も分かりやすい優位のひとつ。ただし apparness は
       render_progress.py という決定論的レンダラを既に持っているため、
@@ -469,15 +615,21 @@ tasks:
   - id: T-031
     priority: 3
     title: "既知の制約の記録形式を統一する"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      docs/HARNESS_GUIDE.md 11節が 4 点セット（症状 / 根本原因 / 適用中の緩和策 / 再検討の条件）を
+      定義し、A（ハーネスの制御外）と B（apparness 側で直せる）に分けている。
+      B から昇格した項目が T-040。
     why: "F-A9。比較対象の known-limitations.md は 4 点セット（症状 / 根本原因 / 適用中の緩和策 / 再検討の条件）で統一されており、『いつ再検討するか』が書かれている点が優れている。"
     targets:
-      - HARNESS_GUIDE.md   # 11節
+      - docs/HARNESS_GUIDE.md   # 11節
     method:
       - "既存の『既知の制約』を 4 点セットの形式に書き直す。"
       - "とくに『再検討の条件』を全項目に必ず書く。書けないものは、なぜ書けないかを書く。"
       - "『ハーネスの制御外に根本原因がある』ものと『apparness 側で直せる』ものを分ける。後者は tasks[] に昇格させる。"
     acceptance:
-      - "HARNESS_GUIDE.md 11節の全項目が 4 点セットを満たす。"
+      - "docs/HARNESS_GUIDE.md 11節の全項目が 4 点セットを満たす。"
       - "apparness 側で直せると分類された項目が、この計画の tasks[] に反映されている。"
     verification:
       - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
@@ -486,15 +638,22 @@ tasks:
   - id: T-032
     priority: 3
     title: "摩擦点から再発防止テストへの変換を手順化する"
+    status: done
+    verified_at: "2026-08-24"
+    evidence: >
+      docs/maintenance/friction-to-test.md（摩擦点 → 再発防止テストの変換手順）と、
+      CLAIMS.md 末尾の「深刻度 最高・高 の摩擦点 → 再発防止テスト」表。
+      テストが書けないものは「未実証の残余」列に理由を書く運用で、空欄は CI 項目 P が拒否する。
+      docs/maintenance/DOGFOODING-LOG.md を機械可読にする案は過剰と判断して見送り、判断を手順書末尾に記録済み。
     why: "F-A10。77 件の摩擦点は貴重な資産だが、テストへの変換が場当たりになっている。"
     targets:
-      - DOGFOODING-LOG.md
+      - docs/maintenance/DOGFOODING-LOG.md
       - harness/CLAIMS.md
       - .claude/skills/    # 既存 skill への追記で済ませる。新設は non_goals
     method:
       - "摩擦点 1 件につき『再発を検出するテストがあるか / 無いならなぜ不要か』の列を追加する。"
       - "深刻度 最高・高 の摩擦点は、テスト無しでクローズしてはならないというルールにする。"
-      - "この判定を CI 項目にできるかを検討する（DOGFOODING-LOG.md の表を機械可読にする必要がある。過剰なら見送り、その判断を記録する）。"
+      - "この判定を CI 項目にできるかを検討する（docs/maintenance/DOGFOODING-LOG.md の表を機械可読にする必要がある。過剰なら見送り、その判断を記録する）。"
     acceptance:
       - "深刻度 最高・高 の全摩擦点に、対応テストまたは『テスト不要の理由』が付いている。"
     verification:
@@ -506,8 +665,13 @@ tasks:
   - id: T-040
     priority: 4
     title: "Rule 12 の読み取り・外部送信に対する事後検知の追加"
+    status: not_started
+    verified_at: "2026-08-24"
+    evidence: >
+      trigger（実地で 1 件でもすり抜けが観測されること）が未成立のため、着手しないのが正しい状態。
+      docs/plans/REPAIR-ORDER.machine.yaml の R-DEFER-1 が同じ穴を指しており、この判断を尊重している。
     why: >
-      HARNESS_GUIDE.md 11節 B-1。Rule 12 の静的検知をすり抜けた秘密ファイルの読み取り・
+      docs/HARNESS_GUIDE.md 11節 B-1。Rule 12 の静的検知をすり抜けた秘密ファイルの読み取り・
       外部送信は、事後に検出する手段が無い。事後検証（post_tool_use_guard.py）は作業ツリーの
       内容ハッシュ差分を見る仕組みで、読み取りと送信は作業ツリーを変えないため。
     trigger: >
@@ -518,7 +682,7 @@ tasks:
       - harness/hooks/post_tool_use_guard.py
       - harness/CLAIMS.md
     acceptance:
-      - "すり抜けた実例が DOGFOODING-LOG.md に摩擦点として記録されている（着手の前提）。"
+      - "すり抜けた実例が docs/maintenance/DOGFOODING-LOG.md に摩擦点として記録されている（着手の前提）。"
       - "追加した検知が INV-5（Python 標準ライブラリのみ）を満たしている。"
       - "CLAIMS.md の Rule 12 の行から『未実証の残余』が減っている。"
     verification:
@@ -556,7 +720,7 @@ non_goals:
     reason: >
       apps/<app-id> のディレクトリ構造と状態機械が前提になっており、対応は事実上の作り直しになる。
       その用途には claude-code-harness を併用するほうが合理的。
-      この判断は HARNESS_GUIDE.md にスコープとして明記すること。
+      この判断は docs/HARNESS_GUIDE.md にスコープとして明記すること。
 
   - id: NG-5
     statement: "TDD 強制や検証ゲートを『既定オフ』にする設定を導入しない。"
@@ -578,15 +742,20 @@ non_goals:
 done_criteria:
   phase_0:
     tasks: [T-000, T-001, T-002]
+    status: done
     statement: "改修の土台。予算に余裕が戻り、Rule と実証テストの対応が取れている。"
   phase_1:
     tasks: [T-010, T-011]
+    status: done
     statement: "安全性の穴が塞がっている。危険操作が拒否され、強制レイヤの不全が可視化される。"
   phase_2:
     tasks: [T-020, T-021, T-022]
+    status: partial
+    status_note: "T-020 / T-021 は done。T-022 のみ blocked（成果物が見つからない）。"
     statement: "既知の不具合が直り、版と実績が追跡可能になっている。"
   phase_3:
     tasks: [T-030, T-031, T-032]
+    status: done
     statement: "運用面の底上げ。非エンジニアが判断でき、制約と失敗が資産化されている。"
   conditional:
     tasks: [T-040]

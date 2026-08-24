@@ -29,11 +29,11 @@ F-076〜F-082 は改修見送り（理由は各項目に記載）。それ以外
 - 対応表は `harness/CLAIMS.md` の「深刻度 最高・高 の摩擦点 → 再発防止テスト」。
   そこに書かれたテスト名が実在するかは CI 項目 P が機械的に検証する。
 - テストが書けないものは、同じ表の「未実証の残余」列に**なぜ書けないか**を書く（空欄は CI が拒否）。
-- 変換の手順は `harness/procedures/friction-to-test.md`。
+- 変換の手順は `friction-to-test.md`（同ディレクトリ）。
 - 中・低の摩擦点はこのルールの対象外（テストを書いてもよいが、必須ではない）。
 
 この文書（140KB の散文）自体を機械可読にして CI 判定する案は**過剰と判断して見送った**。
-判断の記録は `harness/procedures/friction-to-test.md` 末尾。
+判断の記録は `friction-to-test.md`（同ディレクトリ） 末尾。
 
 ## ★ ドッグフーディング成果物の保全状況（2026-08-24 時点）
 
@@ -192,7 +192,7 @@ bookmark-vault integrator実行）」節の F-065〜F-067）。
    コミットしても安全）。`CONVENTIONS.md` 12節に一文追記し、`feature-builder.md` にも
    「検証失敗時はいったんコミットしてから原因を直し、受領書を作り直す」手順を明記する。
    **`CONVENTIONS.md` は 2026-08-23 時点で 35993/36000 バイト（残り 7 バイト）。**
-   追記する場合は必ず同時にどこかを削るか `HARNESS_GUIDE.md` へ移すこと
+   追記する場合は必ず同時にどこかを削るか `docs/HARNESS_GUIDE.md` へ移すこと
    （F-047 と同じ捻出作業が要る）。
 
 4. **F-058（低）** `open_issues[]` の申し送り文が、integrator の実際の権限
@@ -373,7 +373,7 @@ Go等、全機能が最終的に1つのバイナリにコンパイルされる�
 必要だが、これは1本目（md-todo-cli）の設計を読んで初めて気づいたパターンで、
 `CONVENTIONS.md` 6節の説明（producerの出力がconsumerの入力になる、という抽象的な言い方）
 だけでは自明ではない。改修は見送り（6節への追記は`CONVENTIONS.md`のバイト予算が
-逼迫しているため見送り。`HARNESS_GUIDE.md`側に具体例を足す余地はある）。
+逼迫しているため見送り。`docs/HARNESS_GUIDE.md`側に具体例を足す余地はある）。
 
 ### F-078 solution-architect: `design-baseline.md`（Layer 1）がWeb/GUI前提で、TUI/非GUIアプリでは手動読み替えが必要（低）
 
@@ -516,9 +516,9 @@ git checkout main && git merge --no-ff harness/<topic>
 ```
 
 - **`CONVENTIONS.md` は 36000 バイト上限**（項目 L）。2026-08-23 時点で 35993 バイトで
-  **残り 7 バイトしかない**（Rule 11 追加時、`既知の限界` 節を `HARNESS_GUIDE.md` 側の
+  **残り 7 バイトしかない**（Rule 11 追加時、`既知の限界` 節を `docs/HARNESS_GUIDE.md` 側の
   既存記述に一本化して捻出した）。
-  追記するなら、同時に何かを `HARNESS_GUIDE.md` か `harness/README.md` へ移すこと。
+  追記するなら、同時に何かを `docs/HARNESS_GUIDE.md` か `harness/README.md` へ移すこと。
   超えると `ci_check.py` と `test_context_budget.py` が落ちる。
 - **規約を追記する前に 15節「何をどこに書くか」を読む。** 手順は agent/skill 側、規範は
   `CONVENTIONS.md` 側。二重に書くと `ci_check.py` の項目 M が落ちる（F-048）。
@@ -592,7 +592,7 @@ i = last.find("摩擦点"); print(last[max(0,i-200):])
 項目 L は `CONVENTIONS.md` 単体 36000 バイト、`CONVENTIONS.md + 各 agent 定義` 46000 バイトを
 上限とする。改修前の時点で `CONVENTIONS.md`(35813) + `solution-architect.md`(10180) = 45993 で、
 **上限まで残り 7 バイト**だった。Rule 3・Rule 7 に 1 文ずつ足すだけで、
-7節の worktree 読み替えの段落・12節の背景説明・10節の設計意図などを `HARNESS_GUIDE.md` へ
+7節の worktree 読み替えの段落・12節の背景説明・10節の設計意図などを `docs/HARNESS_GUIDE.md` へ
 退避する作業が必要になった（今回の改修で計 8 箇所を圧縮・移設した）。
 
 予算強制そのものは設計どおり働いている（前回の通しでも実証済み）。問題は**予算が飽和した状態から
@@ -1699,7 +1699,7 @@ JSON Schema しか無く、それは既に `check_interfaces.py` が検証して
 - **F-054（中）**: 検証が失敗しても受領書付き `status.yaml` をコミットして構わないことを
   `CONVENTIONS.md` 12節・`feature-builder.md` に明記（`state: TESTED` への昇格は Rule 10 が
   受領書の中身で別途止めるため安全）。`CONVENTIONS.md` は改修前 35993/36000 バイトで
-  残り 7 バイトしか無かったため、Rule 10/Rule 8 の順序の詳細説明を `HARNESS_GUIDE.md` 14節へ
+  残り 7 バイトしか無かったため、Rule 10/Rule 8 の順序の詳細説明を `docs/HARNESS_GUIDE.md` 14節へ
   移設して捻出した（改修後 35943 バイト）。
 
 回帰テスト7件を追加（`test_yaml_parser.py` に F-061 用3件、`test_verification.py` に

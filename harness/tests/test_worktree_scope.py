@@ -1,6 +1,6 @@
 """`.worktrees/` を通るパスでも Rule が発火することの回帰テスト。
 
-ドッグフーディング（`DOGFOODING-LOG.md` の F-029 / F-030）で、メインの worktree から
+実地の検証（摩擦点 F-029 / F-030）で、メインの worktree から
 `apps/<app>/.worktrees/<feature-id>/apps/<app>/03-features/<feature-id>/...` を書き込むと
 Rule 1・2・3・5・9・10 がまとめて素通りすることが実証された。原因は各 Rule の正規表現が
 worktree 相対パスの先頭にアンカーされていて、ハーネス自身が規定する worktree の実体パスに

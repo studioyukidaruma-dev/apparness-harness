@@ -75,7 +75,98 @@
   対応表は `harness/CLAIMS.md` に置き、CI 項目 P で表と実体の drift を機械的に塞ぐ
   （`docs/maintenance/DOGFOODING-LOG.md` を機械可読にする案は過剰と判断して見送り。判断は手順書の末尾に記録）。
 
+### Changed（文書配置）
+
+- **`docs/` を新設し、人間向けの文書をルートから移した。** ルート直下に残すのは、実行物が
+  パスとして解決するもの（`VERSION` / `CHANGELOG.md`）・入口（`README.md`）・ツール設定
+  （`pyrightconfig.json`）・ハーネス内部から名前で参照される実地記録（`docs/maintenance/DOGFOODING-LOG.md`）だけ。
+  - `HARNESS_GUIDE.md` → `docs/HARNESS_GUIDE.md`
+  - `harness-flow-{plain,technical}.html` → `docs/flow/`
+  - `IMPROVEMENT-PLAN.{md,machine.yaml}` / `REPAIR-ORDER.{md,machine.yaml}` → `docs/plans/`
+  - `harness-comparison-{plain,technical}.html` → `docs/archive/`
+  - `docs/README.md`（索引）を新規追加
+- **`docs/` は人間専用、という規範を追加した**（`CONVENTIONS.md` 15節）。agent / skill の
+  プロンプトから `docs/` を読ませない。ハーネス内部から `docs/` を指してよいのは**出典の注記**
+  としてだけで、読めという指示ではない（本文では「人間向け」と添える）。`docs/` へ出してよいのは
+  「ハーネス内部にあるが実は人間向けで、AI が参照する必要のない記述」だけ。判定ロジック・規範・
+  手順は出さない。読まれないのでコンテキスト予算の対象外。背景は `docs/HARNESS_GUIDE.md` 6節。
+- 移動に伴い、ハーネス内部 6 ファイル（`CONVENTIONS.md` / `CLAIMS.md` / `harness/README.md` /
+  `ci_check.py` / `vuln_scan.py` / `test_path_utils_bash.py`）の `HARNESS_GUIDE.md` への参照を
+  `docs/HARNESS_GUIDE.md` へ更新。`CONVENTIONS.md` の 1節（ディレクトリ構造）に `docs/` を追加。
+  AI が読む節（6・9・10・12・14）にある参照には「人間向け」の印を付けた。
+
+### Changed（ハーネスからの参照の切断）
+
+- **ハーネス本体から `DOGFOODING-LOG.md` への参照を全廃した（12 件 → 0 件）。** これは
+  ハーネス改修のための記録であって、ハーネス自身が参照するものではない。
+  - 散文 9 件は、文書名を出さずに単体で意味が通る形へ書き換えた（`ci_check.py` 3 件・
+    `print_conventions.py`・`CLAIMS.md`・`harness/README.md`・テスト docstring 3 件）。
+    たとえば項目 O の「凍結の経緯は `DOGFOODING-LOG.md` 参照」は、凍結の事実そのもの
+    （実地 3 本完走後の 2026-08-23 にユーザーの明示的許可で凍結）を docstring に直接書いた。
+  - 残る 3 件は `harness/procedures/friction-to-test.md` の中にあり、その文書の存在理由その
+    ものだった。どの agent も `always-reads` に宣言しておらず、保守者しか読まない文書なので、
+    記録本体と一緒に `docs/maintenance/` へ移した（`CONVENTIONS.md` 15節の「`docs/` へ出して
+    よいのは、ハーネス内部にあるが実は人間向けで AI が参照する必要のない記述」に該当する）。
+  - `DOGFOODING-LOG.md` → `docs/maintenance/DOGFOODING-LOG.md`
+  - `harness/procedures/friction-to-test.md` → `docs/maintenance/friction-to-test.md`
+    （`harness/procedures/` に残るのは `feature-build.md` のみ）
+- **残された依存**: ハーネス内部には摩擦点 ID（`F-047` など）が 39 種類残っている。うち
+  深刻度 最高・高 の 20 種類は `harness/CLAIMS.md` の表から引ける（CI 項目 P が検証）。
+  残り 19 種類はハーネス内部からは解決できない不透明な識別子だが、文書への参照ではないので
+  そのままにした。意味を持たせたい箇所は、ID ではなく事実を直接書く方針とする。
+
+### Removed
+
+- **`HARNESS_GUIDE.pdf`**（1.4MB）。作成日 2026-08-19 で、Rule 8〜12・`gate-reviewer`・
+  `CLAIMS.md`・`VERSION` が存在しない時代の 16 ページのスナップショット。どこからも参照されておらず、
+  現行の `docs/HARNESS_GUIDE.md`（18節）とは別物になっていた。
+- **`claude-code-harness-main/` と同 `.zip`**（合計 105MB、git 管理外）。比較調査の対象だった
+  他プロジェクトの複製で、調査は完了しており apparness 側からの参照は 0 件だった。調査結果は
+  `docs/archive/harness-comparison-*.html` に残る。`.gitignore` の無視指定は、再取得時に誤って
+  コミットしないよう残してある。
+
+### Fixed（文書）
+
+- `docs/plans/REPAIR-ORDER.{md,machine.yaml}` が根拠に挙げる
+  `harness-verdict-2026-08-24-*.html` は**このリポジトリに存在しない**。所在不明であることを
+  明記し、根拠の実体が `findings[].evidence[]` にあることを示した。
+
 ### Documentation
+
+- **実行物と説明文書の突き合わせ監査を行い、乖離 21 件を修正した**（実体側は変更していない。
+  `docs/HARNESS_GUIDE.md` / `README.md` / `harness/README.md` / `harness/CONVENTIONS.md` /
+  `.claude/agents/solution-architect.md` / フロー説明書 2 版）。主なもの:
+  - `docs/HARNESS_GUIDE.md` 5節: 見出しは「12のルール」なのに表が Rule 1〜10 しか無かった。
+    Rule 11・12 を追加し、hook 5 本と担当イベントの一覧、`PreToolUse` の matcher を明記。
+    「Bash 経由では Rule 7・9・10 は判定対象外」という記述は誤り（現在は
+    `check_requires_simulatable_tool` が**手段そのものを拒否**する）なので書き直した。
+  - `docs/HARNESS_GUIDE.md` 6節: 「`CONVENTIONS.md` は全 subagent が起動時に読む」は実装と逆
+    （全文を読む agent はおらず、節を宣言するのは `solution-architect` だけで残り 4 つは `none`）。
+    表・図・行数（約230行 → 440行）を実測に合わせ、予算の 3 行目が「読むと宣言した節 ＋
+    always-reads」であること、`procedures/` が予算の**対象**であることを明記。
+  - `docs/HARNESS_GUIDE.md` 12節: CI チェック内容の表に M・N・O・P・Q が無く 11 項目しか無かった
+    （実装は 16 項目）。5 行を追加し、L の判定方法を現在の実装に更新。H が欠番であることも明記。
+  - `docs/HARNESS_GUIDE.md` 7節 対照表: Rule 11・Rule 12・書き込み手段の制限・強制レイヤの
+    健全性・git 劣化の警告の 5 行が欠けていたので追加。
+  - `docs/HARNESS_GUIDE.md` 2節: 「4つのsubagent」→ 5 つ。`procedures/` / `CLAIMS.md` / `tests/` /
+    `VERSION` をマップに追加。
+  - `docs/HARNESS_GUIDE.md` 11節: A-1 の緩和策を現在の fail-closed 実装に合わせ、
+    **A-6（git 情報が取れない場所での判定劣化）** を 4 点セットで追加。
+  - `docs/HARNESS_GUIDE.md` 冒頭: 更新日 2026-08-21 → 2026-08-24。追加済み一覧に Rule 11・12・
+    自己診断・`CLAIMS.md`・`VERSION`/`CHANGELOG` を反映。存在しない `ROADMAP.md` への
+    案内を実在する文書（`docs/plans/IMPROVEMENT-PLAN.machine.yaml` / 11節）へ差し替え。
+  - `harness/README.md`: `procedures/` を「コンテキスト予算の対象外」と書いていたが実装は逆
+    （always-reads として項目 L が計上する）。ドッグフーディング成果物が現存せず追検証できない
+    ことも明記した。
+  - `README.md`: 自己テスト件数 656 → 685。`validate_status_transition.py` の呼び出し方
+    （`old_state` / `new_state` は**位置引数で必須**）を修正。Hook 登録に `SubagentStop` を追加。
+    Rule 1 の `HARNESS_UNLOCK=1` と fail-closed の範囲を明記。
+  - `harness/CONVENTIONS.md` 7節: fail-closed の範囲に「入力そのものを解釈できない場合」と
+    `stop_commit_guard.py` を追加。git 劣化の警告に言及。`<app-name>` → `<app-id>`。
+  - `.claude/agents/solution-architect.md`: テスト実在の機械検証の参照先を 14節 → **13節**
+    （14節はスタックパック）。
+  - `ROADMAP.md`（存在しない）への参照を `vuln_scan.py` と `test_path_utils_bash.py` の
+    docstring からも除去。
 
 - `README.md` を全面的に書き直した。プロジェクト概要・環境・ディレクトリ構成・開発環境構築・
   アプリ作成の流れ・機械が強制すること（Rule 12 と CI 16 項目）・コマンド一覧・文書の役割分担・

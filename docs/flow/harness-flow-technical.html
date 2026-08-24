@@ -75,8 +75,8 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <p class="lead">
 apparness ハーネスの実行時アーキテクチャ。介入点・参照文書・コンテキスト予算・ブランチ保護・
 ゲート判定の書式と決定性を、実装に対応づけて記述する。<br>
-対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 656 件緑<br>
-平易版: <code>harness-flow-plain.html</code>
+対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 685 件緑<br>
+平易版: <code>docs/flow/harness-flow-plain.html</code>
 </p>
 
 <div class="toc">
@@ -245,7 +245,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 
     <rect x="8" y="536" width="924" height="52" rx="6" fill="var(--warn-bg)" stroke="var(--warn)"/>
     <text x="18" y="556" font-weight="700" fill="var(--ink)">CI（GitHub Actions / .github/workflows/harness-checks.yml）</text>
-    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 656 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
+    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 685 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
 
     <line x1="128" y1="98" x2="128" y2="110" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
     <line x1="128" y1="182" x2="128" y2="194" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
@@ -274,7 +274,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 <tbody>
 <tr>
 <td class="id">SessionStart</td><td>―</td>
-<td><code>session_start_healthcheck.py</code></td><td>5s</td>
+<td><code>session_start_healthcheck.py</code>（強制レイヤの自己診断＋git 情報が取れないことによる判定劣化の警告）</td><td>5s</td>
 <td><span class="tag t-none">常に 0</span></td>
 <td>強制レイヤの自己診断。異常時は stderr 警告＋<code>hookSpecificOutput.additionalContext</code> 注入</td>
 </tr>
@@ -283,7 +283,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 <td><code>Edit|Write|MultiEdit|NotebookEdit|Bash|Read|NotebookRead</code></td>
 <td><code>pre_tool_use_guard.py</code></td><td>5s</td>
 <td><span class="tag t-deny">2 = deny</span></td>
-<td>Rule 1・2・3・5・6・7・9・10・11・12。<strong>fail-closed</strong>（<code>_fail_closed_main</code> が例外を握りつぶさず exit 2）</td>
+<td>Rule 1・2・3・5・6・7・9・10・11・12。<strong>fail-closed</strong>（<code>_fail_closed_main</code> が、想定外の例外だけでなく<strong>入力そのものを解釈できない場合</strong>も握りつぶさず exit 2。空の stdin のみ通す）</td>
 </tr>
 <tr>
 <td class="id">PostToolUse</td><td><code>Edit|Write|MultiEdit|Bash</code></td>
@@ -320,14 +320,14 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 </ol>
 
 <div class="box warn">
-<h4>fail-open — 構造的に残る穴（HARNESS_GUIDE.md 11節 A-1）</h4>
+<h4>fail-open — 構造的に残る穴（docs/HARNESS_GUIDE.md 11節 A-1）</h4>
 <p>
 Hook を起動するのは Claude Code である。<code>python3</code> 不在・import 失敗・タイムアウトの
 いずれでも Hook は exit != 2 で終わり、<strong>Rule 1–12 が黙って無効化された状態で作業が継続する</strong>。
 ハーネス側からこの失敗を止める手段はない（失敗しているのは自分自身）。
 </p>
 <p style="margin-bottom:0">
-緩和は 3 点のみ: ①<strong>fail-closed</strong>（判定に到達したうえでの例外は通さず exit 2）
+緩和は 3 点のみ: ①<strong>fail-closed</strong>（判定に到達したうえでの例外に加え、hook の入力を解釈できない場合も通さず exit 2。<code>stop_commit_guard.py</code> にも適用）
 ②<strong>SessionStart 自己診断</strong>（hooks の import 可否・<code>path_utils</code> の必須関数 8 つ・
 settings.json の 5 登録を検査。正常時 53ms・無出力）
 ③<strong><code>PROGRESS.md</code> 先頭への状態表示</strong>。
@@ -337,7 +337,7 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 
 <h2 id="rules">4. Rule 1–12 の判定仕様</h2>
 
-<p>規範の単一情報源は <code>harness/CONVENTIONS.md</code> 7節（8,257 バイト）。実装は <code>harness/hooks/</code>。</p>
+<p>規範の単一情報源は <code>harness/CONVENTIONS.md</code> 7節（9,034 バイト）。実装は <code>harness/hooks/</code>。</p>
 
 <div class="scroll">
 <table>
@@ -432,6 +432,10 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 
 <p>
 <strong>「例外」と「判定不能」は挙動が逆である。</strong>これは監査上いちばん誤解されやすい点なので明示する。
+分かれ目は<strong>判定の入口か、判定の材料か</strong>である。入口（hook の入力そのもの）が壊れている場合は
+判定に着手すらできないので <span class="tag t-deny">deny</span>、入口は正常だが材料（対応する
+<code>status.yaml</code>・<code>shared-kernel.yaml</code>・git 情報など）が存在しない場合は
+<span class="tag t-none">allow</span> に倒れる。
 </p>
 <ul>
 <li><strong>例外</strong>（判定に到達したが壊れた）→ <span class="tag t-deny">deny</span>。
@@ -450,21 +454,21 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 <thead><tr><th>Rule</th><th>allow に倒れる条件</th><th>実装</th><th>成立しうる状況</th></tr></thead>
 <tbody>
 <tr><td class="id">2</td><td><code>get_worktree_toplevel(cwd)</code> が <code>None</code></td>
-<td><code>pre_tool_use_guard.py:68</code></td><td>git リポジトリ外、<code>git</code> 不在、3 秒 timeout</td></tr>
+<td><code>check_rule2_feature_scope()</code></td><td>git リポジトリ外、<code>git</code> 不在、3 秒 timeout</td></tr>
 <tr><td class="id">3</td><td>対応する <code>status.yaml</code> の state が読めない</td>
 <td><code>check_rule3_contract_freeze</code></td><td>status.yaml 未作成</td></tr>
 <tr><td class="id">3</td><td><code>contract.yaml</code> が存在しない／パースできない</td>
-<td><code>pre_tool_use_guard.py:219</code></td><td>契約作成前の <code>CONTRACT_APPROVED</code> 遷移</td></tr>
+<td><code>check_rule3_contract_approval_record()</code></td><td>契約作成前の <code>CONTRACT_APPROVED</code> 遷移</td></tr>
 <tr><td class="id">5</td><td><code>shared-kernel.yaml</code> が読めない</td>
-<td><code>pre_tool_use_guard.py:108</code></td><td>worktree に上位文書が入っていない（F-014 の状況）</td></tr>
+<td><code>check_rule5_required_skills()</code></td><td>worktree に上位文書が入っていない（F-014 の状況）</td></tr>
 <tr><td class="id">7</td><td>要件の <code>version</code> または <code>based_on_requirements_version</code> が <code>None</code></td>
-<td><code>pre_tool_use_guard.py:156</code></td><td>どちらかのキーが未記載</td></tr>
+<td><code>check_rule7_requirements_consistency()</code></td><td>どちらかのキーが未記載</td></tr>
 <tr><td class="id">9</td><td><code>status.yaml</code> が存在しない（新規作成）／新 state が読めない</td>
-<td><code>pre_tool_use_guard.py:244</code></td><td>scaffold 直後</td></tr>
+<td><code>check_rule9_status_transition()</code></td><td>scaffold 直後</td></tr>
 <tr><td class="id">10</td><td><code>shared-kernel.yaml</code> と <code>contract.yaml</code> が<strong>両方</strong>読めない</td>
-<td><code>pre_tool_use_guard.py:313</code></td><td>宣言元が丸ごと欠落</td></tr>
+<td><code>check_rule10_verification_receipt()</code></td><td>宣言元が丸ごと欠落</td></tr>
 <tr><td class="id">10 / 11</td><td><code>get_head_commit()</code> が <code>None</code></td>
-<td><code>pre_tool_use_guard.py:318, 405</code></td><td>コミットが 1 つも無い、git 不在</td></tr>
+<td><code>check_rule10_verification_receipt()</code> / <code>check_rule11_integration_receipt()</code></td><td>コミットが 1 つも無い、git 不在</td></tr>
 <tr><td class="id">1–6（Bash）</td><td><code>shlex</code> のトークン化に失敗（クォート不整合等）</td>
 <td><code>_tokenize_bash_command()</code> が <code>None</code> → 候補 0 件</td><td>閉じていない引用符を含むコマンド</td></tr>
 <tr><td class="id">7（承認記録）</td><td>書き込み後内容が <code>parse_simple_yaml</code> でパースできない</td>
@@ -627,7 +631,8 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 </table>
 </div>
 
-<h3>CONVENTIONS.md の節別サイズ（全 31,200 バイト / 15 節で凍結）</h3>
+<h3>CONVENTIONS.md の節別サイズ（ファイル全体 31,975 バイト / 15 節で凍結）</h3>
+<p class="note">各行は <code>print_conventions.parse_sections()</code> が返す本文のバイト数（CI 項目 L が <code>attributed_conventions_bytes()</code> で数えるのと同じ単位。合計 31,136 バイトで、差分 839 バイトは 1 節より前の前書きと見出し行）。<code>ci_check.py</code> の項目 L が上限を課すのは「ファイル全体 36,000 バイト」と「agent が読むと宣言した節の合計を含むセッション常時コスト 46,000 バイト」で、節ごとの上限は無い。</p>
 <div class="scroll">
 <table>
 <thead><tr><th>節</th><th class="num">bytes</th><th>内容</th><th>読む agent</th></tr></thead>
@@ -638,7 +643,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 <tr><td class="id">4</td><td class="num">582</td><td>worktree パス規則</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">5</td><td class="num">1,492</td><td>状態機械</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">6</td><td class="num">1,307</td><td>独立機能の設計原則</td><td>solution-architect</td></tr>
-<tr><td class="id">7</td><td class="num">8,257</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">7</td><td class="num">9,034</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">8</td><td class="num">262</td><td>緊急避難（HARNESS_UNLOCK）</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">9</td><td class="num">1,966</td><td>自動化の度合い（AUTONOMY.yaml）</td><td>solution-architect</td></tr>
 <tr><td class="id">10</td><td class="num">2,958</td><td>品質保証の多層構造</td><td>solution-architect</td></tr>
@@ -652,7 +657,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 </div>
 
 <p>
-<strong>7節（12 ルール、8,257 バイト）を読む agent は 1 つも無い。</strong>
+<strong>7節（12 ルール、9,034 バイト）を読む agent は 1 つも無い。</strong>
 規範の本文を読ませる代わりに、違反時に Hook が返すエラーメッセージが「なぜ止まったか」と
 「正しい進み方」を伝える設計（<code>CONVENTIONS.md</code> 15節の分担表）。
 agent プロンプト中の「7節 Rule 7」といった記載は<strong>出典の注記</strong>であり、読み込み指示ではない。
@@ -669,7 +674,7 @@ agent プロンプト中の「7節 Rule 7」といった記載は<strong>出典�
 <td>feature-builder, integrator, gate-reviewer</td><td>UI を持つ機能のときのみ</td></tr>
 <tr><td><code>quality/review-rubric.md</code></td><td class="num">4,871</td><td>gate-reviewer</td><td>実質無条件（審査の唯一の基準）</td></tr>
 <tr><td><code>STACK_PACK.md</code></td><td class="num">7,011</td><td>solution-architect, feature-builder</td><td><code>kind: stack-pack</code> を採用したときのみ</td></tr>
-<tr><td><code>procedures/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネス保守セッション</td><td>摩擦点をテスト化するとき</td></tr>
+<tr><td><code>docs/maintenance/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネス保守セッション</td><td>摩擦点をテスト化するとき</td></tr>
 <tr><td><code>CLAIMS.md</code></td><td class="num">20,793</td><td><strong><code>ci_check.py</code> と人間のみ</strong></td>
 <td>アプリ作成セッションからは参照経路が存在しない（agent/skill プロンプトからの参照 0 件、
 CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
@@ -717,7 +722,7 @@ CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
 <td><strong>15 節で凍結。16 節以降は CI 項目 O が拒否</strong>。既存節への追記のみ。参照は節番号で</td></tr>
 <tr><td>機械では強制できない規範</td><td><code>CONVENTIONS.md</code> に宣言 ＋ agent プロンプトに指示</td><td>同上</td>
 <td>宣言と指示を分ける。両方に本文を書くと項目 M が落ちる</td></tr>
-<tr><td>設計意図・背景・経緯・既知の制約</td><td><code>HARNESS_GUIDE.md</code></td><td>対象外</td>
+<tr><td>設計意図・背景・経緯・既知の制約</td><td><code>docs/HARNESS_GUIDE.md</code></td><td>対象外</td>
 <td>18節が「CONVENTIONS.md から移設した説明」の受け皿。11節の制約は<strong>4 点セット</strong>
 （症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）で書く</td></tr>
 <tr><td>フェーズ固有の手順</td><td>該当 agent/skill プロンプト、または <code>harness/procedures/*.md</code></td>
@@ -732,13 +737,13 @@ CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
 <td>CI 項目 A が 8 パターンを検証（autonomy / requirements / shared-kernel / architecture /
 feature-contract ×2 / status / integration）</td></tr>
 <tr><td>雛形</td><td><code>harness/templates/*.tmpl</code></td><td>対象外</td><td><code>progress.html.tmpl</code> を含む</td></tr>
-<tr><td>実地の摩擦点</td><td><code>DOGFOODING-LOG.md</code></td><td>対象外</td>
+<tr><td>実地の摩擦点</td><td><code>docs/maintenance/DOGFOODING-LOG.md</code></td><td>対象外</td>
 <td>深刻度 最高/高 は<strong>再発防止テストなしでクローズ禁止</strong>。対応表は CLAIMS.md、手順は
-<code>procedures/friction-to-test.md</code></td></tr>
+<code>docs/maintenance/friction-to-test.md</code></td></tr>
 <tr><td>ハーネスの変更履歴</td><td><code>CHANGELOG.md</code> / <code>VERSION</code></td><td>対象外</td>
 <td><strong>CI 項目 Q</strong>: <code>harness/</code>・<code>.claude/</code>・<code>.github/</code> に差分があるコミットは
 <code>## [Unreleased]</code> に項目が要る</td></tr>
-<tr><td>改修計画</td><td><code>IMPROVEMENT-PLAN.machine.yaml</code> / <code>.md</code></td><td>対象外</td>
+<tr><td>改修計画</td><td><code>docs/plans/IMPROVEMENT-PLAN.machine.yaml</code> / <code>.md</code></td><td>対象外</td>
 <td>機械可読の <code>tasks[]</code>。制約から昇格したタスクはここへ</td></tr>
 <tr><td>型チェッカ設定</td><td><code>pyrightconfig.json</code></td><td>対象外</td>
 <td><code>harness/hooks</code> は実行時に <code>sys.path</code> を操作して <code>path_utils</code> を読むため、
@@ -941,9 +946,9 @@ push 時点で既にコミット済みのため、それぞれ対象外。
 
 <h3>CI ジョブ構成（<code>.github/workflows/harness-checks.yml</code>）</h3>
 <ul>
-<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 656 件）</li>
+<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 685 件）</li>
 <li><code>ci-check</code> — <code>ci_check.py --branch … [--base …]</code>（<code>fetch-depth: 0</code>）</li>
-<li><code>vuln-scan</code> — OSV-Scanner（バージョン固定＋SHA256 検証）→ <code>vuln_scan.py</code></li>
+<li><code>vuln-scan</code> — OSV-Scanner（バージョン固定＋SHA256 検証）→ <code>vuln_scan.py</code>。検出の受容は <code>apps/&lt;app-id&gt;/.vuln-ignore</code> に <code>&lt;ID&gt;  expires=YYYY-MM-DD  reason=…</code> で記録する。期限・理由の欠落と期限切れは<strong>走査結果に関わらず exit 1</strong>。抑制した検出は標準出力に列挙される</li>
 </ul>
 
 <h2 id="claims">11. 主張と証跡の対応（CLAIMS.md）</h2>
@@ -963,7 +968,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 強制レイヤ自体の健全性 / <strong>深刻度 最高・高 の摩擦点 21 件</strong>。
 </p>
 <p>
-摩擦点の変換手順は <code>harness/procedures/friction-to-test.md</code>。
+摩擦点の変換手順は <code>docs/maintenance/friction-to-test.md</code>。
 <strong>深刻度 最高・高 の摩擦点は、再発防止テストが無い状態でクローズしない</strong>のがルール。
 テストが書けない場合は「未実証の残余」に理由を記す（ハーネスの制御外 / 意味論的に判定不能 /
 手順の問題でコードの状態として表現できない、の 3 類型のみ）。
@@ -973,7 +978,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 
 <p>
 記録形式は <strong>4 点セット</strong>（症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）に統一。
-全文は <code>HARNESS_GUIDE.md</code> 11節。<strong>A = ハーネスの制御外</strong>、<strong>B = apparness 側で直せる</strong>。
+全文は <code>docs/HARNESS_GUIDE.md</code> 11節。<strong>A = ハーネスの制御外</strong>、<strong>B = apparness 側で直せる</strong>。
 </p>
 
 <div class="scroll">
@@ -991,7 +996,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <tr><td class="id">A-5</td><td>brownfield 非対応</td><td>スコープ外と明記（NG-4）</td><td>明示の要望＋作り直しコストを払う判断が出たとき</td></tr>
 <tr><td class="id">B-1</td><td>Rule 12 の読み取り・外部送信は事後検知できない</td><td>静的検知パターンを広めに取る</td>
 <td><strong>実地で 1 件でもすり抜けが観測されたとき → 条件付きタスク T-040 に昇格</strong></td></tr>
-<tr><td class="id">B-2</td><td>ドッグフーディング成果物が保全されていない</td><td>探索結果と保全すべき対象を DOGFOODING-LOG.md 冒頭に記録</td>
+<tr><td class="id">B-2</td><td>ドッグフーディング成果物が保全されていない</td><td>探索結果と保全すべき対象を docs/maintenance/DOGFOODING-LOG.md 冒頭に記録</td>
 <td><strong>所在が判明し次第、即座に保全（T-022 未完了）</strong></td></tr>
 <tr><td class="id">B-3</td><td>CI がアプリのテストを実行しない</td><td>受領書の祖先性＋機能ディレクトリ未変更で等価条件を検証</td>
 <td>受領書が通っているのに CI で壊れる事象が観測されたとき</td></tr>
@@ -1018,7 +1023,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 
 <p>
 記載した事実は<strong>実行物（コード・設定・スキーマ・agent/skill プロンプト）から機械的に抽出した</strong>。
-人間向け文書（<code>CONVENTIONS.md</code>・<code>HARNESS_GUIDE.md</code>・<code>README.md</code>）は、
+人間向け文書（<code>CONVENTIONS.md</code>・<code>docs/HARNESS_GUIDE.md</code>・<code>README.md</code>）は、
 実装より古い可能性があるため<strong>一次情報として採用していない</strong>。
 </p>
 
@@ -1052,7 +1057,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <td>同関数の戻り値を集計</td></tr>
 <tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
 <td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
-<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（656 passed）</td></tr>
+<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（685 passed）</td></tr>
 <tr><td>エディタ診断の件数</td><td>VS Code の言語サーバ（Pylance）から取得した実診断</td>
 <td>修正前 210 Error ＋ 3 Hint → 修正後 0 件</td></tr>
 </tbody>
@@ -1066,16 +1071,16 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <strong>個数・対応とも一致</strong>していた。<code>status.schema.json</code> の <code>state</code> enum と
 <code>path_utils.STATUS_ALL_STATES</code> も一致。<code>CONVENTIONS.md</code> 7節の Rule 記述と実装の間にも、
 今回の照合で意味的な齟齬は見つからなかった。<br>
-ただし<strong>「判定不能なら通す」の 8 条件と、Rule ごとのツール適用範囲の差</strong>は、
+ただし<strong>「判定不能なら通す」の 10 条件と、Rule ごとのツール適用範囲の差</strong>は、
 <code>CONVENTIONS.md</code> にも旧版のこの文書にも書かれていなかった（実装にしか存在しなかった）。
 本版 §3 に追記済み。
 </p>
 </div>
 
 <footer>
-harness-flow-technical.html ― apparness ハーネス <code>VERSION</code> 1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
-平易版: <code>harness-flow-plain.html</code>　規範: <code>harness/CONVENTIONS.md</code>（15 節・凍結中）
-設計意図: <code>HARNESS_GUIDE.md</code>　主張と証跡: <code>harness/CLAIMS.md</code>
+docs/flow/harness-flow-technical.html ― apparness ハーネス <code>VERSION</code> 1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
+平易版: <code>docs/flow/harness-flow-plain.html</code>　規範: <code>harness/CONVENTIONS.md</code>（15 節・凍結中）
+設計意図: <code>docs/HARNESS_GUIDE.md</code>　主張と証跡: <code>harness/CLAIMS.md</code>
 </footer>
 
 </div>

@@ -1,0 +1,646 @@
+derivation:
+  document_kind: repair-order
+  target_harness: apparness
+  target_version: v1
+  version_file_at_issue: "1.0.0"
+  created_at: "2026-08-24"
+  created_from:
+    - kind: execution-derived-assessment
+      subject_a: "apparness harness v1 (this repository, working tree as extracted)"
+      subject_b: "ksd-pxev-ksd @ main (Kyocera Spec Driven Development core)"
+      method: >
+        人間向け散文（README / HARNESS_GUIDE / IMPROVEMENT-PLAN / DOGFOODING-LOG /
+        同梱の既存比較レポート）を根拠から除外し、実行されるアーティファクトのみを対象とした。
+        apparness は git 初期化した複製上で hook・スクリプト・自己テスト・ci_check を実際に起動し、
+        終了コードと stderr を記録した。
+      reports:
+        # このリポジトリには存在しない（生成されたが取り込まれなかった）。
+        # 根拠は下の findings[] の evidence[] に実測コマンドと出力として残してある。
+        - harness-verdict-2026-08-24-technical.html  # 所在不明
+        - harness-verdict-2026-08-24-plain.html      # 所在不明
+  human_readable_twin: docs/plans/REPAIR-ORDER.md
+  audience: machine
+  purpose: >
+    「このファイルを読んでハーネスを改修してください」と指示されたときに、そのまま実行計画として
+    読まれることを想定した機械向けの改修指示である。tasks[] を priority 昇順・id 昇順に処理する。
+
+  relation_to_existing_plan:
+    file: docs/plans/IMPROVEMENT-PLAN.machine.yaml
+    status: >
+      本指示書は docs/plans/IMPROVEMENT-PLAN.machine.yaml を置き換えない。併存させる。
+      あちらは「別ハーネス（claude-code-harness）との比較」から導かれた計画で、
+      その T-000〜T-032 は作業ツリー上で既に実装済みと実測で確認した
+      （Rule 12・CLAIMS.md・VERSION/CHANGELOG・healthcheck・procedures/ 分離がいずれも存在する）。
+      本指示書は「実行して初めて分かった残存欠陥」を対象とする別系統の指示である。
+    authority: >
+      あちらの invariants[] / hard_constraints[] / non_goals[] は本指示書にもそのまま適用される。
+      矛盾した場合は invariants[] と non_goals[] が常に優先し、本指示書のタスクを破棄する。
+    known_overlap:
+      - existing_task: T-040
+        our_finding: R-DEFER-1
+        resolution: >
+          同一の穴を指しており、あちらが条件付きタスク（trigger 未成立なら着手しない）と定めている。
+          本指示書はその判断を尊重し、着手しないことを明記するだけに留める。
+    stale_data_warning: >
+      docs/plans/IMPROVEMENT-PLAN.machine.yaml の hard_constraints HC-1 の current[] は
+      measured_at: 2026-08-24 時点で CONVENTIONS.md 35891B / headroom 109B と記録しているが、
+      実測では 31200B / headroom 4800B である（T-001 の予算再配分が実施済み）。
+      あの数値を前提に判断してはならない。R-001 で更新すること。
+
+# ---------------------------------------------------------------------------
+# 0. 使い方
+# ---------------------------------------------------------------------------
+how_to_use:
+  - step: 1
+    action: >
+      docs/plans/IMPROVEMENT-PLAN.machine.yaml の invariants[] と non_goals[] を先に読む。
+      本指示書のタスクがそれらに触れる場合は、タスク側を破棄する。
+  - step: 2
+    action: >
+      hard_constraints[] を読む。HC-1（コンテキスト予算）・HC-2（規約 15 節凍結）・
+      HC-4（harness/ 書き込み保護）は CI と hook が機械的に強制しており、無視すると必ず落ちる。
+  - step: 3
+    action: "R-000 を実行してから他に着手する。ブランチを切らないと Rule 1 に拒否される。"
+  - step: 4
+    action: >
+      tasks[] を priority 昇順・id 昇順で処理する。blocked_by が未完了のタスクには着手しない。
+      各タスクの acceptance[] をすべて満たすまで完了扱いにしない。
+  - step: 5
+    action: >
+      verification[] のコマンドを実際に実行し、出力を確認する。
+      「通るはず」で完了扱いにしない（このハーネス自身の Rule 10 と同じ規範を、改修者にも適用する）。
+  - step: 6
+    action: >
+      obligations[] は全タスク共通の義務である。harness/** を触ったコミットでは
+      CHANGELOG.md の [Unreleased] 追記が CI 項目 Q に、ブロック挙動を変えた場合は
+      CLAIMS.md への行追加と実証テストが CI 項目 P に、機械的に要求される。
+  - step: 7
+    action: "deferred[] のタスクには着手しない。着手しないことが正しい状態である。"
+
+invocation_hint: >
+  想定される呼び出し方: 「docs/plans/REPAIR-ORDER.machine.yaml を読んで、priority 順に改修してください」。
+  タスクを個別に指示する場合は id（例 R-010）で指定する。
+
+# ---------------------------------------------------------------------------
+# 1. 全タスク共通の義務（CI が機械的に要求する）
+# ---------------------------------------------------------------------------
+obligations:
+  - id: OB-1
+    name: changelog
+    enforced_by: "harness/scripts/ci_check.py 項目 Q（check_versioning）"
+    rule: >
+      harness/ / .claude/ / .github/ 配下に 1 件でも変更があるコミットでは、
+      CHANGELOG.md が変更ファイルに含まれ、かつ `## [Unreleased]` に `- ` 始まりの項目が
+      1 件以上存在しなければならない。見出しだけでは不合格。
+    note: "内容の妥当性は判定されない。記述の有無だけが機械判定の対象。"
+
+  - id: OB-2
+    name: claims_table
+    enforced_by: "harness/scripts/ci_check.py 項目 P（check_claims_coverage）"
+    rule: >
+      「何をブロックすると主張するか」を変えたら harness/CLAIMS.md の該当行を更新する。
+      表に書く実証テストは `<file>.py::<test_name>` 形式で、harness/tests/ に
+      `def <test_name>(` として実在しなければならない。実証テストを `—` にする場合は
+      「未実証の残余」列に理由を必ず書く（空欄は不合格）。
+    note: "表の行は 5 セル以上（| 規則 | 主張 | 実証テスト | 最終実証日 | 未実証の残余 |）。"
+
+  - id: OB-3
+    name: selftest_first
+    enforced_by: "harness/README.md / .github/workflows/harness-checks.yml"
+    rule: "判定ロジックを変える前に harness/tests/ が緑であることを確認する。変更後も緑に戻す。"
+
+  - id: OB-4
+    name: zero_dependency_hooks
+    enforced_by: "docs/plans/IMPROVEMENT-PLAN.machine.yaml INV-5"
+    rule: >
+      harness/hooks/** に third-party import を追加しない。標準ライブラリのみ。
+      harness/scripts/** は harness/requirements.txt の範囲（pyyaml / jsonschema）まで許容。
+
+# ---------------------------------------------------------------------------
+# 2. 実測で確認した現状（判断の前提。推測ではない）
+# ---------------------------------------------------------------------------
+measured_state:
+  measured_at: "2026-08-24"
+  method: "複製を git init し、隔離 venv（pytest 9.1.1 / pyyaml / jsonschema）で実行"
+  selftest:
+    command: "python3 -m pytest harness/tests -q"
+    result: "656 passed in 15.12s"
+  ci_check:
+    command: "python3 harness/scripts/ci_check.py --branch main"
+    result: "OK: すべてのチェックを通過しました (exit=0)"
+  context_budget:
+    - path: harness/CONVENTIONS.md
+      bytes: 31200
+      limit: 36000
+      headroom_bytes: 4800
+    - path: .claude/agents/solution-architect.md
+      bytes: 11352
+      limit: 12000
+      headroom_bytes: 648
+      note: "最も余裕が無い。ここへの追記は 1 行でも危険。"
+    - path: .claude/agents/integrator.md
+      bytes: 8224
+      limit: 12000
+      headroom_bytes: 3776
+    - path: .claude/agents/gate-reviewer.md
+      bytes: 4907
+      limit: 12000
+      headroom_bytes: 7093
+    - path: .claude/agents/requirements-analyst.md
+      bytes: 4164
+      limit: 12000
+      headroom_bytes: 7836
+    - path: .claude/agents/feature-builder.md
+      bytes: 3696
+      limit: 12000
+      headroom_bytes: 8304
+  verified_working:
+    - "Rule 1: Write / sed -i / 複数行リダイレクトいずれも exit 2。クォート内の >> は誤検知しない。"
+    - "Rule 2 / 7 / 9 / 10 / 11: いずれも宣言どおり exit 2。"
+    - "Rule 12 D-1〜D-6: すべて exit 2。rm -fr / rm -r -f / rm -Rf / ../.. / $HOME の綴り変えも捕捉。"
+    - "二段防御: 変数展開・bash -c 経由の書き込みと削除は PreToolUse を通過するが、PostToolUse が検知して復元する（実測で復元を確認）。"
+    - "受領書チェーン: 受領書なし→拒否、テスト失敗→exit_code:1 を正直に記録して拒否、成功→TESTED 許可、追加コミット後→HEAD 不一致で拒否。"
+    - "工程順: architecture が DRAFT / 上流未コミットのいずれでも new_feature_scaffold.py が生成を拒否。"
+    - "CI 3 job（harness-selftest / ci-check / vuln-scan）は needs 無しで独立実行。相互マスキングは構造的に発生しない。"
+
+# ---------------------------------------------------------------------------
+# 3. 発見事項（tasks の根拠）
+# ---------------------------------------------------------------------------
+findings:
+  - id: F-R1
+    severity: medium
+    title: "hook 入力が破損したとき fail-closed にならない"
+    evidence:
+      - "echo 'not json' | pre_tool_use_guard.py            -> exit 0"
+      - "echo '{\"tool_name\":\"Write\",\"cwd\":\"/nonexistent\",\"tool_input\":{\"file_path\":null}}' | pre_tool_use_guard.py -> exit 0"
+    cause: >
+      harness/hooks/lib/path_utils.py:38 read_hook_input() が JSONDecodeError を捕まえて
+      {} を返すため、payload 解釈前の異常は「ツール名なし＝判定対象外」として通過する。
+    why_it_matters: >
+      pre_tool_use_guard.py の _fail_closed_main() は「判定できないなら通すのではなく止める」と
+      宣言し、その理由まで docstring に書いている。しかしその保証は payload 解釈後の例外に
+      限られており、解釈そのものが失敗した場合には効かない。宣言と実装の範囲がずれている。
+    addressed_by: R-010
+
+  - id: F-R2
+    severity: medium
+    title: "git リポジトリ外では強制が全面的に沈黙する"
+    evidence:
+      - "非 git ディレクトリで `echo '{}' | session_start_healthcheck.py` -> 出力なし exit 0"
+      - "get_worktree_toplevel() が None を返す経路では Rule 1/2/6 が「判定不能」として通過する"
+    cause: >
+      判定はすべて git 情報（toplevel / branch / status / HEAD）に依存し、取得できない場合は
+      安全側ではなく通過側に倒している。これは誤爆を避けるための意図的な設計だが、
+      SessionStart の健全性診断がその状態を一切知らせないため、
+      「強制が効いていない」ことに気付く手段が存在しない。
+    why_it_matters: >
+      強制レイヤが丸ごと無効な状態で作業が進む可能性がある。過去の F-029 / F-030
+      （中核 Rule 群が一斉に空振りしていたのに誰も気付けなかった）と同型の失敗モードである。
+    addressed_by: R-011
+
+  - id: F-R3
+    severity: medium
+    title: "脆弱性走査に抑制機構が無く、fix 未提供の検出で永久に閉塞する"
+    evidence:
+      - "harness/scripts/vuln_scan.py に ignore / suppress / expires / allowlist に相当する処理が存在しない"
+      - "exit code は 0（なし・スキップ）/ 1（あり）/ 2（実行エラー）の三値のみ"
+    cause: "検出があれば無条件に不合格とする設計で、受容判断を記録する経路が無い。"
+    why_it_matters: >
+      上流に修正が出ていない脆弱性を 1 件踏むと、そのアプリは CI を通せなくなる。
+      逃げ道が無いと運用側は最終的に job 自体を外すか無視する運用に倒れ、
+      検査そのものが形骸化する。比較対象（KSD）はここを
+      「expires= と reason= を必須にし、期限切れは即 fail」という形で解いており、
+      これはスタック非依存なので INV-7 に抵触せず移植できる。
+    addressed_by: R-020
+
+  - id: F-R4
+    severity: low
+    title: "雛形生成スクリプトが git 失敗時に生の traceback を出す"
+    evidence:
+      - "git user.email 未設定の環境で new_feature_scaffold.py が subprocess.CalledProcessError の traceback を出力"
+    cause: >
+      harness/scripts/new_feature_scaffold.py:219-223 の `git add -A` / `git commit` が
+      check=True のみで、リポジトリ内の他スクリプトが守っている
+      `print(\"エラー: …\", file=sys.stderr); return N` の様式から外れている。
+    why_it_matters: >
+      失敗が「ハーネスのバグ」に見えるため、実際の原因（環境側の git 設定）に到達しない。
+      このハーネスは拒否理由を必ず次の一手つきで返す設計であり、ここだけが例外になっている。
+    addressed_by: R-021
+
+  - id: F-R5
+    severity: low
+    title: "docstring の「解除用の環境変数は用意しない」が事実と異なる"
+    evidence:
+      - "pre_tool_use_guard.py の冒頭 docstring: 「**バイパス用の環境変数は意図的に用意しない**」"
+      - "同ファイル check_rule1_harness_immutability(): HARNESS_UNLOCK=1 でガードを解除する分岐が存在する"
+    cause: >
+      docstring の文が Bash 間接書き込み検知（INV-4 の範囲）について書かれたものだが、
+      ファイル全体の説明として読める位置にあるため、Rule 1 の緊急避難路と矛盾して読める。
+    why_it_matters: >
+      CLAIMS.md 側は Rule 1 の行の「未実証の残余」に HARNESS_UNLOCK を明記しており、
+      対応表は正確である。不正確なのは docstring だけなので、直す対象もそこだけ。
+      強制の実体は変えない（INV-4 に触れないこと）。
+    addressed_by: R-022
+
+  - id: F-R6
+    severity: low
+    title: "状態機械の語彙外の値が hook を通過する"
+    evidence:
+      - "state: IMPLEMENTING（schema enum 外）への書き込みが pre_tool_use_guard.py で exit 0"
+      - "CI 項目 A（JSON Schema）で初めて不合格になる"
+    cause: >
+      path_utils.py:578-579 が「未知の値の妥当性は JSON Schema 側の責務」として
+      明示的に判定を放棄している。**これは意図的な責務分担であり、バグではない。**
+    why_it_matters: >
+      正しさの問題ではなく、フィードバックが遅れる問題である。手元で止まらず CI まで
+      到達するため、AI は誤った state 名のまま次の作業へ進んでしまう。
+      着手する場合も、既存の責務分担の記述を書き換える判断が必要になるため優先度は最低。
+    addressed_by: R-030
+
+  - id: F-R7
+    severity: structural
+    title: "デリバリー層（CD / IaC / コンテナ検査 / secret 管理）が存在しない"
+    evidence:
+      - "リポジトリ内に terraform / デプロイワークフロー / コンテナ検査が 1 件も存在しない"
+      - "供給網検査は vuln_scan.py（OSV-Scanner）1 本のみ"
+    cause: "設計スコープ。INV-7（スタック固有の標準を本体に規定しない）の帰結である。"
+    why_it_matters: >
+      比較の上では KSD の一方的優位だが、**これは埋めるべき欠陥ではない**。
+      本体に CD を持ち込むと INV-7 に正面から抵触し、NG-4（brownfield 非対応）と合わせて
+      apparness の同一性そのものを変えてしまう。移植すべきは成果物ではなく
+      スタック非依存なパターンのみ（→ R-020）で、それ以外は
+      「境界として明記する」対応が正しい。
+    addressed_by: R-031
+
+# ---------------------------------------------------------------------------
+# 4. タスク
+# ---------------------------------------------------------------------------
+tasks:
+  - id: R-000
+    priority: 0
+    title: "改修用ブランチの作成"
+    why: "HC-4。main のままでは harness/** への書き込みが Rule 1 に拒否される。"
+    steps:
+      - "git switch -c harness/repair-order-2026-08"
+    acceptance:
+      - "`git branch --show-current` が `harness/` で始まる。"
+    forbidden:
+      - "HARNESS_UNLOCK=1 でブランチを切らずに進めること（緊急避難路であり恒常運用に使わない）。"
+    verification:
+      - "git branch --show-current"
+    blocked_by: []
+
+  - id: R-001
+    priority: 0
+    title: "docs/plans/IMPROVEMENT-PLAN.machine.yaml の陳腐化した実測値を更新する"
+    why: >
+      HC-1 の current[] が CONVENTIONS.md 35891B / headroom 109B と記録しているが、実測は
+      31200B / headroom 4800B。T-001 実施後の値に更新されていない。
+      あの数値を前提にすると「1 行も追記できない」という誤った判断に至る。
+    targets:
+      - docs/plans/IMPROVEMENT-PLAN.machine.yaml
+    steps:
+      - "wc -c harness/CONVENTIONS.md .claude/agents/*.md を実行して実測する。"
+      - "HC-1 の current[] を実測値へ置き換え、measured_at を実行日に更新する。"
+      - "implication の『規約本体と feature-builder は実質的に満杯』を現状に合わせて書き直す。"
+      - "T-000〜T-032 の実施状況を確認し、完了しているものに status: done を追記する。"
+    acceptance:
+      - "current[] の bytes が wc -c の出力と一致する。"
+      - "headroom が最小の項目が .claude/agents/solution-architect.md（648B）であると記録されている。"
+    verification:
+      - "wc -c harness/CONVENTIONS.md .claude/agents/*.md"
+      - "python3 -c \"import yaml,sys; yaml.safe_load(open('docs/plans/IMPROVEMENT-PLAN.machine.yaml')); print('yaml ok')\""
+    note: "ルート直下のファイルなので HARNESS_PREFIXES 外。OB-1（CHANGELOG）の対象にならない。"
+    blocked_by: [R-000]
+
+  - id: R-010
+    priority: 1
+    title: "hook 入力の破損を fail-closed にする"
+    addresses: F-R1
+    why: >
+      _fail_closed_main() の宣言（判定できないなら止める）が payload 解釈前の異常に効いていない。
+      宣言と実装の範囲を一致させる。
+    targets:
+      - harness/hooks/lib/path_utils.py
+      - harness/hooks/pre_tool_use_guard.py
+      - harness/hooks/stop_commit_guard.py
+      - harness/tests/test_pre_tool_use_guard.py
+      - harness/CLAIMS.md
+      - CHANGELOG.md
+    method:
+      - >
+        read_hook_input() を「空 stdin」と「壊れた stdin」で区別できるようにする。
+        推奨: 現行の read_hook_input() は互換のため残し、
+        raise する版（例 read_hook_input_strict()）を追加して、
+        ブロックする hook 側で例外を _fail_closed_main() に伝播させる。
+      - >
+        適用先はブロックする hook のみ: pre_tool_use_guard.py と stop_commit_guard.py。
+        post_tool_use_sync.py（Rule 4・非ブロッキング）と
+        post_tool_use_guard.py（比較対象が無ければ何もしないのが正しい）は現行のまま。
+      - >
+        空 stdin（raw.strip() が空）は通過を維持する。ホストがイベントを payload 無しで
+        呼ぶ経路を止めると通常運用が壊れる。止めるのは「内容があるのに JSON として読めない」場合。
+    acceptance:
+      - "`echo 'not json' | python3 harness/hooks/pre_tool_use_guard.py` が exit 2 を返し、stderr に理由が出る。"
+      - "`echo '' | python3 harness/hooks/pre_tool_use_guard.py` は exit 0 のまま（空入力は通す）。"
+      - "既存の 656 件が全て緑のまま。"
+      - "追加した挙動を固定するテストが harness/tests/ に存在する。"
+    forbidden:
+      - "post_tool_use_sync.py をブロッキング化すること（Rule 4 は非ブロッキングが仕様）。"
+      - "空 stdin を拒否対象に含めること。"
+    obligations_applied: [OB-1, OB-2, OB-3, OB-4]
+    claims_row: >
+      CLAIMS.md の「Bash 経由の間接書き込み」表ではなく Hook Rule 表の近傍に、
+      強制レイヤ自体の健全性に関する行として追記する
+      （主張: 「hook 入力が JSON として読めない場合に通過させないこと」）。
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "echo 'not json' | python3 harness/hooks/pre_tool_use_guard.py; echo exit=$?"
+      - "echo '' | python3 harness/hooks/pre_tool_use_guard.py; echo exit=$?"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [R-000]
+
+  - id: R-011
+    priority: 1
+    title: "git 情報が取れない環境で強制の劣化を明示的に警告する"
+    addresses: F-R2
+    why: >
+      判定不能を通過側に倒す設計自体は妥当（誤爆でユーザーの作業を壊さない）。
+      問題は劣化が不可視であること。SessionStart の健全性診断に、
+      「今このセッションでは Rule 1/2/6 が判定不能である」ことを言わせる。
+    targets:
+      - harness/hooks/session_start_healthcheck.py
+      - harness/tests/test_healthcheck.py
+      - harness/CLAIMS.md
+      - CHANGELOG.md
+    method:
+      - >
+        session_start_healthcheck.py に、git 情報の取得可否の診断を追加する:
+        get_worktree_toplevel() / get_current_branch() / get_head_commit() のいずれかが
+        None なら、影響を受ける Rule を名指しして stderr に警告を出す。
+      - >
+        exit code は 0 を維持する（SessionStart でセッションを止めない）。
+        これは可視化のタスクであり、強制の追加ではない。
+      - "既存の healthcheck の出力様式（拒否理由に次の一手を添える）に合わせる。"
+    acceptance:
+      - "非 git ディレクトリで `echo '{}' | python3 harness/hooks/session_start_healthcheck.py` が警告を出力する。"
+      - "その警告に、判定不能になる Rule 番号（1 / 2 / 6）と、対処（git リポジトリ内で起動する）が含まれる。"
+      - "git リポジトリ内では従来どおり無警告で exit 0。"
+      - "既存の 656 件が全て緑のまま。"
+    forbidden:
+      - "git 情報が取れないときに Rule 1/2/6 を拒否側へ倒すこと。非 git 環境での正当な利用を壊す。"
+      - "SessionStart を exit 2 にすること。"
+    obligations_applied: [OB-1, OB-2, OB-3, OB-4]
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "cd /tmp && mkdir -p nogit && cd nogit && echo '{}' | python3 <repo>/harness/hooks/session_start_healthcheck.py; echo exit=$?"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [R-000]
+
+  - id: R-020
+    priority: 2
+    title: "脆弱性走査に期限・理由必須の抑制機構を追加する"
+    addresses: F-R3
+    why: >
+      fix 未提供の検出で永久に閉塞する状態を解消する。ただし「とりあえず無視」を
+      恒久化させない形にする。比較対象（KSD）の設計をそのまま採る:
+      1 行 = 「<ID>  expires=YYYY-MM-DD  reason=<理由+追跡先>」、
+      expires / reason の欠落と期限超過は即 fail。
+    targets:
+      - harness/scripts/vuln_scan.py
+      - harness/tests/  # 新規テストファイル、または既存に追記
+      - harness/CLAIMS.md
+      - CHANGELOG.md
+      - docs/HARNESS_GUIDE.md  # 運用手順を書く場所（CONVENTIONS.md ではない）
+    method:
+      - >
+        抑制ファイルの置き場所は apps/<app-id>/.vuln-ignore とする
+        （ハーネス本体ではなくアプリ側の受容判断なので apps/ 配下に置く）。
+      - >
+        書式: 行頭 # はコメント、空行は無視。
+        有効行は「<VULN_ID>  expires=YYYY-MM-DD  reason=<任意文字列>」。
+        reason には URL（# を含む）が入り得るので行内コメントは非対応にする。
+      - >
+        検証は抑制の適用より先に行う: expires か reason が欠けている行、
+        書式が不正な日付、実行日より過去の expires が 1 件でもあれば
+        走査結果に関わらず exit 1 とし、該当行番号と理由を stderr に出す。
+      - >
+        抑制が有効な ID は走査結果から除外する。除外した ID と expires は
+        必ず標準出力に列挙する（黙って消さない）。
+      - "INV-7 を守る: エコシステム固有の記述を入れない。OSV の ID を文字列として扱うだけにする。"
+    acceptance:
+      - "expires 欠落行があると exit 1 になり、行番号が出力される。"
+      - "expires が過去日の行があると exit 1 になる。"
+      - "有効な抑制行に一致する検出は除外され、除外した事実が標準出力に出る。"
+      - "抑制ファイルが存在しない場合の挙動が従来と完全に同一（後方互換）。"
+      - "書式と運用手順が docs/HARNESS_GUIDE.md に記載されている。"
+      - "上記 4 つの挙動を固定するテストが harness/tests/ に存在する。"
+    forbidden:
+      - "期限や理由を省略できる形にすること（抑制の恒久化を許すと検査が形骸化する）。"
+      - "抑制対象を CONVENTIONS.md に新しい節として書くこと（HC-2・15 節凍結）。"
+      - "エコシステムごとの分岐を vuln_scan.py に持ち込むこと（単一ツールに寄せた既存判断を壊す）。"
+    obligations_applied: [OB-1, OB-2, OB-3]
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/vuln_scan.py"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+      - "wc -c harness/CONVENTIONS.md   # HC-1 に触れていないことの確認"
+    blocked_by: [R-000]
+
+  - id: R-021
+    priority: 2
+    title: "雛形生成の git 失敗をリポジトリの様式に合わせる"
+    addresses: F-R4
+    why: "失敗の原因（環境側の git 設定）に到達できる出力にする。"
+    targets:
+      - harness/scripts/new_feature_scaffold.py
+      - harness/tests/  # 既存の該当テストに追記
+      - CHANGELOG.md
+    method:
+      - >
+        new_feature_scaffold.py:219-223 の `git add -A` / `git commit` から check=True を外し、
+        returncode を見て失敗時は
+        `print(\"エラー: … \", file=sys.stderr)` + 非 0 return に置き換える。
+      - >
+        エラーメッセージには git の stderr を含め、user.name / user.email 未設定の
+        可能性と設定コマンドを次の一手として添える（他スクリプトの様式に合わせる）。
+      - >
+        同ファイル 36 行目・140 行目の subprocess.run にも同じ問題がないか確認し、
+        あれば同様に直す。
+    acceptance:
+      - "git identity 未設定の一時リポジトリで実行して traceback が出ず、`エラー: ` 始まりの 1 行が出る。"
+      - "終了コードが非 0。"
+      - "既存の 656 件が全て緑のまま。"
+    forbidden:
+      - "失敗を握り潰して exit 0 にすること（コミットされていない雛形が残る）。"
+    obligations_applied: [OB-1, OB-3, OB-4]
+    claims_row: "不要（ブロック挙動を変えないため OB-2 の対象外）。"
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [R-000]
+
+  - id: R-022
+    priority: 2
+    title: "docstring の不正確な記述を修正する"
+    addresses: F-R5
+    why: "強制の実体は正しく、対応表も正確。誤っているのは説明文だけなので、そこだけ直す。"
+    targets:
+      - harness/hooks/pre_tool_use_guard.py
+      - CHANGELOG.md
+    method:
+      - >
+        冒頭 docstring の「**バイパス用の環境変数は意図的に用意しない**」を、
+        適用範囲が Bash 間接書き込み検知であることが明確な表現に改める。
+      - >
+        あわせて Rule 1 の HARNESS_UNLOCK=1 が意図的な緊急避難路であること、
+        および他の Rule には解除路が無いことを 1 文で明記する。
+    acceptance:
+      - "docstring を読んで HARNESS_UNLOCK の存在と適用範囲が分かる。"
+      - "CLAIMS.md の Rule 1 行の記述と矛盾しない。"
+      - "既存の 656 件が全て緑のまま（test_dangerous_ops.py::test_rule12_has_no_bypass_environment_variable を含む）。"
+    forbidden:
+      - "HARNESS_UNLOCK の適用範囲を広げること。"
+      - "Rule 12 に解除用の環境変数を追加すること（INV-4）。"
+    obligations_applied: [OB-1, OB-3]
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [R-000]
+
+  - id: R-030
+    priority: 3
+    title: "状態機械の語彙違反を hook 側でも検出する（任意）"
+    addresses: F-R6
+    optional: true
+    why: >
+      CI まで待たずに手元で止めることでフィードバックが早くなる。
+      ただし現状は「未知の値は JSON Schema の責務」という明示的な責務分担であり、
+      これはバグではない。着手するなら分担の記述ごと更新すること。
+    targets:
+      - harness/hooks/lib/path_utils.py
+      - harness/schemas/status.schema.json  # enum の単一情報源
+      - harness/tests/test_status_transition.py
+      - harness/CLAIMS.md
+      - CHANGELOG.md
+    method:
+      - >
+        validate_status_transition() の early return（未知の値を通す分岐）を、
+        「STATUS_ALL_STATES に無い値は拒否する」へ変更する。
+      - >
+        enum の二重管理を作らないこと。path_utils.STATUS_* と
+        status.schema.json の enum が食い違うと CI 項目 A と hook の判定がずれる。
+        どちらかを単一の情報源とし、もう一方から導出するか、
+        一致を固定するテストを追加する。
+      - "path_utils.py:578-579 のコメント（責務分担の記述）を新しい判断に合わせて書き直す。"
+    acceptance:
+      - "state: IMPLEMENTING への書き込みが pre_tool_use_guard.py で exit 2 になる。"
+      - "拒否理由に有効な state の一覧が含まれる。"
+      - "path_utils の state 集合と status.schema.json の enum の一致を固定するテストが存在する。"
+      - "既存の 656 件が全て緑のまま。"
+    forbidden:
+      - "hook 側だけに enum を書き足して schema と二重管理にすること。"
+    obligations_applied: [OB-1, OB-2, OB-3, OB-4]
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [R-000]
+
+  - id: R-031
+    priority: 3
+    title: "デリバリー層をスコープ外として明記する"
+    addresses: F-R7
+    why: >
+      「無い」ことが判断の結果であって欠落ではない、と読める状態にする。
+      これを書かないと、比較レポートを読んだ人が CD の実装を提案し続けることになる。
+    targets:
+      - docs/HARNESS_GUIDE.md
+    method:
+      - >
+        既存のスコープ記述（NG-4 の brownfield 非対応を書く場所）に隣接して、
+        デプロイ・IaC・コンテナ検査・secret 管理を本体で扱わない理由（INV-7）と、
+        その責務を負う先（外部スタックパック・アプリ側の CI）を明記する。
+      - >
+        供給網検査については本体が vuln_scan.py 1 本を持つこと、
+        それ以上の検査（コンテナ・IaC）はスタック依存なのでスタックパック側であることを書く。
+    acceptance:
+      - "docs/HARNESS_GUIDE.md を読めば、デリバリー層が意図的な非スコープだと分かる。"
+      - "CONVENTIONS.md の節数が 15 のまま（HC-2）。"
+      - "CONVENTIONS.md のバイト数が増えていない（規範ではなく解説なので GUIDE 側に書く）。"
+    forbidden:
+      - "CONVENTIONS.md に新しい節を作ること（HC-2）。"
+      - "本体に Terraform / デプロイワークフロー / コンテナ検査を追加すること（INV-7）。"
+      - "スタック固有のツール名を CONVENTIONS.md に書くこと（INV-7）。"
+    obligations_applied: [OB-1]
+    verification:
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+      - "wc -c harness/CONVENTIONS.md"
+    blocked_by: [R-000]
+
+# ---------------------------------------------------------------------------
+# 5. 着手しないもの
+# ---------------------------------------------------------------------------
+deferred:
+  - id: R-DEFER-1
+    title: "Rule 12 の読み取り・外部送信に対する事後検知"
+    finding: >
+      静的検知は bash -c 等の包み方をすり抜ける（実測: `bash -c \"rm harness/CONVENTIONS.md\"` は
+      PreToolUse を通過する）。ただし書き込みと削除については PostToolUse が検知して
+      復元することを実測で確認済みであり、実害は残らない。
+      残る穴は「作業ツリーを変えない操作」＝秘密ファイルの読み取り（D-2）と
+      外部送信（D-5）のみである。
+    resolution: >
+      既存 docs/plans/IMPROVEMENT-PLAN.machine.yaml の T-040 と同一の穴であり、
+      あちらが条件付きタスクとして「実地で 1 件でもすり抜けが観測されるまで着手しない」
+      という trigger を定めている。予防的な着手は検知手段（プロセス／ネットワーク監視）が
+      INV-5（標準ライブラリのみ）と衝突するため、その判断を維持する。
+    action: "着手しない。すり抜けを観測したら docs/maintenance/DOGFOODING-LOG.md に記録し、T-040 を起動する。"
+
+  - id: R-DEFER-2
+    title: "既定ブランチでの harness 不変チェックの有効化"
+    finding: >
+      ci_check.py check_harness_immutability() は既定ブランチ（main 等）では判定しない。
+      fast-forward マージ運用では「元々どのブランチで作られたコミットか」が git 上に
+      残らないため、main 上の押し込みと正当な harness/<topic> の ff マージが diff 上
+      区別できないことが理由で、コード内に明記されている。
+    resolution: >
+      判定を有効化すると正当な ff マージが必ず落ちる。回避には merge commit の強制など
+      運用の変更が必要で、これは改修ではなく運用方針の決定である。
+    action: "着手しない。運用を変える判断はユーザーの領域。提案のみ可。"
+
+# ---------------------------------------------------------------------------
+# 6. 完了判定
+# ---------------------------------------------------------------------------
+done_criteria:
+  phase_0:
+    tasks: [R-000, R-001]
+    statement: "改修の土台。ブランチが切られ、予算の実測値が最新化されている。"
+  phase_1:
+    tasks: [R-010, R-011]
+    statement: "強制レイヤの不全が沈黙しなくなっている（破損入力で止まる・劣化が見える）。"
+  phase_2:
+    tasks: [R-020, R-021, R-022]
+    statement: "運用の詰まりが解消し、出力と説明文が実体と一致している。"
+  phase_3:
+    tasks: [R-030, R-031]
+    statement: "任意項目。フィードバックが早くなり、スコープ境界が文書化されている。"
+  deferred:
+    tasks: [R-DEFER-1, R-DEFER-2]
+    statement: "着手しないことが正しい状態。done_criteria には含めない。"
+
+global_verification:
+  - "python3 -m pytest harness/tests -q                                   # 656 件以上が緑"
+  - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+  - "python3 harness/scripts/vuln_scan.py"
+  - "wc -c harness/CONVENTIONS.md .claude/agents/*.md                     # HC-1 の余裕"
+  - "git log --oneline -1 -- CHANGELOG.md                                 # OB-1 の確認"
+
+final_report_to_user:
+  required_content:
+    - "着手したタスク id と、各タスクの acceptance をどう満たしたか。"
+    - "verification[] の実際の出力（テスト件数・ci_check の結果）。"
+    - "着手しなかったタスク id と理由。"
+    - "invariants / non_goals との衝突で破棄したタスクがあれば、その id と理由。"
+  forbidden:
+    - "verification を実行せずに完了を報告すること。"
+    - "テストが落ちている状態を『ほぼ完了』と報告すること。"

@@ -84,12 +84,18 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 - `harness/quality/` — セキュリティ・デザインの最低ラインと、レビューの判断基準
   （`review-rubric.md`）を定める文書
 - `harness/tests/` — ハーネス自身の決定論ロジックの pytest（CI の `harness-selftest` ジョブ）
-- `harness/procedures/` — フェーズ固有の長い手順（オンデマンド読み込み。コンテキスト予算の対象外）
+- `harness/procedures/` — フェーズ固有の長い手順。**コンテキスト予算の対象外ではない**
+  （起動直後に読むものなので常時コストと同じ。agent プロンプトに
+  `<!-- context-budget: always-reads=... -->` の宣言が必須で、CI の項目 L が実サイズを
+  セッション合計に計上する。無宣言で読ませていると不合格）
 - `harness/CLAIMS.md` — **主張と証跡の対応表。** 「何をブロックすると主張するか」と
   「それを実証しているテスト」の対応。CI の項目 P が表と実体の drift を機械的に見張る
 - `harness/STACK_PACK.md` — スタック固有の標準を外部プラグインとして接続するための仕様
 - `VERSION` / `CHANGELOG.md`（リポジトリルート）— ハーネスの版と変更履歴。CI の項目 Q が、
   ハーネス本体を触ったコミットで CHANGELOG が更新されていることを要求する
+- `docs/`（リポジトリルート）— **人間専用**。設計意図・しくみの説明書・改修計画の置き場所で、
+  アプリ作成中の subagent は読まない（`CONVENTIONS.md` 15節）。ここから `docs/` を指している
+  のは出典の注記であって、読めという指示ではない
 - `pyrightconfig.json`（リポジトリルート）— 型チェッカ（Pyright / VS Code の Pylance）向けの設定。
   `hooks` は `sys.path` を実行時に足して `path_utils` を読むため、`extraPaths` を宣言しないと
   エディタ上で「インポートを解決できません」が出て、そこから型不明のエラーが大量に派生する
@@ -132,7 +138,10 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 強制レイヤ自身が壊れていないかは、セッション開始時に
 `harness/hooks/session_start_healthcheck.py` が自己診断し、異常があれば警告と
 `PROGRESS.md` の表示で知らせます（Hook が起動に失敗すると Claude Code はそれを「通過」として
-扱うため、黙って無効化されることを防ぐ）。手動で確認するには:
+扱うため、黙って無効化されることを防ぐ）。git 情報が取れず一部の Rule が判定不能になっている
+場合も、影響する Rule を名指しして警告します（セッションは止めません）。加えて、ブロックする
+hook（`pre_tool_use_guard.py` / `stop_commit_guard.py`）は、入力を解釈できないときに通過ではなく
+拒否（exit 2）で止まります。手動で確認するには:
 
 ```
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
@@ -145,7 +154,7 @@ python3 harness/hooks/session_start_healthcheck.py < /dev/null
 `status.yaml` の `verification_receipt` に記録します。`state: TESTED` にできるのは、
 受領書の全コマンドが成功していて、かつ受領書の `commit` が現在の HEAD と一致するときだけです
 （Rule 10）。**ハーネスはコマンドの中身を知らない**ので、どんな技術スタックでも成立します。
-詳細は `CONVENTIONS.md` 12 節・`HARNESS_GUIDE.md` 14 節。
+詳細は `CONVENTIONS.md` 12 節・`docs/HARNESS_GUIDE.md` 14 節。
 
 同じ仕組みを統合フェーズにも適用したのが `run_integration_verification.py`（Rule 11）です。
 `04-integration/integration.machine.yaml` の `verification:` に assembly の検証コマンドを、
@@ -183,7 +192,7 @@ CI（項目 J・K・N）でも再検証されます。
 
 `.github/workflows/harness-checks.yml` が、上記 Hook のうち Claude Code のセッション外
 （人間が直接 `git commit` する等）でもすり抜けられては困るものを、push/PR のたびに
-`harness/scripts/ci_check.py` でサーバーサイド再検証します。詳細は `HARNESS_GUIDE.md` 12節。
+`harness/scripts/ci_check.py` でサーバーサイド再検証します。詳細は `docs/HARNESS_GUIDE.md` 12節。
 
 ## 既知の制約
 
@@ -195,10 +204,13 @@ CI（項目 J・K・N）でも再検証されます。
   `run_verification.py` が実行し、CI はその受領書を検証します）。Claude Code を経由しない
   編集では受領書を偽造できます。
 - `gate-reviewer` の審査結果（`status.yaml` の `review`）は記録であって証明ではありません。
-- **アプリ非依存性は異なる 2 スタックで実証済みです**。Python CLI（`apps/md-todo-cli`）と
-  TypeScript の HTTP API + フロントエンド（`apps/bookmark-vault`）の両方で、要件 → 設計 →
-  実装 → 統合 → `INTEGRATED` までを完走し、`verification:` の宣言・JUnit XML の突合・
-  `interfaces[]` の JSON Schema 突合が機能することを確認しました。ただし
+- **アプリ非依存性は異なる 2 スタックで実証済みですが、その成果物はこのリポジトリに残っていません。**
+  Python CLI（`apps/md-todo-cli`）と TypeScript の HTTP API + フロントエンド
+  （`apps/bookmark-vault`）の両方で、要件 → 設計 → 実装 → 統合 → `INTEGRATED` までを完走し、
+  `verification:` の宣言・JUnit XML の突合・`interfaces[]` の JSON Schema 突合が機能することを
+  確認しました。**ただし `apps/` もその git 履歴も現在このリポジトリに存在せず、第三者が
+  追検証できる状態にありません**（何をどこまで探したかは、改修計画の T-022 に blocked として
+  記録してあります）。また
   `interfaces[]` の JSON Schema 突合は、機能内部の DI インターフェースの形状差や HTTP
   エンコーディングの不一致のような、契約の JSON Schema には現れない差異までは捕まえられない
   ことも実地で判明しています（Rule 11 はこの隙間を実行結果ベースで塞ぎます）。

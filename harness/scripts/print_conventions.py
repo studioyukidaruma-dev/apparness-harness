@@ -5,7 +5,7 @@ agent/skill 定義が `harness/CONVENTIONS.md`（35KB 前後）を毎回まる�
 その節のほとんどが自分のフェーズと無関係なエージェントにとって無駄が大きい
 （`requirements-analyst` は 15 節中せいぜい 1 節しか使わない、等）。
 `CONVENTIONS.md` は「単一情報源」（1節冒頭の注意書き）として複製はせず、
-消費側だけを絞ることでコンテキスト予算（15節・DOGFOODING-LOG.md F-047）を守る。
+消費側だけを絞ることでコンテキスト予算（15節）を守る（摩擦点 F-047）。
 
 使い方:
     python3 harness/scripts/print_conventions.py --sections 6,9,13

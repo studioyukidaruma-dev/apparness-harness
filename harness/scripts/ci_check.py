@@ -32,7 +32,7 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
   N. Rule 11 相当: interfaces[] の全エッジが 04-integration/integration.machine.yaml の
      interface_coverage[] に結合テストとして対応づけられているか（宣言レベル。実行結果の
      真偽は run_integration_verification.py が JUnit XML と突合する）
-  O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。凍結の経緯は DOGFOODING-LOG.md 参照）
+  O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。経緯は check_conventions_frozen_section_count の docstring）
   P. harness/CLAIMS.md（主張と証跡の対応表）に書かれた実証テストが harness/tests/ に実在し、
      実証テストが無い行には「なぜ実証できないか」が書かれている（表と実体の drift 防止）
   Q. VERSION / CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは CHANGELOG.md の
@@ -466,9 +466,9 @@ CONVENTIONS_FROZEN_SECTION_COUNT = 15
 def check_conventions_frozen_section_count(root: pathlib.Path) -> list[str]:
     """項目 O: `CONVENTIONS.md` は凍結中（15節で固定）。新しい節（16節以降）の追加を拒否する。
 
-    凍結の経緯は `DOGFOODING-LOG.md`・memory `conventions-md-governance` を参照。「新しい節を
-    立てるべきか」という最も主観の入る判断そのものを機械的に消すための強制（節を削る／既存の
-    節の中身を直すことは妨げない。凍結が禁じるのは節の新設のみ）。
+    実地でのアプリ作成 3 本を完走した時点（2026-08-23）で、ユーザーの明示的な許可を得て凍結した。
+    「新しい節を立てるべきか」という最も主観の入る判断そのものを機械的に消すための強制である
+    （節を削る／既存の節の中身を直すことは妨げない。凍結が禁じるのは節の新設のみ）。
     """
     conventions_path = _common.harness_root(root) / "CONVENTIONS.md"
     if not conventions_path.exists():
@@ -547,7 +547,7 @@ def attributed_conventions_bytes(agent_text: str, root: pathlib.Path) -> int:
 
     `<!-- context-budget: conventions-sections=6,9,13 -->`（`none` なら 0）というマーカーが
     あれば、そこに書かれた節だけを数える（`print_conventions.py --sections` で必要な節だけを
-    読み込むよう絞り込んでいるエージェント向け。DOGFOODING-LOG.md F-047）。
+    読み込むよう絞り込んでいるエージェント向け。摩擦点 F-047）。
     マーカーが無いエージェントは「`CONVENTIONS.md` をまるごと読む」とみなし、ファイル全体の
     サイズを安全側で計上する（マーカー導入前の全エージェントと同じ、従来の挙動）。
     存在しない節番号が書かれていた場合はその節を 0 バイトとして扱う（他のチェック対象ではない）。
@@ -592,7 +592,7 @@ def check_context_budget(root: pathlib.Path) -> list[str]:
         violations.append(
             f"harness/CONVENTIONS.md: {conventions_size} バイトで上限 "
             f"{CONTEXT_BUDGET_CONVENTIONS} バイトを超えています。説明・背景・設計意図を "
-            f"HARNESS_GUIDE.md へ移してください（CONVENTIONS.md 15節）"
+            f"docs/HARNESS_GUIDE.md へ移してください（CONVENTIONS.md 15節）"
         )
 
     worst_agent, worst_total = None, 0

@@ -9,6 +9,9 @@ __pycache__/
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 
+# 比較調査の対象だった他ハーネスの複製（2026-08-24 に削除済み。105MB）。
+# 調査結果は docs/archive/harness-comparison-*.html に残っている。
+# 再取得したときに誤ってコミットしないよう、無視指定だけ残す。
 claude-code-harness-main.zip
 claude-code-harness-main/
 

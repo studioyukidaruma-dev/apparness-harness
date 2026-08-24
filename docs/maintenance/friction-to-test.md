@@ -1,4 +1,9 @@
-# friction-to-test.md — 摩擦点を再発防止テストへ変換する手順（オンデマンド読み込み）
+# friction-to-test.md — 摩擦点を再発防止テストへ変換する手順
+
+> **ハーネスを保守する人間のための手順です。**アプリ作成中の subagent は読みません
+> （`../../harness/CONVENTIONS.md` 15節「`docs/` は人間専用」）。もとは
+> `harness/procedures/` にありましたが、どの agent も読まない保守者向けの文書だったため
+> `docs/` へ移しました。入力である `DOGFOODING-LOG.md` も同じディレクトリにあります。
 
 `DOGFOODING-LOG.md` に溜まった摩擦点（F-xxx）を、再発を検出するテストへ変換するための手順。
 コンテキスト予算（`CONVENTIONS.md` 15節）の対象外。ハーネスを保守する人間と、その改修を
