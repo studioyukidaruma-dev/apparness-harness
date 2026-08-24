@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10 を強制する（Rule 4/8 は別 hook）。
+"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10〜12 を強制する（Rule 4/8 は別 hook）。
 **依存ゼロ**（標準ライブラリのみ）。Edit/Write/MultiEdit/NotebookEdit は確実にブロックする。
 Bash 経由の間接書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト等、`path_utils.extract_bash_candidate_paths`
 で検知できる範囲）も同様にブロックする。検知は shlex によるクォート考慮トークン化に基づくため、
@@ -524,6 +524,28 @@ def check_bash_requires_structured_tool(rel_path: str) -> str | None:
     )
 
 
+def check_rule12_dangerous_operation(
+    tool_name: str, tool_input: dict, cwd: str, toplevel: str
+) -> str | None:
+    """Rule 12: 危険操作フロア（CONVENTIONS.md 7節）。
+
+    他の Rule と独立に判定し、**他 Rule が allow でも Rule 12 が deny なら deny が勝つ**。
+    パスに紐づく工程の整合性ではなく「この操作自体をやらせない」という別軸の判定なので、
+    `run_checks`（書き込み先ごとのループ）ではなく `main` から 1 回だけ呼ぶ。
+
+    確認を求める（ask）のではなく拒否する（deny）。AUTONOMOUS モードでは AI 自身が確認に
+    答えてしまうため、確認は歯止めにならない（NG-6）。
+    """
+    if tool_name == "Bash":
+        return path_utils.detect_dangerous_bash_operation(
+            tool_input.get("command", "") or "", cwd, toplevel
+        )
+    if tool_name in ("Read", "NotebookRead"):
+        path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        return path_utils.detect_dangerous_read(path) if path else None
+    return None
+
+
 def run_checks(
     rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict | None = None
 ) -> str | None:
@@ -612,6 +634,12 @@ def main() -> int:
 
     toplevel = path_utils.get_worktree_toplevel(cwd) or cwd
 
+    # Rule 12 は他の Rule と独立に、書き込み先に関係なく判定する（deny が勝つ）
+    reason = check_rule12_dangerous_operation(tool_name, tool_input, cwd, toplevel)
+    if reason:
+        print(reason, file=sys.stderr)
+        return 2
+
     if tool_name == "Bash":
         command = tool_input.get("command", "")
         candidates = path_utils.extract_bash_candidate_paths(command)
@@ -648,5 +676,25 @@ def main() -> int:
     return 0
 
 
+def _fail_closed_main() -> int:
+    """想定外の例外で **通過** させない（fail-closed）。
+
+    Hook が exit != 2 で終わると Claude Code はそれを「判断なし＝通過」として扱う。
+    例外を握りつぶすと、全ルールが黙って無効化された状態で作業が続いてしまう（F-A2）。
+    判定できなかったのなら、通すのではなく止めて人間に見せるほうが安全側である。
+    """
+    try:
+        return main()
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が想定外の例外で判定できませんでした。\n"
+            f"  {type(exc).__name__}: {exc}\n"
+            "判定できない状態で書き込みを通すと、全ルールが黙って無効化された状態で作業が続きます。\n"
+            "`python3 harness/hooks/session_start_healthcheck.py` で強制レイヤの状態を確認してください。",
+            file=sys.stderr,
+        )
+        return 2
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_fail_closed_main())

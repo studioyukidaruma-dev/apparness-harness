@@ -18,30 +18,20 @@
   skills/*/SKILL.md           ← ハーネス共通 skill
 /harness/                     ← ハーネス本体。書き込みガード対象（Rule 1）
   README.md / CONVENTIONS.md / CLAIMS.md
-  hooks/                      ← .claude/settings.json から呼ばれる実行スクリプト
-  templates/ schemas/ scripts/
+  hooks/ templates/ schemas/ scripts/
   quality/                    ← セキュリティ・デザインの最低ライン（10節）
   procedures/                 ← フェーズ固有の長い手順（オンデマンド読み込み。15節）
 /apps/<app-id>/                ← 生成物。init-app skill が都度生成する
   AUTONOMY.yaml               ← 自動化の度合い（9節）
-  00-requirements/
-    requirements.md / requirements.machine.yaml
-    history/                   ← 旧バージョンを退避（11節）
-  01-foundation/
-    shared-kernel.yaml         ← 全機能が依存する共有契約（10節）
-  02-design/
-    design.md / architecture.machine.yaml
-    features/<feature-id>.contract.yaml  ← 各機能の I/O 契約ドラフト（設計時点）
-    history/
+  00-requirements/  requirements.md / requirements.machine.yaml / history/
+  01-foundation/    shared-kernel.yaml  ← 全機能が依存する共有契約（10節）
+  02-design/        design.md / architecture.machine.yaml / history/
+                    features/<feature-id>.contract.yaml  ← 契約ドラフト（設計時点）
   03-features/<feature-id>/    ← 1 機能 = 1 プロジェクト = 1 git worktree
     SPEC.md                    ← 人間向け機能仕様（このディレクトリ内で完結）
-    contract.yaml              ← 機械向け I/O 契約
-    status.yaml                ← 機械向け進捗状態
-    src/ tests/
+    contract.yaml / status.yaml / src/ / tests/
     .claude/                   ← この機能限定の追加 skill/agent（任意）
-  04-integration/
-    integration.md / integration.machine.yaml
-    assembly/                  ← 組み上げコード
+  04-integration/   integration.md / integration.machine.yaml / assembly/
   PROGRESS.md                  ← 人間向け進捗ダッシュボード。**自動生成・手書き禁止**
   STATE.machine.yaml           ← 機械向け全体状態。**自動生成・手書き禁止**
   .worktrees/<feature-id>/     ← git worktree の実体（.gitignore 対象）
@@ -81,22 +71,22 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 ```
 
 追加で許容する状態:
-- `BLOCKED`: 何らかの理由で作業が止まっている（`blockers[]` に理由を記録）
-- `SUPERSEDED`: 仕様変更により後継の feature-id に置き換えられた（`superseded_by` に後継 ID を記録）
+- `BLOCKED`: 作業が止まっている（`blockers[]` に理由を記録）
+- `SUPERSEDED`: 仕様変更で後継の feature-id に置き換えられた（`superseded_by` に後継 ID）
 
 状態遷移は `PreToolUse` フック（7節 Rule 9）が機械的に強制する。
 
-- 直線状態（上記の矢印の並び）は1段階前進のみ許可。後退・複数段階の飛び越しは拒否する。
+- 直線状態は1段階前進のみ許可。後退・複数段階の飛び越しは拒否する。
 - `INTEGRATED`/`SUPERSEDED` は終端状態で、そこからの変更は一切拒否する。
-- `BLOCKED` へはどの非終端状態からでも自由に入れる（「一時停止」として扱う）。
+- `BLOCKED` へはどの非終端状態からでも入れる（「一時停止」として扱う）。
   **`BLOCKED` から復帰するときは `state_history[]` を時刻順に遡って直前の非 `BLOCKED` 状態を
   復元し、そこからの遷移として妥当性を判定する**（履歴に非 `BLOCKED` のエントリが 1 つも無い
-  場合のみ、判定不能として通す）。`state_history[]` を正しく追記することが、この判定の前提。
+  場合のみ、判定不能として通す）。`state_history[]` を正しく追記することが判定の前提。
 - `SUPERSEDED` への遷移はどの非終端状態からでも許可する。
 
-判定の実体は `harness/hooks/lib/path_utils.py` の `validate_status_transition`
-（`BLOCKED` からの復帰は `resolve_effective_previous_state` が履歴を遡る）。
-`validate_status_transition.py` は同じロジックを呼ぶ、人間/CI向けの手動確認 CLI。
+判定の実体は `path_utils.validate_status_transition`（`BLOCKED` からの復帰は
+`resolve_effective_previous_state` が履歴を遡る）。`validate_status_transition.py` は同じ
+ロジックを呼ぶ、人間/CI向けの手動確認 CLI。
 
 ## 6. 「独立機能」の設計原則
 
@@ -120,7 +110,7 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 python3 harness/scripts/check_interfaces.py [--app <app-id>]
 ```
 
-## 7. Hooks が強制する 11 ルール（実装は `harness/hooks/` 配下）
+## 7. Hooks が強制する 12 ルール（実装は `harness/hooks/` 配下）
 
 各ルールの経緯・実証・設計意図は `HARNESS_GUIDE.md` 5節にある。ここには規範だけを置く。
 
@@ -164,6 +154,23 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
     `04-integration/integration.machine.yaml` に `interfaces[]` の全エッジをカバーする
     `interface_coverage[]` と有効な受領書（`run_integration_verification.py` 生成）が無い限り
     拒否する（13節）。
+
+12. **危険操作フロア**: 次の操作は、他の Rule が許可していても**無条件に拒否する**
+    （Rule 12 は他 Rule と独立に判定し、deny が勝つ）。確認を求めるのではなく拒否する——
+    `AUTONOMOUS` では AI 自身が確認に答えてしまうため。
+    - D-1: リポジトリルート外への再帰削除（`rm -r` / `find ... -delete`）。`..` を含む綴り・
+      未展開の変数・`/`・`.`・先頭ワイルドカードは、解決するまでもなく拒否する。
+    - D-2: 秘密ファイルの読み取り（`.env`/`.env.*`/`*.pem`/`*.key`/`*id_rsa*`/`*id_ed25519*`/
+      `.ssh/**`/`.aws/**`/`.npmrc`/`.netrc`）。`.env.example`・`.env.sample` 等の見本は除外。
+      `Read` ツールと Bash の読み出しコマンドの両方を対象にする。
+    - D-3: 履歴の破壊（`git push --force`/`--force-with-lease`、`git reset --hard`、
+      `git clean -fdx`、`git filter-branch`）。
+    - D-4: 検証のスキップ（`git commit --no-verify`/`-n`/`--no-gpg-sign`）。
+    - D-5: 外部送信（`curl`/`wget`/`nc` による POST/PUT/アップロード、および paste 系ホストへの到達）。
+    - D-6: `sudo`/`doas`/`su` を伴う任意コマンド。
+
+    **この Rule にバイパス用の環境変数は用意しない。** 誤検知は検知ロジック自体を修正して
+    対応する（判定は `path_utils.detect_dangerous_bash_operation` / `detect_dangerous_read`）。
 
 **判定対象のパスは、`.worktrees/` を通る場合その worktree を基準に読み替えてから Rule に掛けます**
 （`path_utils.resolve_worktree_scope`）。書き込み先は**それが属するリポジトリのルート**を基準に
@@ -344,22 +351,20 @@ python3 harness/scripts/check_traceability.py [--app <app-id>]
 
 ## 14. スタックパック（スタック固有の標準の外部化）
 
-特定の技術スタックをハーネス本体に規定することは制約違反として扱う。一方で
-「Python ではこう書く」という実務知見が無ければ実装の質は担保できない。この 2 つは
-**スタック固有の標準を外部プラグイン（スタックパック）として接続する**ことで両立する。
-ハーネスが規定するのは**パックの形式**だけで、**中身は規定しない**。
+特定の技術スタックをハーネス本体に規定することは制約違反として扱う。一方で「Python ではこう書く」
+という実務知見が無ければ実装の質は担保できない。この 2 つは**スタック固有の標準を外部プラグイン
+（スタックパック）として接続する**ことで両立する。ハーネスが規定するのは**パックの形式**だけで、
+**中身は規定しない**（設計意図は `HARNESS_GUIDE.md` 17節）。
 
-強制機構は既存のもので足りる。`solution-architect` が `shared-kernel.yaml` の
-`required_skills[]` に `kind: stack-pack` として記録し、**Rule 5** が `src/**` への最初の
-書き込み時に有効化状況を機械検証してブロックし、**Rule 6** が `feature-builder` による
-`shared-kernel.yaml` の書き換えを禁じる。
+強制機構は既存のもので足りる。`solution-architect` が `shared-kernel.yaml` の `required_skills[]`
+に `kind: stack-pack` として記録し、**Rule 5** が `src/**` への最初の書き込み時に有効化状況を
+機械検証してブロックし、**Rule 6** が `feature-builder` による `shared-kernel.yaml` の書き換えを禁じる。
 
 パックが満たすべきインターフェース（命名規約・必須の記載項目 5 つ・優先関係）は
 `harness/STACK_PACK.md` に定義する。要点:
 
 - **`harness/quality/*.md` のベースラインが常に優先する。** パックは追加であって置き換えではない。
 - `gate-reviewer` はパックを**読まない**（レビューの軸は `review-rubric.md` だけに固定する）。
-  パックは**実装時の指針**であって**通過判定の基準ではない**。
 - `required_skills[]` が空でも Layer 1 と Rule 10 は効く。パックは**上積み**であって下限ではない。
 
 ## 15. コンテキスト予算

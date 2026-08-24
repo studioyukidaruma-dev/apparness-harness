@@ -1272,3 +1272,269 @@ def validate_approval_record(content: str, doc_label: str, approved_value: str =
         "`approved_by`（承認した人間の識別子）と "
         "`approved_at`（`date -u +%Y-%m-%dT%H:%M:%SZ` で取得）を設定してください。"
     )
+
+
+# ======================================================================================
+# Rule 12: 危険操作フロア（CONVENTIONS.md 7節）
+# ======================================================================================
+# 他の Rule はすべて「工程の整合性」を守るもので、危険操作を止める規則は 1 件も無かった。
+# AUTONOMOUS モードで長時間走らせる前提のハーネスとして、これは実運用上いちばん重い穴だった。
+#
+# 判定は**既存の Bash トークナイザ**（`_tokenize_bash_command` / `_BASH_SEGMENT_BREAKS`）を
+# 再利用する。新しいパース系を増やすと、片方だけ直して検知が食い違う。
+#
+# **バイパス用の環境変数は用意しない**（INV-4）。AI 自身が解除できてしまえば決定論的強制の
+# 目的そのものが崩れる。誤検知はこの検知ロジック自体を直して対応する。
+
+def iter_bash_segments(command: str) -> list[list[str]]:
+    """Bash コマンド文字列を「1 コマンド分」のトークン列に分割する。
+
+    `extract_bash_candidate_paths` が内部で行っている分割を、書き込み先の抽出以外の判定
+    （Rule 12）からも使えるように切り出したもの。両者は必ず同じトークン化を通る。
+    """
+    tokens = _tokenize_bash_command(command)
+    if not tokens:
+        return []
+    segments: list[list[str]] = [[]]
+    for tok in tokens:
+        if tok in _BASH_SEGMENT_BREAKS:
+            segments.append([])
+        else:
+            segments[-1].append(tok)
+    return [s for s in segments if s]
+
+
+# --- D-2: 秘密ファイル -----------------------------------------------------------------
+
+SECRET_PATH_PATTERNS = (
+    r"(^|/)\.env$",
+    r"(^|/)\.env\.[^/]+$",
+    r"\.pem$",
+    r"\.key$",
+    r"(^|/)[^/]*id_rsa[^/]*$",
+    r"(^|/)[^/]*id_ed25519[^/]*$",
+    r"(^|/)\.ssh(/|$)",
+    r"(^|/)\.aws(/|$)",
+    r"(^|/)\.npmrc$",
+    r"(^|/)\.netrc$",
+    r"(^|/)credentials\.json$",
+)
+# 秘密そのものではなく「秘密の書き方の見本」。実運用で必ず読む必要があるため除外する。
+SECRET_PATH_EXEMPT_RE = re.compile(r"(^|/)\.env\.(example|sample|template|dist)$")
+_SECRET_PATH_RE = re.compile("|".join(SECRET_PATH_PATTERNS))
+
+# ファイルの中身を読み出す代表的なコマンド。ここに無いコマンドの引数に現れたパスは、
+# 読み取りとは限らない（例: `echo ".env" >> .gitignore`）ので対象にしない。
+SECRET_READ_COMMANDS = {
+    "cat", "head", "tail", "less", "more", "bat", "nl", "od", "xxd", "strings",
+    "base64", "cut", "tac", "readlink", "openssl",
+}
+
+
+def is_secret_path(path: str) -> bool:
+    """秘密ファイルとみなすパスか。`.env.example` 等の見本は除外する。"""
+    normalized = str(path).replace("\\", "/").strip().strip("\"'")
+    if not normalized:
+        return False
+    if SECRET_PATH_EXEMPT_RE.search(normalized):
+        return False
+    return bool(_SECRET_PATH_RE.search(normalized))
+
+
+# --- D-1: 再帰削除 ---------------------------------------------------------------------
+
+# 綴りだけで拒否する削除対象。解決を試みるまでもなく、リポジトリ配下に留まる保証が無い。
+_UNRESOLVABLE_TARGET_RE = re.compile(r"(^|/)\.\.(/|$)|\$|^~|^/$|^\.$|^\*")
+
+
+def _is_flag(token: str) -> bool:
+    return token.startswith("-") and token != "-"
+
+
+def _recursive_delete_targets(tokens: list[str]) -> list[str]:
+    """`rm -r` / `find ... -delete` の削除対象を返す（対象が無ければ空）。"""
+    cmd, args = tokens[0], tokens[1:]
+    if cmd == "rm":
+        recursive = any(
+            a == "--recursive" or (_is_flag(a) and not a.startswith("--") and ("r" in a or "R" in a))
+            for a in args
+        )
+        if not recursive:
+            return []
+        return [a for a in args if not _is_flag(a)]
+    if cmd == "find":
+        if not any(a in ("-delete", "-exec", "-execdir") for a in args):
+            return []
+        targets = []
+        for a in args:
+            if _is_flag(a):
+                break  # find の探索パスは述語（`-name` 等）より前にしか現れない
+            targets.append(a)
+        return targets or ["."]
+    return []
+
+
+# --- D-3 / D-4: 履歴の破壊と検証のスキップ ----------------------------------------------
+
+_GIT_DESTRUCTIVE = {
+    "push": (("--force", "-f", "--force-with-lease"), "リモート履歴の破壊"),
+    "reset": (("--hard",), "作業ツリーと履歴の破棄"),
+    "filter-branch": ((), "履歴の書き換え"),
+}
+_GIT_VERIFICATION_SKIP = ("--no-verify", "-n", "--no-gpg-sign")
+
+
+def _git_subcommand(tokens: list[str]) -> tuple[str | None, list[str]]:
+    """`git -C dir push --force` のような前置オプションを飛ばしてサブコマンドを返す。"""
+    args = tokens[1:]
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"):
+            i += 2
+            continue
+        if _is_flag(a):
+            i += 1
+            continue
+        return a, args[i + 1:]
+    return None, []
+
+
+# --- D-5: 外部送信 ---------------------------------------------------------------------
+
+_EGRESS_COMMANDS = {"curl", "wget", "nc", "ncat", "netcat", "socat"}
+_EGRESS_UPLOAD_FLAGS = {
+    "-d", "--data", "--data-binary", "--data-raw", "--data-urlencode",
+    "-F", "--form", "-T", "--upload-file", "--post-data", "--post-file",
+}
+# ここへ到達できると、秘密や内部情報が匿名で外に出る。到達自体を拒否する。
+_EGRESS_HOSTS = (
+    "pastebin.com", "hastebin.com", "dpaste.", "paste.rs", "ix.io", "sprunge.us",
+    "termbin.com", "transfer.sh", "0x0.st", "file.io", "gist.github.com",
+    "webhook.site", "requestbin.", "ngrok.io", "ngrok-free.app", "bashupload.com",
+    "oshi.at", "litterbox.catbox.moe", "catbox.moe",
+)
+
+
+def _is_upload(tokens: list[str]) -> str | None:
+    cmd, args = tokens[0], tokens[1:]
+    if cmd not in _EGRESS_COMMANDS:
+        return None
+    joined = " ".join(args)
+    for host in _EGRESS_HOSTS:
+        if host in joined:
+            return f"{cmd} による {host} への到達"
+    if cmd in ("nc", "ncat", "netcat", "socat"):
+        return None  # ホスト名が上に無ければ、宛先が判定できない。綴りだけでは止めない
+    for i, a in enumerate(args):
+        # `--post-file=x` のような `=` 付きの綴りも同じ扱いにする
+        flag = a.split("=", 1)[0]
+        if flag in _EGRESS_UPLOAD_FLAGS or flag.startswith("--data"):
+            return f"{cmd} によるデータ送信（{flag}）"
+        if a in ("-X", "--request") and i + 1 < len(args) and args[i + 1].upper() in (
+            "POST", "PUT", "PATCH", "DELETE"
+        ):
+            return f"{cmd} による {args[i + 1].upper()} リクエスト"
+    return None
+
+
+# --- 判定本体 ---------------------------------------------------------------------------
+
+DANGEROUS_OPS_HINT = (
+    "\nこの操作はハーネスが無条件に拒否します（CONVENTIONS.md 7節 Rule 12）。"
+    "解除用の環境変数はありません。\n"
+    "必要な操作なら、AI ではなく**人間が自分の手で**実行してください。"
+    "誤検知だと考える場合は、検知ロジック（`path_utils` の Rule 12 節）を直して対応します。"
+)
+
+
+def detect_dangerous_bash_operation(
+    command: str, cwd: str, toplevel: str, resolve=None
+) -> str | None:
+    """Bash コマンドが Rule 12 の禁止操作を含むなら、拒否理由を返す。
+
+    `resolve` は `(target, cwd, toplevel) -> (rel_path, root)` の解決関数（既定は
+    `resolve_write_target`）。テストから差し替えられるようにしてある。
+    """
+    resolve = resolve or resolve_write_target
+    for tokens in iter_bash_segments(command):
+        cmd = tokens[0]
+
+        # D-6: sudo を伴う任意コマンド
+        if cmd in ("sudo", "doas", "su"):
+            return (
+                f"拒否: `{cmd}` を伴うコマンドは実行できません（D-6）。\n"
+                "権限昇格を伴う操作は、影響範囲がリポジトリの外に及びます。" + DANGEROUS_OPS_HINT
+            )
+
+        # D-1: リポジトリルート外への再帰削除
+        for target in _recursive_delete_targets(tokens):
+            if _UNRESOLVABLE_TARGET_RE.search(target):
+                return (
+                    f"拒否: 再帰削除の対象 {target!r} が、リポジトリ配下に留まると確認できません（D-1）。\n"
+                    "`..` を含む綴り・未展開の変数・`/`・`.`・ワイルドカードの先頭指定は、"
+                    "解決するまでもなく拒否します。削除したいパスを、リポジトリルートからの"
+                    "相対パスで明示してください。" + DANGEROUS_OPS_HINT
+                )
+            rel, _root = resolve(target, cwd, toplevel)
+            if rel.startswith("/") or rel.startswith("../") or rel == "..":
+                return (
+                    f"拒否: {target!r} はリポジトリの外を指しています。再帰削除はできません（D-1）。"
+                    + DANGEROUS_OPS_HINT
+                )
+
+        # D-2: 秘密ファイルの読み取り
+        if cmd in SECRET_READ_COMMANDS:
+            for a in tokens[1:]:
+                if not _is_flag(a) and is_secret_path(a):
+                    return (
+                        f"拒否: {a!r} は秘密情報を含みうるファイルです。読み取れません（D-2）。\n"
+                        "設定値が必要なら、値そのものではなく `.env.example` などの見本を参照するか、"
+                        "ユーザーに必要な項目名を尋ねてください。" + DANGEROUS_OPS_HINT
+                    )
+
+        # D-3 / D-4: 履歴の破壊と検証のスキップ
+        if cmd == "git":
+            sub, rest = _git_subcommand(tokens)
+            if sub == "clean" and any(
+                _is_flag(a) and not a.startswith("--") and "x" in a and "f" in a for a in rest
+            ):
+                return (
+                    "拒否: `git clean -fdx` は無視されているファイルごと消します（D-3）。\n"
+                    "消したい対象を個別に指定してください。" + DANGEROUS_OPS_HINT
+                )
+            if sub in _GIT_DESTRUCTIVE:
+                flags, label = _GIT_DESTRUCTIVE[sub]
+                if not flags or any(a in flags for a in rest):
+                    return (
+                        f"拒否: `git {sub}` による{label}はできません（D-3）。\n"
+                        "履歴が壊れると、受領書（Rule 10）が指すコミットも辿れなくなります。"
+                        "やり直しが必要なら、打ち消しコミットを積んでください。" + DANGEROUS_OPS_HINT
+                    )
+            if sub == "commit" and any(a in _GIT_VERIFICATION_SKIP for a in rest):
+                return (
+                    "拒否: 検証を飛ばすコミット（`--no-verify` 等）はできません（D-4）。\n"
+                    "フックが止めているなら、止めている理由のほうを解消してください。"
+                    + DANGEROUS_OPS_HINT
+                )
+
+        # D-5: 外部送信
+        egress = _is_upload(tokens)
+        if egress:
+            return (
+                f"拒否: {egress} はできません（D-5）。\n"
+                "リポジトリの内容を外部に送る操作は、送り先と内容を人間が確認する必要があります。"
+                + DANGEROUS_OPS_HINT
+            )
+    return None
+
+
+def detect_dangerous_read(path: str) -> str | None:
+    """Read ツールが秘密ファイルを開こうとしていないか（D-2 の構造化ツール側）。"""
+    if not is_secret_path(path):
+        return None
+    return (
+        f"拒否: {path!r} は秘密情報を含みうるファイルです。読み取れません（D-2）。\n"
+        "設定値が必要なら、値そのものではなく `.env.example` などの見本を参照するか、"
+        "ユーザーに必要な項目名を尋ねてください。" + DANGEROUS_OPS_HINT
+    )
