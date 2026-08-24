@@ -28,7 +28,7 @@
 | Rule 4 | （ブロックではなく実行）`status.yaml` 更新時のダッシュボード再生成 | `test_rule_coverage.py::test_rule4_regenerates_the_dashboard_when_status_changes` | 2026-08-24 | 非ブロッキング（PostToolUse）なので、失敗しても書き込み自体は成立する。これは仕様 |
 | Rule 5 | 必須 Skill が未有効のまま `src/**` へ書き込むこと | `test_pre_tool_use_guard.py::test_rule5_blocks_the_feature_named_in_applies_to` / `test_rule_coverage.py::test_rule5_blocks_missing_required_skills_through_a_worktree_path` | 2026-08-24 | `enabledPlugins` に載っていても Skill が実際に動くかは検証できない（Claude Code 側の責務） |
 | Rule 6 | feature worktree から上位文書（要件・共有基盤・設計）への書き込み | `test_rule_coverage.py::test_rule6_blocks_upstream_documents_from_a_feature_worktree` / `test_rule_coverage.py::test_rule6_judges_by_the_session_not_by_the_target_tree` | 2026-08-24 | — |
-| Rule 7 | 承認記録を伴わない `status: APPROVED`／要件版の不一致 | `test_pre_tool_use_guard.py::test_rule7_rejects_architecture_approved_without_approver` / `test_pre_tool_use_guard.py::test_rule7_rejects_requirements_approved_without_approver` / `test_pre_tool_use_guard.py::test_rule7_still_checks_requirements_version_consistency` | 2026-08-24 | `approved_by` に書かれた識別子が**本当に人間か**は判定できない（9節・`HARNESS_GUIDE.md` 18-4） |
+| Rule 7 | 承認記録を伴わない `status: APPROVED`／要件版の不一致 | `test_pre_tool_use_guard.py::test_rule7_rejects_architecture_approved_without_approver` / `test_pre_tool_use_guard.py::test_rule7_rejects_requirements_approved_without_approver` / `test_pre_tool_use_guard.py::test_rule7_still_checks_requirements_version_consistency` | 2026-08-24 | `approved_by` に書かれた識別子が**本当に人間か**は判定できない（9節・`docs/HARNESS_GUIDE.md` 18-4） |
 | Rule 8 | フェーズ節目ファイルを未コミットのまま応答を終えること | `test_rule_coverage.py::test_rule8_blocks_stopping_with_an_uncommitted_status_yaml` / `test_rule_coverage.py::test_rule8_blocks_stopping_with_an_untracked_phase_marker` | 2026-08-24 | `stop_hook_active` が真のときは無限ループ回避のため通す（意図的な穴） |
 | Rule 9 | 不正な `state` 遷移（後退・飛び越し・終端からの変更） | `test_pre_tool_use_guard.py::test_rule9_rejects_skipping_states` / `test_pre_tool_use_guard.py::test_rule9_blocks_skipping_through_blocked` / `test_worktree_scope.py::test_rule9_blocks_multi_step_jump_via_worktree_path` | 2026-08-24 | — |
 | Rule 10 | 受領書なし／失敗／HEAD 不一致の `TESTED`、および受領書の手書き | `test_pre_tool_use_guard.py::test_rule10_rejects_tested_without_receipt` / `test_pre_tool_use_guard.py::test_rule10_rejects_a_receipt_from_another_commit` / `test_pre_tool_use_guard.py::test_rule10_rejects_handwritten_receipts` / `test_worktree_scope.py::test_rule10_blocks_tested_without_receipt_via_worktree_path` | 2026-08-24 | 宣言されたコマンドが**意味のあるテストか**は判定しない（ハーネスは規定しない。12節） |
@@ -64,29 +64,39 @@
 | 項目 P | この表に書かれた実証テストが実在しないこと | `test_claims.py::test_unknown_test_name_is_rejected` / `test_claims.py::test_missing_evidence_without_a_reason_is_rejected` | 2026-08-24 | この表に**行を足し忘れた**規則は検出できない（規則の追加は人間の判断） |
 | 項目 Q | ハーネス本体の変更に CHANGELOG の追随が無いこと | `test_versioning.py::test_harness_change_without_a_changelog_entry_is_rejected` / `test_versioning.py::test_an_empty_unreleased_section_is_rejected` | 2026-08-24 | CHANGELOG の内容が正しいかは判定しない（記述の有無だけを見る） |
 
+## 脆弱性走査（`vuln_scan.py` / `vuln-scan` job）
+
+| 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
+|---|---|---|---|---|
+| 検出 | `apps/**` の依存ライブラリに含まれる既知の脆弱性 | `test_vuln_scan.py::test_behaviour_is_unchanged_when_no_ignore_file_exists` / `test_vuln_scan.py::test_summarize_without_rules_reports_everything` | 2026-08-24 | `osv-scanner` バイナリが無ければスキップして exit 0（Layer 1.5 と同じ非致命的な位置づけ）。ブランチ保護は掛けていないため、マージを機械的には止めない |
+| 抑制の規律 | 期限（`expires`）・理由（`reason`）を欠く抑制、書式が不正な日付、期限切れの抑制（`apps/<app-id>/.vuln-ignore`） | `test_vuln_scan.py::test_a_line_without_expires_is_rejected_with_its_line_number` / `test_vuln_scan.py::test_a_line_without_reason_is_rejected` / `test_vuln_scan.py::test_an_expired_line_is_rejected` / `test_vuln_scan.py::test_the_ignore_file_is_validated_before_the_scan_runs` | 2026-08-24 | 書かれた `reason` が妥当かは判定しない（記述の有無と期限だけを見る。CI 項目 Q と同じ立場） |
+| 抑制の可視性 | （ブロックではなく報告）抑制した検出を黙って消すこと | `test_vuln_scan.py::test_a_valid_suppression_excludes_the_finding_and_says_so` / `test_vuln_scan.py::test_a_suppression_does_not_leak_into_another_app` | 2026-08-24 | — |
+
 ## 強制レイヤ自体の健全性
 
 | 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
 |---|---|---|---|---|
 | fail-closed | ガード本体で想定外の例外が起きたとき、通過ではなく拒否になること | `test_healthcheck.py::test_unexpected_exception_denies_instead_of_passing` / `test_healthcheck.py::test_the_guard_still_passes_normally_when_nothing_is_wrong` | 2026-08-24 | `python3` 自体が存在しない場合は Hook が起動できないため、ハーネスからは何もできない（SessionStart の自己診断と PROGRESS.md 表示で**可視化**するのが対策） |
+| 入力の健全性 | hook の入力が JSON として読めない／書き込み先が入っていない場合に、通過させずに拒否すること（`pre_tool_use_guard.py`・`stop_commit_guard.py`） | `test_healthcheck.py::test_corrupt_hook_input_denies_instead_of_passing` / `test_healthcheck.py::test_a_structured_edit_without_a_path_denies_instead_of_passing` / `test_healthcheck.py::test_corrupt_stop_hook_input_denies_instead_of_passing` / `test_healthcheck.py::test_empty_hook_input_still_passes` | 2026-08-24 | 空の stdin は通す（ホストが payload 無しでイベントを呼ぶ経路を止めると通常運用が壊れるため。意図的な穴）。非ブロッキングな hook（`post_tool_use_sync.py`・`post_tool_use_guard.py`）は寛容版のまま |
+| 劣化の可視化 | git 情報が取れず Rule 1・2・6・10・11 の判定が劣化していることを、セッション開始時に警告すること | `test_healthcheck.py::test_session_start_warns_when_git_is_unavailable` / `test_healthcheck.py::test_git_enforcement_degradation_is_reported_outside_a_repository` / `test_healthcheck.py::test_session_start_is_silent_when_healthy` | 2026-08-24 | 警告するだけで強制はしない（非 git 環境での正当な利用を壊さないため exit 0 のまま）。`PROGRESS.md` には出さない（実行環境依存の判定を混ぜると CI 項目 G が構造的に落ちる） |
 | 自己診断 | 強制レイヤが壊れている状態を検出して報告すること | `test_healthcheck.py::test_broken_hook_import_is_reported` / `test_healthcheck.py::test_missing_hook_registration_is_reported` / `test_healthcheck.py::test_progress_line_reports_the_problem_when_broken` | 2026-08-24 | 検出できても Claude Code 側の Hook 実行を止める手段は無い（報告と可視化まで） |
 
 ## 深刻度 最高・高 の摩擦点 → 再発防止テスト
 
-`DOGFOODING-LOG.md` の 77 件の摩擦点は、このハーネスが実地で壊れた記録であり、いちばん価値の高い
-入力である。ところが**テストへの変換が場当たり**だった（改修計画 F-A10）。
+実地でアプリを作りながら記録した 77 件の摩擦点は、このハーネスが本当に壊れた記録であり、
+いちばん価値の高い入力である。ところが**テストへの変換が場当たり**だった（改修計画 F-A10）。
 
 **ルール: 深刻度が「最高」または「高」の摩擦点は、再発を検出するテストが無い状態でクローズしない。**
 テストが書けないものは、この表の「未実証の残余」列に**なぜ書けないか**を書く（空欄は CI 項目 P が拒否する）。
 中・低の摩擦点はこの表の対象外（テストがあれば書いてよいが、必須ではない）。
 
-手順は `harness/procedures/friction-to-test.md`。
+手順は `docs/maintenance/friction-to-test.md`（人間向け。ハーネスの実行には関与しない）。
 
 | 規則 | 何が起きたか | 再発防止テスト | 最終実証日 | 未実証の残余（テスト不要の理由） |
 |---|---|---|---|---|
 | F-004（高） | subagent に `AskUserQuestion` が実際には渡らない | — | — | ハーネス外（どのツールを subagent に渡すかは Claude Code の挙動）。プロンプト側で「渡らない前提で書く」ことでしか対処できない |
 | F-008（高） | 要件・設計の承認では `PROGRESS.md` が再生成されない | `test_dogfooding_fixes.py::test_progress_sync_triggers_on_approval_documents` | 2026-08-24 | — |
-| F-010（高） | 承認の「人間性」が subagent 経由で構造的に失われる | `test_pre_tool_use_guard.py::test_rule7_rejects_requirements_approved_without_approver` | 2026-08-24 | 承認者が**本当に人間か**は機械的に判定できない（`HARNESS_GUIDE.md` 11節 A-3）。テストで固定できるのは「承認記録を伴わない APPROVED を拒否する」ところまで |
+| F-010（高） | 承認の「人間性」が subagent 経由で構造的に失われる | `test_pre_tool_use_guard.py::test_rule7_rejects_requirements_approved_without_approver` | 2026-08-24 | 承認者が**本当に人間か**は機械的に判定できない（`docs/HARNESS_GUIDE.md` 11節 A-3）。テストで固定できるのは「承認記録を伴わない APPROVED を拒否する」ところまで |
 | F-014（最高） | feature worktree が `main` から切られ、上位文書が入らない | `test_dogfooding_fixes.py::test_tracked_in_head_detects_documents_on_another_branch` / `test_dogfooding_fixes.py::test_tracked_in_head_is_false_for_uncommitted_file` | 2026-08-24 | — |
 | F-015（高） | `check_traceability.py` が設計フェーズで実質何も検証しない（指示どおり実行すると偽の安心を得る） | `test_traceability.py::test_design_phase_drafts_are_loaded` / `test_traceability.py::test_design_phase_gap_is_detected_before_any_worktree_exists` | 2026-08-24 | — |
 | F-016（高） | CI 項目 D が、設計フェーズを 1 ブランチで完結させると必ず不合格 | `test_dogfooding_fixes.py::test_contract_freeze_allows_draft_then_approve_in_one_branch` / `test_dogfooding_fixes.py::test_contract_freeze_still_blocks_edit_after_approval` | 2026-08-24 | — |
