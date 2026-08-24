@@ -1,0 +1,572 @@
+derivation:
+  document_kind: improvement-plan
+  target_harness: apparness
+  target_version: v1
+  created_at: "2026-08-24"
+  created_from:
+    - kind: comparative-assessment
+      subject_a: "apparness harness v1 (this repository, 851f07a)"
+      subject_b: "claude-code-harness v5.11.0 (2026-08-22 snapshot, MIT)"
+      reports:
+        - harness-comparison-technical.html
+        - harness-comparison-plain.html
+  human_readable_twin: IMPROVEMENT-PLAN.md
+  audience: machine
+  purpose: >
+    このファイルは「このファイルを見てハーネスを改修してください」と指示されたときに
+    実行計画として読まれることを想定した機械向けの改修方針である。
+    tasks[] を上から順に読み、preconditions を満たしてから着手すること。
+
+# ---------------------------------------------------------------------------
+# 0. この計画に着手する前に必ず読むこと
+# ---------------------------------------------------------------------------
+how_to_use:
+  - step: 1
+    action: "invariants[] を読む。ここに書かれた性質を壊す改修は、どれだけ有益に見えても却下する。"
+  - step: 2
+    action: "hard_constraints[] を読む。特に context_budget と conventions_freeze は CI で機械的に強制されており、無視すると CI が落ちる。"
+  - step: 3
+    action: "tasks[] を priority 昇順・id 昇順で処理する。blocked_by が未完了のタスクには着手しない。"
+  - step: 4
+    action: "各タスクの acceptance[] をすべて満たすまで完了扱いにしない。verification[] のコマンドを実際に実行し、出力を確認する。"
+  - step: 5
+    action: "non_goals[] にあるものは提案も実装もしない。ユーザーから明示の指示があった場合のみ例外とする。"
+
+# ---------------------------------------------------------------------------
+# 1. 不変条件 — これを壊す改修は却下
+# ---------------------------------------------------------------------------
+invariants:
+  - id: INV-1
+    statement: "AI の自己申告を根拠にしたゲートを新設しない。"
+    rationale: >
+      apparness の差別化は「実行結果の内容そのものを機械が検証する」ことにある。
+      比較対象の claude-code-harness は self_review をエージェント自身に書かせており、
+      TDD 強制は配布既定で無効になっている。この方向に寄せてはならない。
+    enforced_by: "設計判断（機械強制なし）。レビュー時に人間が確認する。"
+
+  - id: INV-2
+    statement: "検証受領書（verification_receipt / integration の受領書）を人間または AI が手書きできるようにしない。"
+    rationale: "Rule 10 / Rule 11 の根拠が消える。受領書は run_verification.py / run_integration_verification.py だけが生成する。"
+    enforced_by: "harness/hooks/pre_tool_use_guard.py Rule 10"
+
+  - id: INV-3
+    statement: "受領書の commit と HEAD の一致条件（CI では祖先＋未変更の等価条件）を緩めない。"
+    rationale: "これが無いと、実装を書き換えた後も過去の成功記録を使い回せる。Rule 10 の本質はここにある。"
+    enforced_by: "harness/hooks/pre_tool_use_guard.py Rule 10 / harness/scripts/ci_check.py 項目 I"
+
+  - id: INV-4
+    statement: "Bash 経由の間接書き込み検知に、解除用の環境変数を追加しない。"
+    rationale: >
+      AI 自身が環境変数を設定して解除できてしまうと決定論的強制の目的そのものが崩れる。
+      誤検知は検知ロジック自体を修正して対応する（CONVENTIONS.md 7節に既定の方針）。
+    enforced_by: "CONVENTIONS.md 7節"
+
+  - id: INV-5
+    statement: "強制ロジック（harness/hooks/**）は Python 標準ライブラリのみで動く状態を維持する。"
+    rationale: >
+      依存ゼロであることが、比較対象に対する監査可能性の優位を成立させている
+      （比較対象は 13MB の Go バイナリのみを配布し、ソースが配布物に含まれていない）。
+    enforced_by: "設計判断。harness/README.md に明記済み。"
+
+  - id: INV-6
+    statement: "gate-reviewer の verdict を、深刻度の機械的な集計（Blocker>=1 -> NO-GO）以外の方法で決めない。また gate-reviewer に Write/Edit を与えない。"
+    rationale: "LLM 判断を機械的な集計規則で包む設計。これを緩めるとレビューが助言に退化する。"
+    enforced_by: ".claude/agents/gate-reviewer.md"
+
+  - id: INV-7
+    statement: "スタック固有の標準をハーネス本体に規定しない。"
+    rationale: "アプリ非依存性の根幹。スタック固有の知見は外部スタックパックとして接続する（harness/STACK_PACK.md）。"
+    enforced_by: "設計判断"
+
+# ---------------------------------------------------------------------------
+# 2. 機械的に強制されている制約 — 無視すると CI が落ちる
+# ---------------------------------------------------------------------------
+hard_constraints:
+  - id: HC-1
+    name: context_budget
+    enforced_by: "harness/scripts/ci_check.py 項目 L"
+    limits:
+      conventions_md_bytes: 36000
+      agent_prompt_bytes: 12000
+      session_total_bytes: 46000
+    measured_at: "2026-08-24"
+    current:
+      - path: harness/CONVENTIONS.md
+        bytes: 35891
+        limit: 36000
+        headroom_bytes: 109
+        utilization: 0.997
+      - path: .claude/agents/feature-builder.md
+        bytes: 11981
+        limit: 12000
+        headroom_bytes: 19
+        utilization: 0.998
+        conventions_sections: none
+      - path: .claude/agents/solution-architect.md
+        bytes: 11352
+        limit: 12000
+        headroom_bytes: 648
+        conventions_sections: "6,9,10,11,12,13,14"
+      - path: .claude/agents/integrator.md
+        bytes: 8224
+        limit: 12000
+        headroom_bytes: 3776
+        conventions_sections: none
+      - path: .claude/agents/gate-reviewer.md
+        bytes: 4907
+        limit: 12000
+        headroom_bytes: 7093
+        conventions_sections: none
+      - path: .claude/agents/requirements-analyst.md
+        bytes: 4164
+        limit: 12000
+        headroom_bytes: 7836
+        conventions_sections: none
+    implication: >
+      CRITICAL: 規約本体と feature-builder は実質的に満杯であり、1 行の追記でも CI が落ちる。
+      本計画のあらゆる文書追加タスクは T-001（予算の再配分）を blocked_by に持つ。
+
+  - id: HC-2
+    name: conventions_freeze
+    enforced_by: "harness/scripts/ci_check.py 項目 O"
+    rule: "harness/CONVENTIONS.md は 15 節で凍結。16 節以降の新設は拒否される。"
+    workaround: >
+      既存の節（特に 7節 Hook ルール、10節 品質保証）への追記は節の新設ではないため通る。
+      新しい概念を持ち込むときは、既存節のどれに属するかを先に決めること。
+      節の新設が本当に必要なら、ユーザーの明示的な許可を取ってから項目 O 側を更新する。
+
+  - id: HC-3
+    name: no_duplicate_normative_text
+    enforced_by: "harness/scripts/ci_check.py 項目 M"
+    rule: "CONVENTIONS.md と agent/skill プロンプトの間に、ほぼ同一の段落があれば不合格。"
+    implication: >
+      T-001 の予算再配分は「移設」であって「複製」ではない。
+      HARNESS_GUIDE.md へ本文を移したら、CONVENTIONS.md 側は必ず削って参照に置き換える。
+
+  - id: HC-4
+    name: harness_write_protection
+    enforced_by: "harness/hooks/pre_tool_use_guard.py Rule 1"
+    rule: >
+      harness/** / .claude/** / .github/** への書き込みは、ブランチが `harness/` 接頭辞でない限り拒否される。
+      本計画のほぼ全タスクがこれに該当する。
+    required_action: "着手前に `git switch -c harness/<topic>` すること。HARNESS_UNLOCK=1 は使わない。"
+
+  - id: HC-5
+    name: selftest_first
+    enforced_by: "harness/README.md / .github/workflows/harness-checks.yml"
+    rule: "判定ロジックを変更するときは、必ず先に harness/tests/ を緑にしてから進める。"
+
+# ---------------------------------------------------------------------------
+# 3. 比較から得られた診断（tasks の根拠）
+# ---------------------------------------------------------------------------
+findings:
+  - id: F-A1
+    severity: critical
+    category: safety
+    statement: "危険操作を防ぐ Hook ルールが 0 件。再帰削除・秘密ファイル読み取り・外部送信・force push・本番反映がすべて素通りする。"
+    evidence: "CONVENTIONS.md 7節の Rule 1-11 はすべて工程整合性のためのもの。危険操作に言及する規則が存在しない。"
+    comparison: "claude-code-harness は実行時フロア 5 分類 + R01-R15 + egress denylist + kill switch でこれを押さえている。"
+    addressed_by: [T-010]
+
+  - id: F-A2
+    severity: critical
+    category: safety
+    statement: "強制レイヤが起動失敗したとき fail-open になる。python3 不在・import 失敗・例外時は exit != 2 となり、全ルールが黙って無効化される。"
+    evidence: ".claude/settings.json は `python3 \"$CLAUDE_PROJECT_DIR/harness/hooks/*.py\"` を直接呼ぶ。健全性を確認する経路がない。"
+    comparison: "claude-code-harness も同じ弱点を持つ（shim がバイナリ不在時に exit 0 + 空 stdout）。両者に共通する未解決の穴。"
+    addressed_by: [T-011]
+
+  - id: F-A3
+    severity: high
+    category: maintainability
+    statement: "コンテキスト予算が満杯で、規範文書に 1 行も追加できない。"
+    evidence: "CONVENTIONS.md 35891/36000（残 109B）、feature-builder.md 11981/12000（残 19B）。実測 2026-08-24。"
+    addressed_by: [T-001]
+
+  - id: F-A4
+    severity: high
+    category: correctness
+    statement: "Bash 静的検知がヒアドキュメント本文とコマンド引数を区別しない。文書内容に現れたパス文字列を書き込み対象候補として誤検知する。"
+    evidence: >
+      本比較調査中に実観測。リポジトリルート直下の HTML を heredoc で書き出そうとしたところ、
+      本文中の `harness/hooks/...` 等の文字列により Rule 1 が発火し拒否された。
+      安全側の誤りであり構造化ツール（Write）への切り替えで回避できたが、
+      CONVENTIONS.md 7節が定める「誤検知は検知ロジック自体を修正する」の対象にあたる。
+    addressed_by: [T-020]
+
+  - id: F-A5
+    severity: medium
+    category: verifiability
+    statement: "Rule / CI 項目と、それが実際にブロックすることを実証するテストの対応が体系化されていない。"
+    evidence: >
+      harness/tests/ は 17 ファイル 3819 行あり比較対象より充実しているが、
+      「Rule N が今も本当にブロックするか」を Rule 単位で追跡する索引がない。
+      F-029/F-030 は、中核ルール群が丸ごと空振りしていても気付けた経路が無かったことを示している。
+    comparison: "claude-code-harness の docs/claims-audit.md（主張と証跡の対応表）が対応物。"
+    addressed_by: [T-002]
+
+  - id: F-A6
+    severity: medium
+    category: verifiability
+    statement: "ドッグフーディング成果物（apps/）が存在せず git 履歴も 1 コミットに潰れているため、3 アプリ完走を第三者が追検証できない。"
+    evidence: "`ls apps` -> No such file or directory。`git log --oneline | wc -l` -> 1。"
+    addressed_by: [T-022]
+
+  - id: F-A7
+    severity: medium
+    category: distribution
+    statement: "VERSION も CHANGELOG も無く、導入されたハーネスの版を機械的に特定できない。"
+    comparison: "claude-code-harness は VERSION ファイル + 538KB の CHANGELOG + plugin marketplace 配布を持つ。"
+    addressed_by: [T-021]
+
+  - id: F-A8
+    severity: low
+    category: usability
+    statement: "非エンジニアが判断するための面が PROGRESS.md（Markdown）1 種類しかない。"
+    comparison: "claude-code-harness は計画概要 / 進捗 / 受け入れ の HTML 3 面を専用 skill で生成する。"
+    addressed_by: [T-030]
+
+  - id: F-A9
+    severity: low
+    category: process
+    statement: "既知の制約の記録形式が定まっておらず、『いつ再検討するか』が書かれていない。"
+    comparison: "claude-code-harness の docs/known-limitations.md は 症状 / 根本原因 / 適用中の緩和策 / 再検討の条件 の 4 点セットで統一されている。"
+    addressed_by: [T-031]
+
+  - id: F-A10
+    severity: low
+    category: process
+    statement: "DOGFOODING-LOG.md の 79 件の摩擦点が、再発防止テストへ変換される手順として仕組み化されていない。"
+    comparison: "claude-code-harness の failure-codifier skill が対応物。"
+    addressed_by: [T-032]
+
+# ---------------------------------------------------------------------------
+# 4. 改修タスク
+# ---------------------------------------------------------------------------
+tasks:
+
+  - id: T-000
+    priority: 0
+    title: "改修用ブランチの作成"
+    why: "HC-4。main のままではハーネス本体への書き込みが Rule 1 に拒否される。"
+    steps:
+      - "git switch -c harness/<topic>  # <topic> は改修の内容を表す kebab-case"
+    acceptance:
+      - "`git branch --show-current` が `harness/` で始まる。"
+    forbidden:
+      - "HARNESS_UNLOCK=1 を使ってブランチを切らずに進めること。緊急避難路であり恒常運用には使わない。"
+    verification: []
+    blocked_by: []
+
+  - id: T-001
+    priority: 0
+    title: "コンテキスト予算の再配分（他のすべての文書追加タスクの前提）"
+    why: "F-A3 / HC-1。規約本体の残り 109B、feature-builder の残り 19B。この状態では Rule を 1 本足すだけで CI 項目 L が落ちる。"
+    targets:
+      - harness/CONVENTIONS.md
+      - .claude/agents/feature-builder.md
+      - HARNESS_GUIDE.md
+    method:
+      - "CONVENTIONS.md から『設計意図・背景・経緯の説明文』を HARNESS_GUIDE.md へ移す。規範の一文と節番号だけを残す。"
+      - "移設対象の筆頭: 7節の各 Rule に付随する経緯説明、7節末尾の worktree 読み替え・二段検知の解説、12節の設計意図、15節の背景。"
+      - "feature-builder.md からフェーズ固有の長い手順を harness/procedures/feature-build.md（新規・オンデマンド読み込み）へ切り出す。"
+      - "切り出した先は『該当フェーズで初めて読まれる文書』なので CONTEXT_BUDGET の対象外（CONVENTIONS.md 15節が harness/quality/*.md と同じ扱いを既に定めている）。"
+    critical_warning: >
+      HC-3。これは移設であって複製ではない。HARNESS_GUIDE.md へ本文を移したら
+      CONVENTIONS.md 側は必ず削ること。両方に残すと CI 項目 M（二重管理検出）が落ちる。
+    acceptance:
+      - "harness/CONVENTIONS.md が 29,000 バイト以下（残ヘッドルーム 19% 以上）。"
+      - ".claude/agents/feature-builder.md が 10,000 バイト以下。"
+      - "移設した内容が HARNESS_GUIDE.md に欠落なく存在する。"
+      - "CONVENTIONS.md の節数が 15 のまま（項目 O）。"
+    verification:
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+      - "python3 -m pytest harness/tests -q"
+      - "wc -c harness/CONVENTIONS.md .claude/agents/*.md"
+    blocked_by: [T-000]
+
+  - id: T-002
+    priority: 0
+    title: "Rule / CI 項目 と 実証テスト の対応表を作り、欠けているテストを埋める"
+    why: >
+      F-A5。F-029/F-030 は「中核ルール群が丸ごと空振りしていても気付ける経路が無かった」ことを示している。
+      比較対象の claims-audit（主張と証跡の対応表）に相当する規律を、apparness では
+      「規則」対「その規則が実際にブロックすることを示すテスト」の対応として実装する。
+    targets:
+      - harness/CLAIMS.md         # 新規。オンデマンド読み込み（予算対象外）
+      - harness/tests/
+      - harness/scripts/ci_check.py
+    method:
+      - "harness/CLAIMS.md に表を作る。列: 規則ID / 何をブロックすると主張するか / 実証テスト名 / 最終実証日 / 未実証の残余。"
+      - "Rule 1-11 と CI 項目 A-O のそれぞれについて、『違反する入力を与えたら拒否されること』を確かめるテストを最低 1 本ずつ用意する。"
+      - "とくに worktree 経由の経路（F-029/F-030 の再発防止）は Rule 1・2・3・5・9・10 の全部について worktree 内外の両方から検証する。"
+      - "CI に新項目を追加し、CLAIMS.md の表に載っているテスト名が harness/tests/ に実在することを検証する（表と実体の drift 防止）。"
+    acceptance:
+      - "Rule 1-11 のすべてに、ブロックを実証するテストが 1 本以上紐付いている。"
+      - "CLAIMS.md の『未実証の残余』列が空でない行については、なぜ実証できないかが書かれている。"
+      - "新 CI 項目が、存在しないテスト名を CLAIMS.md に書いたときに落ちる。"
+    note: >
+      CLAIMS.md はオンデマンド文書なのでコンテキスト予算の対象外。
+      ただし CONVENTIONS.md にその存在を 1 行書く必要がある場合は T-001 完了後に行う。
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [T-000]
+
+  - id: T-010
+    priority: 1
+    title: "Rule 12: 危険操作フロアの新設"
+    why: "F-A1。apparness には危険操作を防ぐルールが 1 件も存在しない。AUTONOMOUS モードで長時間走らせる前提のハーネスとして、これは実運用上いちばん重い穴。"
+    targets:
+      - harness/hooks/pre_tool_use_guard.py
+      - harness/hooks/lib/path_utils.py
+      - harness/CONVENTIONS.md      # 7節への追記（新節ではないので項目 O は通る）
+      - harness/tests/test_dangerous_ops.py   # 新規
+      - harness/CLAIMS.md
+    scope_deny:
+      description: "以下は無条件で拒否する（AI に確認を求めるのではなく拒否する。確認を求める設計は AI が自分で答えられてしまう）。"
+      rules:
+        - id: D-1
+          pattern: "リポジトリルート外への再帰削除（rm -rf / rm -fr / find ... -delete）"
+          note: "リポジトリルート配下かどうかは path_utils で解決してから判定する。`..` を含む綴り・未解決の変数展開・素の `/` や `.` は綴りだけで拒否する。"
+        - id: D-2
+          pattern: "秘密ファイルの読み取り（.env / .env.* / **/*.pem / **/*.key / **/*id_rsa* / **/*id_ed25519* / **/.ssh/** / **/.aws/** / **/.npmrc）"
+          note: ".env.example / .env.sample は除外する。Read ツールと Bash（cat/head/less 等）の両方を対象にする。"
+        - id: D-3
+          pattern: "履歴の破壊（git push --force / --force-with-lease / git reset --hard / git clean -fdx / git filter-branch）"
+        - id: D-4
+          pattern: "検証のスキップ（git commit --no-verify / --no-gpg-sign を伴う強制コミット）"
+        - id: D-5
+          pattern: "外部送信（curl/wget/nc の POST/PUT/アップロード、および paste 系ホストへの到達）"
+          note: "宣言された検証コマンド（shared-kernel.yaml の verification）の実行経路は対象外。"
+        - id: D-6
+          pattern: "sudo を伴う任意コマンド"
+    design_constraints:
+      - "INV-4。バイパス用の環境変数は用意しない。誤検知は検知ロジックを直して対応する。"
+      - "既存の path_utils.extract_bash_candidate_paths を再利用し、新しいパース系を増やさない。"
+      - "Rule 12 は他の Rule と独立に判定し、他 Rule が allow でも Rule 12 が deny なら deny が勝つ。"
+      - "拒否メッセージには『なぜ止まったか』と『正しい進み方』を必ず含める（他 Rule と同じ書式）。"
+    acceptance:
+      - "D-1 から D-6 のそれぞれについて、拒否されることを示すテストと、正当なケースが通ることを示すテストが対になっている。"
+      - "宣言された検証コマンド（run_verification.py 経由）が Rule 12 で誤って止まらない。"
+      - "CONVENTIONS.md 7節に Rule 12 が追記され、節数は 15 のまま。"
+      - "CLAIMS.md に Rule 12 の行が追加されている。"
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [T-000, T-001, T-002]
+
+  - id: T-011
+    priority: 1
+    title: "強制レイヤの健全性自己診断（fail-open の可視化）"
+    why: >
+      F-A2。python3 が見つからない・import に失敗する・タイムアウトする、のいずれでも
+      Hook は exit != 2 で終わり、Claude Code はそれを『判断なし＝通過』として扱う。
+      つまり全ルールが黙って無効化された状態で作業が続く。比較対象も同じ穴を持つが、
+      apparness は監査可能性を強みにしている以上、ここを先に埋める価値が高い。
+    targets:
+      - .claude/settings.json          # SessionStart hook の追加
+      - harness/hooks/session_start_healthcheck.py   # 新規
+      - harness/scripts/render_progress.py
+      - harness/CONVENTIONS.md
+    method:
+      - "SessionStart hook を追加し、次を検査する: python3 の実在とバージョン、hooks/*.py の import 可否、path_utils の主要関数の存在、settings.json の hook 登録が全 4 種そろっているか。"
+      - "検査に失敗したら stderr に明示的な警告を出し、追加コンテキストとしてセッションに『このセッションでは決定論的強制が効いていない』ことを注入する。"
+      - "PROGRESS.md の先頭に『強制レイヤの状態』行を出す（render_progress.py。健全なら OK、そうでなければ理由）。"
+      - "PreToolUse ガード本体を try/except で包み、想定外の例外を握りつぶさず exit 2 + 理由で fail-closed にする（現状の握りつぶしがあれば除去する）。"
+    acceptance:
+      - "hooks の import を意図的に壊した状態でセッションを開始すると、警告が出て PROGRESS.md に異常が表示される。"
+      - "pre_tool_use_guard.py 内で捕捉されない例外が発生したとき、通過ではなく拒否になる。"
+      - "正常時のセッション開始オーバーヘッドが 1 秒未満。"
+    verification:
+      - "python3 -m pytest harness/tests -q"
+      - "python3 harness/hooks/session_start_healthcheck.py < /dev/null"
+    blocked_by: [T-000, T-001]
+
+  - id: T-020
+    priority: 2
+    title: "Bash 静的検知のヒアドキュメント誤検知を修正"
+    why: "F-A4。本調査で実観測した誤検知。CONVENTIONS.md 7節が定める『誤検知は検知ロジック自体を修正する』の対象。"
+    targets:
+      - harness/hooks/lib/path_utils.py     # extract_bash_candidate_paths
+      - harness/tests/test_path_utils_bash.py
+    method:
+      - "コマンド文字列中の `<<'EOF' ... EOF` / `<<EOF ... EOF` / `<<-EOF` のヒアドキュメント本文を、パス候補の抽出対象から除外する。"
+      - "ただしヒアドキュメントの『リダイレクト先』（`cat > path <<EOF` の path）は従来どおり抽出対象に残す。"
+      - "引用符で囲まれた文字列一般を除外してはいけない（`cp \"harness/x\" y` を素通りさせてしまう）。除外するのはヒアドキュメント本文のみ。"
+    acceptance:
+      - "ヒアドキュメント本文にガード対象パスの文字列が現れても拒否されない。"
+      - "ヒアドキュメントのリダイレクト先がガード対象パスなら従来どおり拒否される。"
+      - "既存の test_path_utils_bash.py が全件緑のまま。"
+    regression_risk: "high — 緩める方向の変更。事後検証（post_tool_use_guard.py）が二段目として残ることを確認してから入れる。"
+    verification:
+      - "python3 -m pytest harness/tests/test_path_utils_bash.py harness/tests/test_pre_tool_use_guard.py -q"
+      - "python3 -m pytest harness/tests -q"
+    blocked_by: [T-000, T-002]
+
+  - id: T-021
+    priority: 2
+    title: "版管理の導入（VERSION / CHANGELOG / 自己整合チェック）"
+    why: "F-A7。どの版のハーネスが動いているかを機械的に特定できないため、不具合報告と改修の対応が取れない。"
+    targets:
+      - VERSION                # 新規
+      - CHANGELOG.md           # 新規
+      - harness/scripts/ci_check.py
+      - harness/scripts/render_progress.py
+    method:
+      - "セマンティックバージョニング。現状を v1.0.0 とする。"
+      - "CHANGELOG は Keep a Changelog 形式。Added / Changed / Fixed / Removed。"
+      - "CI に項目を追加し、harness/ 配下に差分があるコミットで CHANGELOG の Unreleased セクションが更新されているかを検証する。"
+      - "PROGRESS.md にハーネスの版を表示する。"
+    acceptance:
+      - "VERSION と CHANGELOG.md が存在し、CI がその整合を検証する。"
+      - "PROGRESS.md にハーネス版が表示される。"
+    verification:
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [T-000]
+
+  - id: T-022
+    priority: 2
+    title: "ドッグフーディング成果物の保全"
+    why: "F-A6。3 アプリ完走という最重要の実績を、第三者（および将来の自分）が追検証できない。"
+    targets:
+      - DOGFOODING-LOG.md
+      - "apps/ もしくは別リポジトリ"
+    method:
+      - "生成した 3 アプリ（md-todo-cli / bookmark-vault / habit-tui）の最終状態を、少なくとも status.yaml・受領書・PROGRESS.md だけでも保全する。"
+      - "全部をこのリポジトリに戻さない判断も可。その場合は DOGFOODING-LOG.md に保全場所と、そこで何を確認できるかを記録する。"
+      - "F-059 / F-060 / F-064 が未着手のまま残っている旨を、記録の冒頭に明示する。"
+    acceptance:
+      - "3 アプリそれぞれについて、完走を裏付ける成果物の所在が DOGFOODING-LOG.md から辿れる。"
+      - "未処理の摩擦点が一覧として先頭付近にある。"
+    verification: []
+    blocked_by: [T-000]
+
+  - id: T-030
+    priority: 3
+    title: "非エンジニア向け HTML 面の追加（決定論的生成）"
+    why: >
+      F-A8。比較対象の最も分かりやすい優位のひとつ。ただし apparness は
+      render_progress.py という決定論的レンダラを既に持っているため、
+      新しい skill を増やさずに --html オプションで実現できる（non_goals: skill 数を増やさない）。
+    targets:
+      - harness/scripts/render_progress.py
+      - harness/templates/
+    method:
+      - "render_progress.py に --html を追加し、PROGRESS.md と同じデータから単一ファイル HTML を生成する。"
+      - "生成物は STATE.machine.yaml と status.yaml だけを入力とし、AI に作文させない（決定論を維持）。"
+      - "表示内容: 機能ごとの状態・受領書の有無と結果・gate-reviewer の verdict・autonomy_mode・強制レイヤの健全性（T-011）・未解決の open_issues。"
+      - "生成物は .gitignore に入れる（派生物は判断の根拠にしない、という比較対象の原則を採用）。"
+    acceptance:
+      - "`--html` で単一ファイル HTML が生成され、外部リソースに依存しない。"
+      - "skill と subagent の数が増えていない。"
+      - "生成物が .gitignore 対象になっている。"
+    verification:
+      - "python3 harness/scripts/render_progress.py --all --html"
+      - "python3 -m pytest harness/tests/test_render_progress.py -q"
+    blocked_by: [T-000, T-011]
+
+  - id: T-031
+    priority: 3
+    title: "既知の制約の記録形式を統一する"
+    why: "F-A9。比較対象の known-limitations.md は 4 点セット（症状 / 根本原因 / 適用中の緩和策 / 再検討の条件）で統一されており、『いつ再検討するか』が書かれている点が優れている。"
+    targets:
+      - HARNESS_GUIDE.md   # 11節
+    method:
+      - "既存の『既知の制約』を 4 点セットの形式に書き直す。"
+      - "とくに『再検討の条件』を全項目に必ず書く。書けないものは、なぜ書けないかを書く。"
+      - "『ハーネスの制御外に根本原因がある』ものと『apparness 側で直せる』ものを分ける。後者は tasks[] に昇格させる。"
+    acceptance:
+      - "HARNESS_GUIDE.md 11節の全項目が 4 点セットを満たす。"
+      - "apparness 側で直せると分類された項目が、この計画の tasks[] に反映されている。"
+    verification:
+      - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+    blocked_by: [T-000, T-001]
+
+  - id: T-032
+    priority: 3
+    title: "摩擦点から再発防止テストへの変換を手順化する"
+    why: "F-A10。79 件の摩擦点は貴重な資産だが、テストへの変換が場当たりになっている。"
+    targets:
+      - DOGFOODING-LOG.md
+      - harness/CLAIMS.md
+      - .claude/skills/    # 既存 skill への追記で済ませる。新設は non_goals
+    method:
+      - "摩擦点 1 件につき『再発を検出するテストがあるか / 無いならなぜ不要か』の列を追加する。"
+      - "深刻度 最高・高 の摩擦点は、テスト無しでクローズしてはならないというルールにする。"
+      - "この判定を CI 項目にできるかを検討する（DOGFOODING-LOG.md の表を機械可読にする必要がある。過剰なら見送り、その判断を記録する）。"
+    acceptance:
+      - "深刻度 最高・高 の全摩擦点に、対応テストまたは『テスト不要の理由』が付いている。"
+    verification:
+      - "python3 -m pytest harness/tests -q"
+    blocked_by: [T-000, T-002]
+
+# ---------------------------------------------------------------------------
+# 5. やらないこと
+# ---------------------------------------------------------------------------
+non_goals:
+  - id: NG-1
+    statement: "マルチホスト対応（Codex CLI / Cursor / Grok）をしない。"
+    reason: >
+      apparness の Rule 3・7・9・10・11 は『書き込み前後の内容比較』に依存する。
+      Bash-only の PreToolUse しか持たないホストでは原理的に成立しない。
+      比較対象自身が docs/hardening-parity.md で false parity を禁じ、
+      ホストごとに強制の強さが違うことを明記している。同じ罠に入らない。
+
+  - id: NG-2
+    statement: "強制エンジンを Go 等でバイナリ化しない。"
+    reason: >
+      INV-5。比較対象は 13MB の Go バイナリのみを配布し、ソースが配布物に含まれていなかった（実測 0 エントリ）。
+      『AI を縛る側のコードが読める』ことは apparness の明確な優位であり、性能のために手放す価値はない。
+      性能が問題になったら、まず Hook の起動回数と matcher の絞り込みで対処する。
+
+  - id: NG-3
+    statement: "skill / subagent / ドキュメントの数を増やさない。"
+    reason: >
+      比較対象は skill 23・スクリプト 155・docs 143 に達し、認知負荷そのものを扱う文書を持つに至っている。
+      apparness の CI 項目 L / M / O はまさにこれを防ぐ装置であり、緩めてはならない。
+      新機能は既存の skill / script のオプションとして実装することを第一候補にする。
+
+  - id: NG-4
+    statement: "既存リポジトリでの日常開発（brownfield）に対応しない。"
+    reason: >
+      apps/<app-id> のディレクトリ構造と状態機械が前提になっており、対応は事実上の作り直しになる。
+      その用途には claude-code-harness を併用するほうが合理的。
+      この判断は HARNESS_GUIDE.md にスコープとして明記すること。
+
+  - id: NG-5
+    statement: "TDD 強制や検証ゲートを『既定オフ』にする設定を導入しない。"
+    reason: >
+      比較対象は [tdd.enforce] enabled = false を配布既定にしており、
+      強制機構が存在しても効いていない状態が既定になっている。
+      apparness の Rule 10 / 11 は既定で常に効く。この性質を設定可能にしてはならない。
+
+  - id: NG-6
+    statement: "AI に危険操作の可否を確認させる（ask）方式を、拒否（deny）の代わりに採用しない。"
+    reason: >
+      AUTONOMOUS モードでは AI 自身が確認に答えてしまう。
+      人間の判断を挟みたい操作は、ask ではなく deny にしたうえで
+      『人間が別途手で実行する』という運用に倒す。
+
+# ---------------------------------------------------------------------------
+# 6. 完了判定
+# ---------------------------------------------------------------------------
+done_criteria:
+  phase_0:
+    tasks: [T-000, T-001, T-002]
+    statement: "改修の土台。予算に余裕が戻り、Rule と実証テストの対応が取れている。"
+  phase_1:
+    tasks: [T-010, T-011]
+    statement: "安全性の穴が塞がっている。危険操作が拒否され、強制レイヤの不全が可視化される。"
+  phase_2:
+    tasks: [T-020, T-021, T-022]
+    statement: "既知の不具合が直り、版と実績が追跡可能になっている。"
+  phase_3:
+    tasks: [T-030, T-031, T-032]
+    statement: "運用面の底上げ。非エンジニアが判断でき、制約と失敗が資産化されている。"
+
+global_verification:
+  - "python3 -m pytest harness/tests -q"
+  - "python3 harness/scripts/ci_check.py --branch $(git branch --show-current)"
+  - "python3 harness/scripts/vuln_scan.py"
+  - "wc -c harness/CONVENTIONS.md .claude/agents/*.md   # HC-1 の余裕を確認"

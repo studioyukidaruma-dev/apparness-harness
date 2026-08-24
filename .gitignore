@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+claude-code-harness-main.zip
+claude-code-harness-main/
