@@ -388,11 +388,22 @@ agent プロンプトと、その agent が読み込む `CONVENTIONS.md` の節�
 |---|---|
 | `harness/CONVENTIONS.md` | 36,000 バイト |
 | `.claude/agents/*.md` 各ファイル | 12,000 バイト |
-| 1 セッションの常時コスト＝ agent プロンプト ＋ その agent が読む節（最も重い agent で判定） | 46,000 バイト |
+| 1 セッションの常時コスト＝ agent プロンプト ＋ 読む節 ＋ **起動直後に読むと宣言した手順書** | 46,000 バイト |
 
 上限に当たったら、まず**説明・背景・設計意図を `HARNESS_GUIDE.md` へ移す**こと。
-`harness/quality/*.md`・`harness/STACK_PACK.md`・`harness/procedures/*.md`・`harness/CLAIMS.md`
-のように**該当フェーズで初めて読まれる**文書は常時コストではないため、この予算の対象外とする。
+`harness/quality/*.md`・`harness/STACK_PACK.md`・`harness/CLAIMS.md` のように
+**条件が揃ったときにだけ読まれる**文書（UI を持つ機能のときだけ／スタックパックを使うときだけ／
+ハーネスを保守するときだけ）は常時コストではないため、この予算の対象外とする。
+
+**`harness/procedures/*.md` は対象外ではない。** ここは「その agent が起動直後に読む手順」の
+置き場所であり、読まれるのは常時コストと同じ意味を持つ。**プロンプト本文を別ファイルへ移して
+「これを読め」と書いても、セッションに載るバイト数は減らない**（導入文のぶん増える）。
+測定値だけが良くなって実態が悪くなることを防ぐため、次のマーカーで宣言させ、項目 L が
+その実サイズを合計に計上する。宣言せずに `harness/procedures/*.md` を読ませていたら不合格。
+
+```
+<!-- context-budget: always-reads=harness/procedures/feature-build.md -->
+```
 
 ### 何をどこに書くか（規範と手順の分担）
 

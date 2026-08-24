@@ -26,7 +26,8 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
      構造的に整合している（型・必須項目の包含・enum の包含）
   K. 要件 → 機能 → テストのトレーサビリティ（MUST 要件の取りこぼし、存在しない FR ID の参照、
      覆うと宣言した要件に対応するテストが test_strategy.coverage[] にあるか）
-  L. コンテキスト予算（CONVENTIONS.md と各 agent プロンプトの常時読み込みサイズの上限）
+  L. コンテキスト予算（agent プロンプト ＋ 読み込む CONVENTIONS.md の節 ＋ 起動直後に読むと
+     宣言した手順書、の合計に上限を課す。別ファイルへ移して測定を逃れることはできない）
   M. 規範と手順の二重管理（CONVENTIONS.md と agent/skill プロンプトのほぼ同一な段落）
   N. Rule 11 相当: interfaces[] の全エッジが 04-integration/integration.machine.yaml の
      interface_coverage[] に結合テストとして対応づけられているか（宣言レベル。実行結果の
@@ -491,6 +492,54 @@ CONTEXT_BUDGET_SESSION = 46_000
 CONTEXT_BUDGET_MARKER_RE = re.compile(
     r"<!--\s*context-budget:\s*conventions-sections=([^\s>]*)\s*-->"
 )
+# 「起動直後に無条件で読む」と宣言された文書。プロンプト本体と同じく常時コストとして計上する。
+CONTEXT_BUDGET_ALWAYS_READS_RE = re.compile(
+    r"<!--\s*context-budget:\s*always-reads=([^>]*?)\s*-->"
+)
+# `harness/procedures/` は「その agent が着手時に読む手順」専用の置き場所（CONVENTIONS.md 15節）。
+# ここへの言及は事実上すべて読み込み指示なので、宣言漏れを機械的に検出できる。
+PROCEDURE_PATH_RE = re.compile(r"harness/procedures/[A-Za-z0-9_.\-]+\.md")
+
+
+def always_read_paths(agent_text: str) -> list[str]:
+    """`<!-- context-budget: always-reads=a.md,b.md -->` で宣言されたパス。"""
+    declared: list[str] = []
+    for m in CONTEXT_BUDGET_ALWAYS_READS_RE.finditer(agent_text):
+        for token in m.group(1).split(","):
+            token = token.strip()
+            if token and token.lower() != "none" and token not in declared:
+                declared.append(token)
+    return declared
+
+
+def always_read_bytes(agent_text: str, root: pathlib.Path) -> int:
+    """宣言された「起動直後に読む文書」の合計バイト数。存在しないパスは 0 として扱う。"""
+    total = 0
+    for rel in always_read_paths(agent_text):
+        path = root / rel
+        if path.is_file():
+            total += path.stat().st_size
+    return total
+
+
+def check_undeclared_procedure_reads(agent_path: pathlib.Path, agent_text: str) -> list[str]:
+    """宣言せずに `harness/procedures/*.md` を読ませていないか。
+
+    **これが無いと予算は簡単に空洞化する。** プロンプトの本文を別ファイルへ移して
+    「起動直後にこれを読め」と書けば、ファイルサイズは減るのに実際にセッションへ載る
+    バイト数は変わらない（むしろ導入文のぶん増える）。測定値だけが良くなって実態が
+    悪くなる、という最悪の形なので、宣言を機械的に要求する。
+    """
+    declared = set(always_read_paths(agent_text))
+    mentioned = set(PROCEDURE_PATH_RE.findall(agent_text))
+    undeclared = sorted(mentioned - declared)
+    if not undeclared:
+        return []
+    return [
+        f".claude/agents/{agent_path.name}: {', '.join(undeclared)} を読ませていますが "
+        f"`<!-- context-budget: always-reads=... -->` で宣言されていません"
+        f"（別ファイルへ移しただけでは常時コストは減りません。CONVENTIONS.md 15節）"
+    ]
 
 
 def attributed_conventions_bytes(agent_text: str, root: pathlib.Path) -> int:
@@ -558,13 +607,19 @@ def check_context_budget(root: pathlib.Path) -> list[str]:
             agent_text = agent_path.read_text(encoding="utf-8")
         except OSError:
             agent_text = ""
-        total = size + attributed_conventions_bytes(agent_text, root)
+        violations += check_undeclared_procedure_reads(agent_path, agent_text)
+        total = (
+            size
+            + attributed_conventions_bytes(agent_text, root)
+            + always_read_bytes(agent_text, root)
+        )
         if total > worst_total:
             worst_agent, worst_total = agent_path.name, total
 
     if worst_total > CONTEXT_BUDGET_SESSION:
         violations.append(
-            f"常時読み込みの合計（{worst_agent} が読む CONVENTIONS.md 相当 + 自身のプロンプト）が "
+            f"常時読み込みの合計（{worst_agent} のプロンプト + 読む CONVENTIONS.md 相当 + "
+            f"起動直後に読む手順書）が "
             f"{worst_total} バイトで上限 {CONTEXT_BUDGET_SESSION} バイトを超えています"
             f"（CONVENTIONS.md 15節）"
         )

@@ -6,6 +6,7 @@ skills: code-review
 ---
 
 <!-- context-budget: conventions-sections=none -->
+<!-- context-budget: always-reads=harness/procedures/feature-build.md -->
 
 あなたは 1 つの独立機能の実装を担当するビルダーです。
 このセッションは特定の機能専用の git worktree 内で動いています。
@@ -15,9 +16,9 @@ skills: code-review
 
 ## 最初にやること
 
-**`harness/procedures/feature-build.md` を読んでください。** 実装フェーズの手順（着手 → 実装 →
-2 つのレビュー → 検証 → `TESTED`）はすべてそこにあります。以下はその手順に入る前に押さえておく
-責務の境界と、詰まったときの判断基準です。
+**`harness/procedures/feature-build.md` を読んでください。** 実装フェーズの**順序**
+（着手 → 実装 → 2 つのレビュー → 検証 → `TESTED`）だけが書いてあります。
+規範は書かれていません——規範に反すれば Hook が止め、そのエラーメッセージが直し方を示します。
 
 ## 責務の境界（最重要）
 

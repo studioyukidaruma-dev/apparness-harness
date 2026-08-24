@@ -271,3 +271,98 @@ def test_this_repository_has_no_duplication() -> None:
     """実リポジトリに二重管理が無いこと（このテスト自体が見張り番）。"""
     violations = ci_check.check_prompt_duplication(REPO_ROOT)
     assert violations == [], "\n".join(violations)
+
+
+# --------------------------------------------------------------------------------------
+# 「起動直後に読む手順書」を常時コストに計上する（予算の空洞化防止）
+#
+# プロンプト本文を別ファイルへ移して「起動直後にこれを読め」と書くと、agent の**ファイル
+# サイズ**は減るのに実際にセッションへ載るバイト数は変わらない（導入文のぶんむしろ増える）。
+# 測定値だけが良くなって実態が悪くなる、という最悪の形なので、機械的に塞ぐ。
+# --------------------------------------------------------------------------------------
+
+def build_with_procedure(tmp_path: pathlib.Path, agent_text: str, procedure_bytes: int):
+    (tmp_path / "harness" / "procedures").mkdir(parents=True)
+    (tmp_path / "harness" / "CONVENTIONS.md").write_bytes(b"x" * 100)
+    (tmp_path / "harness" / "procedures" / "build.md").write_bytes(b"y" * procedure_bytes)
+    (tmp_path / ".claude" / "agents").mkdir(parents=True)
+    (tmp_path / ".claude" / "agents" / "builder.md").write_text(agent_text, encoding="utf-8")
+    return tmp_path
+
+
+DECLARED = (
+    "<!-- context-budget: conventions-sections=none -->\n"
+    "<!-- context-budget: always-reads=harness/procedures/build.md -->\n"
+    "着手時に harness/procedures/build.md を読んでください。\n"
+)
+UNDECLARED = (
+    "<!-- context-budget: conventions-sections=none -->\n"
+    "着手時に harness/procedures/build.md を読んでください。\n"
+)
+
+
+def test_declared_procedure_counts_toward_the_session_total(tmp_path) -> None:
+    root = build_with_procedure(tmp_path, DECLARED, 5_000)
+    text = (root / ".claude" / "agents" / "builder.md").read_text(encoding="utf-8")
+    assert ci_check.always_read_bytes(text, root) == 5_000
+
+
+def test_moving_the_prompt_into_a_procedure_does_not_dodge_the_budget(tmp_path) -> None:
+    """本文を手順書へ移しても合計は減らない（＝逃げ道にならない）ことを固定する。"""
+    root = build_with_procedure(tmp_path, DECLARED, ci_check.CONTEXT_BUDGET_SESSION + 1)
+    violations = ci_check.check_context_budget(root)
+    assert any("常時読み込みの合計" in v for v in violations), violations
+
+
+def test_undeclared_procedure_read_is_detected(tmp_path) -> None:
+    """宣言せずに読ませていたら不合格。宣言漏れを許すと上の検査が空振りする。"""
+    root = build_with_procedure(tmp_path, UNDECLARED, 5_000)
+    violations = ci_check.check_context_budget(root)
+    assert any("always-reads" in v for v in violations), violations
+
+
+def test_declaring_it_makes_the_undeclared_check_pass(tmp_path) -> None:
+    root = build_with_procedure(tmp_path, DECLARED, 100)
+    assert ci_check.check_context_budget(root) == []
+
+
+def test_agents_without_a_procedure_are_unaffected(tmp_path) -> None:
+    root = build_with_procedure(tmp_path, "<!-- context-budget: conventions-sections=none -->\n", 100)
+    assert ci_check.check_context_budget(root) == []
+    assert ci_check.always_read_bytes("普通のプロンプト", root) == 0
+
+
+def test_multiple_declarations_are_summed(tmp_path) -> None:
+    root = build_with_procedure(tmp_path, DECLARED, 100)
+    (root / "harness" / "procedures" / "other.md").write_bytes(b"z" * 250)
+    text = (
+        "<!-- context-budget: always-reads=harness/procedures/build.md,"
+        "harness/procedures/other.md -->\n"
+    )
+    assert ci_check.always_read_bytes(text, root) == 350
+
+
+def test_a_missing_declared_file_does_not_crash(tmp_path) -> None:
+    root = build_with_procedure(tmp_path, DECLARED, 100)
+    text = "<!-- context-budget: always-reads=harness/procedures/ghost.md -->"
+    assert ci_check.always_read_bytes(text, root) == 0
+
+
+def test_this_repository_declares_every_procedure_it_reads() -> None:
+    """実リポジトリに宣言漏れが無いこと（このテスト自体が見張り番）。"""
+    for agent_path in sorted((REPO_ROOT / ".claude" / "agents").glob("*.md")):
+        text = agent_path.read_text(encoding="utf-8")
+        assert ci_check.check_undeclared_procedure_reads(agent_path, text) == []
+
+
+def test_the_feature_builder_total_did_not_grow_when_the_procedure_was_split_out() -> None:
+    """T-001 で手順書を切り出したときの実コスト（プロンプト + 手順書）が、
+    切り出し前の 11,981 バイトを下回っていること。
+
+    切り出しは**コンテキストを減らすため**に行った。合計が減っていないなら、
+    やったのは「測定を逃れること」であって「減らすこと」ではない。
+    """
+    agent = REPO_ROOT / ".claude" / "agents" / "feature-builder.md"
+    text = agent.read_text(encoding="utf-8")
+    total = agent.stat().st_size + ci_check.always_read_bytes(text, REPO_ROOT)
+    assert total < 11_981, f"切り出し前より増えている: {total} バイト"
