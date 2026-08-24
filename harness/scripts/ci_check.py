@@ -32,6 +32,8 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
      interface_coverage[] に結合テストとして対応づけられているか（宣言レベル。実行結果の
      真偽は run_integration_verification.py が JUnit XML と突合する）
   O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。凍結の経緯は DOGFOODING-LOG.md 参照）
+  P. harness/CLAIMS.md（主張と証跡の対応表）に書かれた実証テストが harness/tests/ に実在し、
+     実証テストが無い行には「なぜ実証できないか」が書かれている（表と実体の drift 防止）
 
 Rule 5（必須Skillの充足）は CI に実行環境の Skill 有効化状態が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既にコミット済みであるため、
@@ -653,6 +655,74 @@ def check_prompt_duplication(root: pathlib.Path) -> list[str]:
     return violations
 
 
+# 項目 P: 主張と証跡の対応表（harness/CLAIMS.md）と実体の drift 検出
+CLAIMS_TEST_REF_RE = re.compile(r"([A-Za-z0-9_]+\.py)::([A-Za-z0-9_]+)")
+CLAIMS_EMPTY_CELLS = {"", "—", "-", "–", "なし", "N/A"}
+
+
+def _claims_table_rows(text: str) -> list[list[str]]:
+    """Markdown の表の行（ヘッダ・区切り行を除く）をセルの配列にして返す。"""
+    rows = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or not line.endswith("|"):
+            continue
+        cells = [c.strip() for c in line[1:-1].split("|")]
+        if len(cells) < 5:
+            continue
+        if cells[0] == "規則":
+            continue  # ヘッダ
+        if all(re.fullmatch(r"[-: ]+", c) for c in cells):
+            continue  # 区切り
+        rows.append(cells)
+    return rows
+
+
+def check_claims_coverage(root: pathlib.Path) -> list[str]:
+    """項目 P: `harness/CLAIMS.md` の表が実体と食い違っていないことを検証する。
+
+    この表は「ハーネスが何をブロックすると主張しているか」と「それを実証しているテスト」の
+    対応表である（F-029/F-030 では中核ルール群が丸ごと空振りしていても気付けなかった）。
+    表が実体から drift すれば索引としての価値が消えるので、機械的に見張る:
+
+      1. 表に書かれた `<file>.py::<test>` が `harness/tests/` に実在すること
+      2. 実証テストが空（`—` 等）の行には、「未実証の残余」が書かれていること
+         （実証できない主張を、理由を書かずに置くことを許さない）
+    """
+    claims_path = _common.harness_root(root) / "CLAIMS.md"
+    if not claims_path.exists():
+        return []
+    text = claims_path.read_text(encoding="utf-8")
+    tests_dir = _common.harness_root(root) / "tests"
+
+    violations = []
+    sources: dict[str, str | None] = {}
+    for file_name, test_name in CLAIMS_TEST_REF_RE.findall(text):
+        if file_name not in sources:
+            path = tests_dir / file_name
+            sources[file_name] = path.read_text(encoding="utf-8") if path.is_file() else None
+        source = sources[file_name]
+        if source is None:
+            violations.append(
+                f"harness/CLAIMS.md: 実証テストのファイル harness/tests/{file_name} が存在しません"
+            )
+            continue
+        if not re.search(rf"^def {re.escape(test_name)}\s*\(", source, re.MULTILINE):
+            violations.append(
+                f"harness/CLAIMS.md: harness/tests/{file_name} に {test_name} が存在しません"
+                f"（テストを書くか、表の記載を実体に合わせてください）"
+            )
+
+    for cells in _claims_table_rows(text):
+        rule, evidence, residual = cells[0], cells[2], cells[4]
+        if evidence.strip("` ") in CLAIMS_EMPTY_CELLS and residual in CLAIMS_EMPTY_CELLS:
+            violations.append(
+                f"harness/CLAIMS.md: 「{rule}」に実証テストが無いのに、なぜ実証できないかが"
+                f"書かれていません（「未実証の残余」列を埋めてください）"
+            )
+    return violations
+
+
 def _strip_timestamp(text: str) -> str:
     return TIMESTAMP_LINE_RE.sub("", text)
 
@@ -741,6 +811,7 @@ def main(argv: list[str]) -> int:
     violations += check_prompt_duplication(root)
     violations += check_progress_freshness(root, branch)
     violations += check_conventions_frozen_section_count(root)
+    violations += check_claims_coverage(root)
 
     if violations:
         print(f"\nNG: {len(violations)} 件の違反が見つかりました:", file=sys.stderr)
