@@ -58,6 +58,12 @@
 
 ### Documentation
 
+- `harness-flow-plain.html` / `harness-flow-technical.html` を全面改訂。Rule 12・SessionStart
+  自己診断・CI 項目 P/Q・`CLAIMS.md` / `procedures/` / `VERSION` の追加を反映し、
+  「いつ何が動くか」「誰がどの文書をどれだけ読むか（実測値）」「文書の役割分担と追記先」
+  「ブランチ規約と保護」「ゲート判定の書式と決定性」を追記した。
+  コンテキスト予算の既知の過小評価（`quality/*.md` を計上していないこと）も明記。
+
 - `harness/README.md` を 12 ルール・SessionStart 自己診断・`CLAIMS.md` / `procedures/` /
   `VERSION` の追加に追随させた。
 

@@ -1,433 +1,755 @@
-<title>ハーネスのしくみ案内</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ハーネスのしくみ案内（やさしい版）</title>
 <style>
-  :root {
-    --ground: #F7F6F3;
-    --surface: #FFFFFF;
-    --surface-2: #EFEDE8;
-    --ink: #201D1A;
-    --muted: #6B655D;
-    --line: #E0DCD4;
-    --line-strong: #C8C2B7;
-    --accent: #35657A;
-    --accent-soft: #E2EDF1;
-    --amber: #99621B;
-    --amber-soft: #F7EBDA;
-    --red: #A33A2C;
-    --red-soft: #F8E5E1;
-    --green: #35704F;
-    --green-soft: #E3F0E8;
-    --shadow: 0 1px 2px rgba(32, 29, 26, .06), 0 10px 28px -20px rgba(32, 29, 26, .35);
-
-    --f-round: "Zen Maru Gothic", system-ui, "Hiragino Maru Gothic ProN", sans-serif;
-    --f-body: "Zen Kaku Gothic New", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
-    --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+:root{
+  color-scheme: light dark;
+  --bg:#f6f6f8; --panel:#fff; --ink:#1b1b1f; --muted:#5d5d68; --line:#e3e3ea;
+  --accent:#2f5fd0; --accent-bg:#e8eefb;
+  --ok:#1f7a4d; --ok-bg:#e6f4ec; --warn:#8a5a00; --warn-bg:#fdf1dc;
+  --bad:#a32b2b; --bad-bg:#fbe9e9; --idle:#5d5d68; --idle-bg:#ececef;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#151519; --panel:#1e1e24; --ink:#ececf1; --muted:#a2a2ae; --line:#32323c;
+    --accent:#7ea6ff; --accent-bg:#1d2740;
+    --ok:#6cd3a0; --ok-bg:#16332a; --warn:#e3b45f; --warn-bg:#352c17;
+    --bad:#f08a8a; --bad-bg:#3a1f1f; --idle:#a2a2ae; --idle-bg:#2a2a31;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --ground: #161513;
-      --surface: #1E1D1A;
-      --surface-2: #272522;
-      --ink: #EDEAE4;
-      --muted: #A39C92;
-      --line: #322F2B;
-      --line-strong: #48443E;
-      --accent: #7FB4C6;
-      --accent-soft: #1B3038;
-      --amber: #D5A063;
-      --amber-soft: #33281A;
-      --red: #E08A79;
-      --red-soft: #37231E;
-      --green: #74BE94;
-      --green-soft: #1A2E22;
-      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -20px rgba(0,0,0,.9);
-    }
-  }
-  :root[data-theme="dark"] {
-    --ground: #161513;
-    --surface: #1E1D1A;
-    --surface-2: #272522;
-    --ink: #EDEAE4;
-    --muted: #A39C92;
-    --line: #322F2B;
-    --line-strong: #48443E;
-    --accent: #7FB4C6;
-    --accent-soft: #1B3038;
-    --amber: #D5A063;
-    --amber-soft: #33281A;
-    --red: #E08A79;
-    --red-soft: #37231E;
-    --green: #74BE94;
-    --green-soft: #1A2E22;
-    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 28px -20px rgba(0,0,0,.9);
-  }
-
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ground); color: var(--ink);
-    font-family: var(--f-body); font-size: 16.5px; line-height: 1.85;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 56px; }
-  h1, h2, h3 { font-family: var(--f-round); text-wrap: balance; line-height: 1.4; margin: 0; font-weight: 700; }
-  h1 { font-size: 36px; letter-spacing: -.01em; }
-  h2 { font-size: 25px; }
-  h3 { font-size: 17px; font-weight: 500; }
-  p { margin: 0; }
-  code, .mono { font-family: var(--f-mono); font-size: .86em; }
-  .muted { color: var(--muted); }
-  .prose { max-width: 64ch; display: flex; flex-direction: column; gap: 14px; }
-
-  header .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); margin-bottom: 12px; }
-  header .lede { font-size: 18px; color: var(--muted); max-width: 62ch; margin-top: 18px; }
-
-  section { display: flex; flex-direction: column; gap: 22px; }
-  .sec-head { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid var(--line-strong); padding-top: 18px; }
-
-  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
-
-  .lane { min-width: 1000px; display: grid; grid-template-columns: 150px 178px 1fr 200px 220px; }
-  .lane > div { padding: 14px 16px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 14px; line-height: 1.72; }
-  .lane > div:nth-child(5n) { border-right: none; }
-  .lane .hd { background: var(--surface-2); font-family: var(--f-round); font-size: 13px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--line-strong); }
-  .lane .phase { background: var(--surface-2); }
-  .lane .phase b { display: block; font-family: var(--f-round); font-size: 16px; }
-  .lane .phase .pid { font-family: var(--f-mono); font-size: 11px; color: var(--accent); }
-  .gate-cell { grid-column: 1 / -1; padding: 14px 16px; background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); font-size: 14px; }
-  .gate-cell .gid { font-family: var(--f-round); font-weight: 700; color: var(--amber); display: block; margin-bottom: 4px; }
-
-  ul.none { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
-  ul.tight { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: 5px; }
-
-  .tag { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 20px; border: 1px solid currentColor; white-space: nowrap; line-height: 1.6; font-weight: 500; }
-  .t-det { color: var(--green); background: var(--green-soft); }
-  .t-ai { color: var(--red); background: var(--red-soft); }
-  .t-ops { color: var(--amber); background: var(--amber-soft); }
-  .size { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
-  .warnmark { color: var(--red); font-weight: 700; }
-
-  table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 14px; }
-  th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-  th { background: var(--surface-2); font-family: var(--f-round); font-size: 13px; font-weight: 700; color: var(--ink); border-bottom: 2px solid var(--line-strong); }
-  tbody tr:last-child td { border-bottom: none; }
-
-  .legend { display: flex; flex-wrap: wrap; gap: 12px 26px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 14px; }
-  .legend div { display: flex; align-items: center; gap: 9px; }
-
-  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: 0 10px 10px 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; box-shadow: var(--shadow); }
-  .callout.warn { border-left-color: var(--red); }
-  .callout h3 { font-weight: 700; font-size: 16px; }
-
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
-  .card p, .card li { font-size: 14px; line-height: 1.75; }
-  .card .where { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
-
-  dl.glossary { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 0; margin: 0; }
-  dl.glossary dt { font-family: var(--f-round); font-weight: 700; padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); }
-  dl.glossary dd { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 15px; }
-  dl.glossary dt:last-of-type, dl.glossary dd:last-of-type { border-bottom: none; }
-
-  a { color: var(--accent); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-  @media (max-width: 640px) {
-    .wrap { padding: 36px 16px 64px; } h1 { font-size: 28px; }
-    dl.glossary { grid-template-columns: 1fr; }
-    dl.glossary dt { border-bottom: none; padding-bottom: 0; }
-  }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:2.5rem 1.25rem 5rem;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+  line-height:1.9;font-size:16px}
+.wrap{max-width:64rem;margin:0 auto}
+h1{font-size:1.75rem;margin:0 0 .4rem;line-height:1.4}
+h2{font-size:1.3rem;margin:3.5rem 0 .9rem;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
+h3{font-size:1.05rem;margin:2rem 0 .6rem}
+h4{font-size:.95rem;margin:1.4rem 0 .4rem;color:var(--muted)}
+p{margin:.8rem 0}
+.lead{color:var(--muted);margin:0 0 2rem}
+.toc{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.4rem;margin:0 0 2.5rem}
+.toc ol{margin:.4rem 0;padding-left:1.4rem}
+.toc a{color:var(--accent);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.3rem;margin:1.2rem 0}
+.box.tip{border-left:4px solid var(--accent);background:var(--accent-bg)}
+.box.warn{border-left:4px solid var(--warn);background:var(--warn-bg)}
+.box h4{margin-top:0;color:inherit;font-size:1rem;font-weight:700}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:.6rem;margin:1.2rem 0}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:.65rem .85rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.8rem;color:var(--muted);font-weight:600;white-space:nowrap;background:var(--bg)}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em;
+  background:var(--idle-bg);padding:.1rem .35rem;border-radius:.25rem}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem;
+  overflow-x:auto;font-size:.85rem;line-height:1.6}
+pre code{background:none;padding:0}
+.tag{display:inline-block;padding:.08rem .5rem;border-radius:999px;font-size:.75rem;font-weight:700;white-space:nowrap}
+.t-auto{color:var(--ok);background:var(--ok-bg)}
+.t-ai{color:var(--warn);background:var(--warn-bg)}
+.t-mix{color:var(--accent);background:var(--accent-bg)}
+.t-stop{color:var(--bad);background:var(--bad-bg)}
+ul,ol{padding-left:1.4rem}
+li{margin:.35rem 0}
+.flow{margin:1.5rem 0}
+.flow svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;font-size:.82rem;color:var(--muted);margin:.6rem 0 0}
+.legend span{display:flex;align-items:center;gap:.35rem}
+.swatch{width:.85rem;height:.85rem;border-radius:.2rem;display:inline-block}
+footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--muted);font-size:.82rem}
+.qa{margin:1rem 0}
+.qa dt{font-weight:700;margin-top:1rem}
+.qa dd{margin:.3rem 0 0 0;color:var(--muted)}
 </style>
-
+</head>
+<body>
 <div class="wrap">
 
-<header>
-  <div class="eyebrow">apparness のしくみ</div>
-  <h1>ハーネスのしくみ案内</h1>
-  <p class="lede">
-    アプリが「思いつき」から「動くもの」になるまでに、誰が何をして、どこで足止めを食らうのか。
-    仕組みが<b>自動で止めてくれること</b>と、<b>AI の判断に任されていること</b>を分けて示します。
-  </p>
-</header>
+<h1>ハーネスのしくみ案内（やさしい版）</h1>
+<p class="lead">
+このリポジトリの「ハーネス」が、いつ・何を・どうやって動かしているかの案内書です。
+専門用語をなるべく避けて書いています。正確な用語で読みたい方は
+<code>harness-flow-technical.html</code> をどうぞ。<br>
+対象バージョン: v1.0.0（Unreleased の変更を含む・2026-08-24 時点）
+</p>
 
-<section>
-  <div class="sec-head">
-    <h2>そもそも何をする仕組みか</h2>
-  </div>
-  <div class="prose">
-    <p>
-      AI にアプリを作らせると、話が進むうちに「作ったつもり」「テストしたつもり」が混ざります。
-      この仕組みは、<b>その「つもり」を機械が確かめられる形に変える</b>ためのものです。
-    </p>
-    <p>
-      やり方は 2 つ。ひとつは、作業を <b>順番の決まった 6 つの段階</b>に切り、
-      段階の変わり目に<b>関所（ゲート）</b>を置くこと。もうひとつは、
-      <b>今どの作業をしているかによって、書き換えられるフォルダを機械的に制限する</b>ことです。
-      制限は git のブランチと作業フォルダで決まり、AI が自分で外すことはできません。
-    </p>
-    <p>
-      アプリは「入り口と出口さえ分かれば中身を知らなくていい」小さな機能に分割されます。
-      だから機能ごとに担当を分けて、同時に作れます。
-    </p>
-  </div>
-</section>
-
-<div class="legend">
-  <div><span class="tag t-det">自動で止まる</span> 仕組みが機械的に判定。AI はごまかせない</div>
-  <div><span class="tag t-ops">お願いベース</span> 指示に書いてあるだけ。やったか確認されない</div>
-  <div><span class="tag t-ai">AI まかせ</span> 中身の良し悪しの判断。機械では確かめられない</div>
+<div class="toc">
+<strong>目次</strong>
+<ol>
+<li><a href="#what">そもそも何をする仕組みか</a></li>
+<li><a href="#flow">全体の流れ（1 枚図）</a></li>
+<li><a href="#who">登場人物 ― 3 種類の働き手</a></li>
+<li><a href="#when">いつ何が動くのか（時間順）</a></li>
+<li><a href="#read">誰がどの文書を読むのか（読む量の一覧）</a></li>
+<li><a href="#docs">文書の役割分担 ― 書き足すときはどこへ</a></li>
+<li><a href="#git">git のブランチと「触ってよい場所」</a></li>
+<li><a href="#gate">通過チェックのしくみ ― 機械が決めるか、AI が決めるか</a></li>
+<li><a href="#care">気をつけて見たほうがいいところ</a></li>
+<li><a href="#words">用語の言いかえ表</a></li>
+</ol>
 </div>
 
-<section>
-  <div class="sec-head">
-    <h2>全工程の図</h2>
-    <p class="muted" style="font-size:15px;max-width:64ch">
-      上から下へ進みます。オレンジ色の帯が<b>関所</b>で、条件を満たさないと次に進めません。
-      「読む資料」の数字は文書の大きさ（バイト数）で、<span class="warnmark">▲</span> は<b>まるごと読んでいる</b>ところです。
-    </p>
-  </div>
+<h2 id="what">1. そもそも何をする仕組みか</h2>
 
-  <div class="scroll">
-    <div class="lane">
-      <div class="hd">段階</div>
-      <div class="hd">担当</div>
-      <div class="hd">読む資料</div>
-      <div class="hd">動く道具</div>
-      <div class="hd">作業場所と、<br>触れないフォルダ</div>
+<p>
+このハーネスは、<strong>AI にアプリを作らせるときの「工程管理」と「品質の下限」を、機械が強制する仕組み</strong>です。
+ふつうの開発ルールは「守りましょう」と書いてあるだけですが、ここでは<strong>破ろうとした操作そのものが実行前に止まります</strong>。
+</p>
 
-      <div class="phase"><span class="pid">1</span><b>下ごしらえ</b></div>
-      <div>人間 ＋ 雛形作成の手順書<br><span class="muted">（init-app）</span></div>
-      <div><ul class="none">
-        <li>ルールブックの「自動化の度合い」の章だけ</li>
-        <li>各種ひな形ファイル</li>
-      </ul></div>
-      <div>フォルダとファイルの雛形を作る道具<br><span class="muted">進捗表も一緒に作られる</span></div>
-      <div>このアプリ専用の作業枝を作る<br><span class="muted">仕組み本体のフォルダには触れない</span></div>
+<div class="box tip">
+<h4>いちばん大事な考え方</h4>
+<p style="margin-bottom:0">
+<strong>「やりました」という AI の自己申告を、根拠にしない。</strong><br>
+たとえば「テストを書いて通しました」は信じません。代わりに、機械がテストコマンドを<strong>実際に実行して</strong>、
+その結果（終了コード）を記録した<strong>受領書</strong>を作り、受領書が無ければ「テスト完了」の状態に進めません。
+受領書は人にも AI にも手書きできないようになっています。
+</p>
+</div>
 
-      <div class="phase"><span class="pid">2</span><b>要件を決める</b></div>
-      <div>要件の担当 AI<br><span class="muted">（requirements-analyst）</span></div>
-      <div><ul class="none">
-        <li><span class="warnmark">▲</span> ルールブック <b>まるごと</b> <span class="size">35,813 B</span></li>
-        <li>自動化の度合いの設定ファイル</li>
-        <li>要件の書式定義</li>
-      </ul></div>
-      <div>書式が正しいか確かめる道具<br>進捗表を作り直す道具</div>
-      <div>アプリ専用の作業枝<br><span class="muted">書けるのは「要件」フォルダだけ</span></div>
+<p>作られるアプリは <code>apps/&lt;アプリ名&gt;/</code> の下に置かれ、次の 5 段階で進みます。</p>
 
-      <div class="gate-cell">
-        <span class="gid">関所 1 ── 要件の承認</span>
-        <span class="tag t-det">自動で止まる</span> 承認済みにするなら、承認した人の名前と日時が空欄ではいけない。
-        　<span class="tag t-ai">AI まかせ</span> <b>「本当に人間が承認したか」は確かめられません。</b>
-        名前欄に文字が入っていれば通ってしまいます。ここは仕組みの一番の弱点です。
-      </div>
+<ol>
+<li><strong>要件定義</strong> ― 何を作るかを決める（<code>00-requirements/</code>）</li>
+<li><strong>共通の土台</strong> ― 全機能が共通で使う約束事を決める（<code>01-foundation/</code>）</li>
+<li><strong>設計</strong> ― 独立した機能に分割する（<code>02-design/</code>）</li>
+<li><strong>機能ごとの実装</strong> ― 機能 1 つにつき作業場所を 1 つ用意して並行実装（<code>03-features/</code>）</li>
+<li><strong>組み上げ</strong> ― 機能どうしをつないで完成させる（<code>04-integration/</code>）</li>
+</ol>
 
-      <div class="phase"><span class="pid">3</span><b>設計する</b></div>
-      <div>設計の担当 AI<br><span class="muted">（solution-architect）</span></div>
-      <div><ul class="none">
-        <li><span class="warnmark">▲</span> ルールブック <b>まるごと</b> <span class="size">35,813 B</span><br><span class="muted">「特にこの章」とは書いてあるが、実際は全部読む</span></li>
-        <li>決まった要件</li>
-        <li>安全面の最低ライン <span class="size">4,165 B</span></li>
-        <li>技術ごとの作法の決まりごと <span class="size">5,456 B</span></li>
-      </ul></div>
-      <div>書式を確かめる道具<br>機能どうしの受け渡しが噛み合うか確かめる道具<br>要件の取りこぼしを探す道具</div>
-      <div>アプリ専用の作業枝<br><span class="muted">書けるのは「共通の土台」と「設計」フォルダ。承認後は設計の契約書が凍結される</span></div>
+<h2 id="flow">2. 全体の流れ（1 枚図）</h2>
 
-      <div class="gate-cell">
-        <span class="gid">関所 2 ── 設計の承認</span>
-        <span class="tag t-det">自動で止まる</span> 設計が「どの版の要件にもとづくか」の記載が、実際の要件の版と一致しないと承認できない。
-        承認後は設計の契約書を書き換えられない。
-        　<span class="tag t-ai">AI まかせ</span> 機能の分け方が本当に独立しているか、選んだ技術やテストの手順が妥当か。
-      </div>
+<div class="flow">
+<svg viewBox="0 0 900 560" role="img" aria-label="ハーネスの全体フロー図">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, sans-serif" font-size="13" color="currentColor">
 
-      <div class="phase"><span class="pid">4</span><b>作業場を分ける</b></div>
-      <div>人間 ＋ 作業場作成の手順書<br><span class="muted">（new-feature-worktree）</span></div>
-      <div><ul class="none">
-        <li>設計書の機能一覧</li>
-        <li>その機能の契約書（作業場へ複製）</li>
-      </ul></div>
-      <div>機能ごとの作業フォルダを切り出す道具<br><span class="muted">必要な資料が揃っているか先に確かめる</span></div>
-      <div>機能ごとの作業枝を作る<br><span class="muted">実体は専用フォルダの中</span></div>
+    <!-- レーン見出し -->
+    <text x="10" y="24" font-size="12" font-weight="700" fill="var(--muted)">工程</text>
+    <text x="250" y="24" font-size="12" font-weight="700" fill="var(--muted)">動くもの（Skill / Agent）</text>
+    <text x="600" y="24" font-size="12" font-weight="700" fill="var(--muted)">機械が止めるところ</text>
+    <line x1="0" y1="34" x2="900" y2="34" stroke="var(--line)" stroke-width="1"/>
 
-      <div class="gate-cell">
-        <span class="gid">関所 3 ── 作業場を作れる条件</span>
-        <span class="tag t-det">自動で止まる</span> 設計が承認済みであること。機能一覧にその機能があること。
-        <b>要件・共通の土台・設計の 3 つが、切り出し元にちゃんと入っていること。</b>
-        欠けていたら作業場を作らずに止まります。
-      </div>
+    <!-- 1 要件定義 -->
+    <rect x="10" y="50" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="24" y="72" font-weight="700" fill="var(--ink)">① 要件定義</text>
+    <text x="24" y="90" font-size="11.5" fill="var(--muted)">何を作るかを決める</text>
+    <rect x="250" y="50" width="300" height="52" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="264" y="70" font-size="12" fill="var(--ink)">Skill: init-app</text>
+    <text x="264" y="88" font-size="12" fill="var(--ink)">→ Agent: requirements-analyst</text>
+    <rect x="590" y="50" width="300" height="52" rx="8" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="604" y="70" font-size="11.5" fill="var(--ink)">承認は必ず人間（モード問わず）</text>
+    <text x="604" y="88" font-size="11.5" fill="var(--ink)">承認者・日時なしの承認は拒否（規則7）</text>
 
-      <div class="phase"><span class="pid">5</span><b>機能を作る</b></div>
-      <div>実装の担当 AI<br><span class="muted">（feature-builder）</span><br>作業場ごとに<b>別々の会話</b>で動かす<br><br>審査の担当 AI<br><span class="muted">（gate-reviewer）書き換え権限なし</span></div>
-      <div><ul class="none">
-        <li>その機能の仕様書・契約書・状態ファイル <span class="size">自分の担当分だけ</span></li>
-        <li>共通の土台のうち<b>必要な項目だけ</b></li>
-        <li>安全面の最低ライン <span class="size">4,165 B</span></li>
-        <li>見た目の最低ライン <span class="size">3,576 B・画面がある時だけ</span></li>
-        <li>審査担当は<b>審査基準だけ</b> <span class="size">4,871 B</span></li>
-        <li class="muted">ルールブックは読まない</li>
-      </ul></div>
-      <div>宣言されたテストを<b>実際に走らせて</b>結果を記録する道具<br><span class="muted">成績表（受領書）が作られる</span></div>
-      <div>機能ごとの作業枝<br>
-        <span class="muted"><b>触れない:</b> 他の人の機能フォルダ／要件・土台・設計／承認済みの契約書／仕組み本体</span></div>
+    <!-- 2 設計 -->
+    <rect x="10" y="120" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="24" y="142" font-weight="700" fill="var(--ink)">② 土台 ＋ 設計</text>
+    <text x="24" y="160" font-size="11.5" fill="var(--muted)">独立した機能に分ける</text>
+    <rect x="250" y="120" width="300" height="52" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="264" y="140" font-size="12" fill="var(--ink)">Agent: solution-architect</text>
+    <text x="264" y="158" font-size="12" fill="var(--muted)">（要件の版と設計の版を突き合わせる）</text>
+    <rect x="590" y="120" width="300" height="52" rx="8" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="604" y="140" font-size="11.5" fill="var(--ink)">要件の版とズレた設計は承認できない（規則7）</text>
+    <text x="604" y="158" font-size="11.5" fill="var(--ink)">テスト実行コマンドの宣言もここで必須</text>
 
-      <div class="gate-cell">
-        <span class="gid">関所 4 ── 「テスト済み」にできる条件</span>
-        <span class="tag t-det">自動で止まる</span> ここが仕組みの心臓部です。
-        <b>成績表があること・宣言された全コマンドが成功していること・成績表が今の状態に対して取られたものであること・
-        宣言したテストが実在して通っていること。</b>成績表を手書きすることはできません。
-        状態は 1 段ずつしか進められません。
-        <br>　<span class="tag t-ai">AI まかせ</span> 審査担当が「これは重大な問題だ」と判断する部分。
-        しかも<b>審査結果は記録されるだけで、通せんぼはしません</b>。
-        　<span class="tag t-ops">お願いベース</span> コードレビューを実際にやったかどうか。
-      </div>
+    <!-- 3 実装 -->
+    <rect x="10" y="190" width="200" height="120" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="24" y="212" font-weight="700" fill="var(--ink)">③ 機能ごとの実装</text>
+    <text x="24" y="230" font-size="11.5" fill="var(--muted)">機能 1 つ = 作業場所 1 つ</text>
+    <text x="24" y="248" font-size="11.5" fill="var(--muted)">（並行して進められる）</text>
+    <text x="24" y="272" font-size="11.5" fill="var(--muted)">状態を 1 段ずつ進める</text>
+    <text x="24" y="290" font-size="11.5" fill="var(--muted)">実装 → レビュー → 検証</text>
+    <rect x="250" y="190" width="300" height="120" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="264" y="210" font-size="12" fill="var(--ink)">Skill: new-feature-worktree</text>
+    <text x="264" y="228" font-size="12" fill="var(--ink)">→ Agent: feature-builder</text>
+    <text x="264" y="252" font-size="12" fill="var(--ink)">→ Skill: code-review（自己点検）</text>
+    <text x="264" y="270" font-size="12" fill="var(--ink)">→ Agent: gate-reviewer（第三者点検）</text>
+    <text x="264" y="294" font-size="12" fill="var(--ink)">→ 検証スクリプトが受領書を作る</text>
+    <rect x="590" y="190" width="300" height="120" rx="8" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="604" y="210" font-size="11.5" fill="var(--ink)">担当外のフォルダは書けない（規則2）</text>
+    <text x="604" y="228" font-size="11.5" fill="var(--ink)">承認済みの契約は凍結（規則3）</text>
+    <text x="604" y="246" font-size="11.5" fill="var(--ink)">上位の文書は書けない（規則6）</text>
+    <text x="604" y="264" font-size="11.5" fill="var(--ink)">状態の飛び越し・後退は拒否（規則9）</text>
+    <text x="604" y="288" font-size="11.5" font-weight="700" fill="var(--ink)">受領書なしで「テスト完了」不可（規則10）</text>
 
-      <div class="phase"><span class="pid">6</span><b>組み上げる</b></div>
-      <div>統合の担当 AI<br><span class="muted">（integrator）</span><br>元の作業場所で動かす</div>
-      <div><ul class="none">
-        <li>設計書の<b>機能どうしの受け渡し一覧</b></li>
-        <li>共通の土台</li>
-        <li>進捗表（全機能の状態を見る）</li>
-        <li>安全面・見た目の最低ライン</li>
-      </ul></div>
-      <div>受け渡しが噛み合うか確かめる道具<br>各機能の作業枝を合流させる</div>
-      <div>元の作業枝<br><span class="muted">仕組み本体には触れない</span></div>
+    <!-- 4 統合 -->
+    <rect x="10" y="328" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="24" y="350" font-weight="700" fill="var(--ink)">④ 組み上げ</text>
+    <text x="24" y="368" font-size="11.5" fill="var(--muted)">機能どうしをつなぐ</text>
+    <rect x="250" y="328" width="300" height="52" rx="8" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="264" y="348" font-size="12" fill="var(--ink)">Agent: integrator</text>
+    <text x="264" y="366" font-size="12" fill="var(--muted)">（security-review / code-review も実行）</text>
+    <rect x="590" y="328" width="300" height="52" rx="8" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="604" y="348" font-size="11.5" fill="var(--ink)">つなぎ目を全部テストしていないと</text>
+    <text x="604" y="366" font-size="11.5" fill="var(--ink)">「統合済み」にできない（規則11）</text>
 
-      <div class="gate-cell" style="border-bottom:none">
-        <span class="gid">関所 5 ── 組み上げ完了</span>
-        <span class="tag t-det">自動で止まる</span> 機能どうしの受け渡しの型が食い違っていないか、
-        要件がテストまで辿れるか、各機能の成績表が今も有効か。これらは後から自動で再検査されます。
-        <br>　<span class="tag t-ai">AI まかせ</span> <b>「全機能が本当に終わっているか」の確認</b>／結合テストで何を試すかの選び方／つなぎ方が意味的に正しいか。
-        　<span class="tag t-ops">お願いベース</span> セキュリティ点検とコードレビューの実施。
-      </div>
-    </div>
-  </div>
-</section>
+    <!-- 常時 -->
+    <line x1="0" y1="404" x2="900" y2="404" stroke="var(--line)" stroke-width="1"/>
+    <text x="10" y="428" font-size="12" font-weight="700" fill="var(--muted)">ずっと効いているもの</text>
 
-<section>
-  <div class="sec-head">
-    <h2>作業場所によって、触れる場所が変わる</h2>
-    <p class="muted" style="font-size:15px;max-width:64ch">
-      これが「分担して同時に作業できる」ことの土台です。約束ごとではなく、機械が拒否します。
-      うっかりコマンドで書き換えてしまった場合も、あとから比べて<b>元に戻されます</b>。
-    </p>
-  </div>
-  <div class="scroll">
-    <table>
-      <thead>
-        <tr><th>どんな作業をしているとき</th><th>書き換えられる場所</th><th>止められる場所</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><b>仕組み自体を直しているとき</b><br><span class="muted">専用の作業枝が必要</span></td>
-          <td>仕組み本体のフォルダすべて ＋ アプリのフォルダ</td>
-          <td>なし。<b>仕組みを直せる唯一の状態</b></td>
-        </tr>
-        <tr>
-          <td><b>アプリの要件・設計を書いているとき</b></td>
-          <td>そのアプリの要件・共通の土台・設計のフォルダ</td>
-          <td>仕組み本体のフォルダ<br>承認後の設計の契約書</td>
-        </tr>
-        <tr>
-          <td><b>ひとつの機能を作っているとき</b><br><span class="muted">その機能専用の作業場にいる</span></td>
-          <td>自分の担当機能のフォルダ<br>どの機能の状態ファイルも</td>
-          <td><b>他の人の機能フォルダ</b><br>要件・共通の土台・設計<br>承認済みの契約書<br>必要な道具が揃っていない時のプログラム本体<br>仕組み本体</td>
-        </tr>
-        <tr>
-          <td><b>組み上げているとき</b></td>
-          <td>アプリのフォルダ全般</td>
-          <td>仕組み本体のフォルダ</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="callout">
-    <h3>なぜこうしているか</h3>
-    <p>担当者が「ついでに」他人の機能や設計を直せてしまうと、分担が成り立ちません。
-      <b>触れないようにしておけば、他人の中身を知らなくても安心して自分の担当に集中できます。</b>
-      設計を変えたくなったら、実装を止めて設計からやり直す、というルートに戻されます。</p>
-  </div>
-</section>
+    <rect x="10" y="440" width="280" height="46" rx="8" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="24" y="460" font-size="12" font-weight="700" fill="var(--ink)">セッション開始時</text>
+    <text x="24" y="478" font-size="11.5" fill="var(--ink)">見張りが壊れていないか自己診断</text>
 
-<section>
-  <div class="sec-head">
-    <h2>気をつけて見たほうがいいところ</h2>
-    <p class="muted" style="font-size:15px;max-width:64ch">
-      「自動で止まる」ように見えて、実は止まらないところ。実際のファイルを調べて確かめたものです。
-    </p>
-  </div>
-  <div class="cards">
-    <div class="card">
-      <h3><span class="tag t-ai">読みすぎ</span> ルールブックを 2 回まるごと</h3>
-      <p>要件担当と設計担当が、35,813 バイトのルールブックを<b>それぞれ全部読んでいます</b>。
-        設計担当には「特にこの章」と書いてありますが、必要な章だけを取り出す指示はありません。</p>
-      <p><b>改善案:</b> 章の見出しの形が揃っているので、コマンドで<b>その章だけを切り出して渡す</b>ことができます。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-det">お手本</span> 実装担当と審査担当</h3>
-      <p>実装担当は<b>ルールブックを読みません</b>（必要な決まりは担当者向けの指示書に書いてある）。
-        審査担当は<b>審査基準の 1 ファイルだけ</b>を見て、それ以外の指摘は無効と決めています。
-        必要なものだけ渡す、という考え方が既に実践されている場所です。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-det">機械にできそう</span> 「全部終わったか」の確認</h3>
-      <p>組み上げに入る前の「全機能が終わっているか」を、今は AI が進捗表を読んで判断しています。
-        でも進捗表は<b>機械が読める形</b>で用意されているので、
-        「終わっていない機能が 1 つでもあれば止める」を自動化できます。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-ai">記録だけで止めない</span> 審査の結果</h3>
-      <p>審査担当は「重大な問題が 1 件でもあれば不合格」と機械的に決めますが、
-        <b>何を重大とみなすかは AI の判断</b>です。しかも<b>不合格でも先に進めてしまいます</b>
-        （結果は記録されるだけ）。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-ops">やったか確かめていない</span> レビューの実施</h3>
-      <p>コードレビューとセキュリティ点検は「必須の手順」とされていますが、
-        <b>実際にやったかを確かめる仕組みがありません</b>。見つからなければ報告して先へ進む設計です。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-det">会話をリセットできる場所</span></h3>
-      <p>各段階の成果はすべてファイルに残ります（要件 → 設計 → 契約書 → 成績表 → 組み上げ記録）。
-        つまり<b>段階をまたいで会話を覚えておく必要はありません</b>。
-        次の段階は、前の段階が残したファイルだけを見れば始められます。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-ai">抜け道</span> コマンドで書き換えた場合</h3>
-      <p>状態の進め方・要件と設計のつじつま・成績表の 3 つのチェックは、
-        <b>書き換え前と後を見比べる</b>やり方なので、コマンドで直接書き換えると<b>一度も動きません</b>。</p>
-      <p><b>改善案:</b> これらのファイルへのコマンド経由の書き換えを<b>まるごと禁止</b>すれば、
-        必ず見比べる経路を通ります。</p>
-    </div>
-    <div class="card">
-      <h3><span class="tag t-ai">いちばんの弱点</span> 承認が伝聞になる</h3>
-      <p>要件担当の AI は、本来なら人間に直接たずねる道具を持っているはずが<b>実際には使えません</b>。
-        そのため承認は「親が人間に聞いて、担当 AI に伝える」形になり、
-        <b>AI が AI の伝聞をもとに「承認済み」と書き込む</b>ことになります。
-        承認の書き込みは親側の仕事にまとめるのが素直な直し方です。</p>
-    </div>
-  </div>
-</section>
+    <rect x="310" y="440" width="280" height="46" rx="8" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="324" y="460" font-size="12" font-weight="700" fill="var(--ink)">ファイル操作のたび</text>
+    <text x="324" y="478" font-size="11.5" fill="var(--ink)">12 の規則で事前チェック／危険操作は拒否</text>
 
-<section>
-  <div class="sec-head">
-    <h2>用語の言いかえ</h2>
-  </div>
-  <dl class="glossary">
-    <dt>ハーネス</dt><dd>AI にアプリを作らせるための、手順と安全装置ひとまとめ。馬具の「引き綱」から。</dd>
-    <dt>担当 AI（エージェント）</dt><dd>ひとつの役割だけを与えられた AI。役割ごとに、読める資料と使える道具が決まっている。</dd>
-    <dt>手順書（スキル）</dt><dd>「こういう時はこの順でやる」と書かれた作業手順。人が呼び出して使う。</dd>
-    <dt>安全装置（フック）</dt><dd>ファイルを書き換えようとした瞬間に割り込んで、良し悪しを判定する仕組み。AI は迂回できない。</dd>
-    <dt>作業枝（ブランチ）</dt><dd>git で作業を枝分かれさせたもの。どの枝にいるかで、書き換えられる場所が変わる。</dd>
-    <dt>作業場（ワークツリー）</dt><dd>枝ごとに用意された独立した作業フォルダ。機能ごとに分けることで同時作業ができる。</dd>
-    <dt>契約書（コントラクト）</dt><dd>機能の入り口と出口の取り決め。これさえ守れば中身は自由、という境界線。</dd>
-    <dt>成績表（受領書）</dt><dd>テストを実際に走らせた結果の記録。手書きできない。これが無いと「テスト済み」にできない。</dd>
-    <dt>関所（ゲート）</dt><dd>段階の変わり目にある通過条件。満たさないと次に進めない。</dd>
-  </dl>
-</section>
+    <rect x="610" y="440" width="280" height="46" rx="8" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="624" y="460" font-size="12" font-weight="700" fill="var(--ink)">応答を終える直前</text>
+    <text x="624" y="478" font-size="11.5" fill="var(--ink)">記録の書き漏らしがあれば終了を拒否</text>
 
-<footer class="prose" style="border-top:1px solid var(--line);padding-top:22px">
-  <p class="muted" style="font-size:13.5px">
-    この案内は、実際のファイルを調べて書いています。文書の大きさは実測値です。
-    正確な用語つきの版は「実行フロー精査図」を参照してください。
-  </p>
+    <rect x="10" y="500" width="880" height="46" rx="8" fill="var(--warn-bg)" stroke="var(--warn)"/>
+    <text x="24" y="520" font-size="12" font-weight="700" fill="var(--ink)">GitHub に push したあと（CI）</text>
+    <text x="24" y="538" font-size="11.5" fill="var(--ink)">セッションの外で行われた編集もすり抜けられないよう、16 項目（A〜Q）を再チェック</text>
+
+    <!-- 矢印 -->
+    <line x1="110" y1="102" x2="110" y2="118" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <line x1="110" y1="172" x2="110" y2="188" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+    <line x1="110" y1="310" x2="110" y2="326" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+  </g>
+</svg>
+<div class="legend">
+  <span><i class="swatch" style="background:var(--accent-bg);border:1px solid var(--accent)"></i>工程</span>
+  <span><i class="swatch" style="background:var(--panel);border:1px solid var(--line)"></i>動くもの</span>
+  <span><i class="swatch" style="background:var(--bad-bg);border:1px solid var(--bad)"></i>機械が止めるところ</span>
+  <span><i class="swatch" style="background:var(--ok-bg);border:1px solid var(--ok)"></i>常時動くもの</span>
+</div>
+</div>
+
+<h2 id="who">3. 登場人物 ― 3 種類の働き手</h2>
+
+<p>動くものは大きく 3 種類あります。<strong>この 3 つの違いを押さえると、あとの話が全部つながります。</strong></p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>種類</th><th>正体</th><th>いつ動くか</th><th>止められるか</th><th>判断するのは</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>フック</strong><br>（見張り）</td>
+<td>Python のプログラム<br><code>harness/hooks/</code></td>
+<td>AI が道具を使うたび、機械が<strong>勝手に</strong>呼ぶ</td>
+<td><span class="tag t-stop">操作を拒否できる</span></td>
+<td><span class="tag t-auto">機械だけ</span></td>
+</tr>
+<tr>
+<td><strong>エージェント</strong><br>（担当者）</td>
+<td>AI の分身。役割と指示書を持つ<br><code>.claude/agents/</code></td>
+<td>人か別のエージェントが呼んだとき</td>
+<td>止められない（作業する側）</td>
+<td><span class="tag t-ai">AI が判断</span></td>
+</tr>
+<tr>
+<td><strong>スキル</strong><br>（手順書）</td>
+<td>決まった作業の進め方<br><code>.claude/skills/</code></td>
+<td>人が指示したとき</td>
+<td>止められない</td>
+<td><span class="tag t-mix">手順は固定・中身は AI</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>見張り（フック）― 5 つのタイミング</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>タイミング</th><th>プログラム</th><th>何をするか</th><th>制限時間</th></tr></thead>
+<tbody>
+<tr><td>会話を始めたとき</td><td><code>session_start_healthcheck.py</code></td>
+<td>見張りの仕組み自体が壊れていないか自己診断。壊れていれば警告し、「この会話では強制が効いていない」と AI にも伝える</td><td>5 秒</td></tr>
+<tr><td><strong>ファイルを読み書きする直前</strong></td><td><code>pre_tool_use_guard.py</code></td>
+<td>12 の規則に照らして、ダメなら<strong>実行させない</strong>。ここが本体</td><td>5 秒</td></tr>
+<tr><td>ファイルを書いた直後</td><td><code>post_tool_use_sync.py</code></td>
+<td>進捗ダッシュボードを作り直す（止めない）</td><td>15 秒</td></tr>
+<tr><td>コマンドを実行した直後</td><td><code>post_tool_use_guard.py</code></td>
+<td>事前チェックをすり抜けた書き込みを見つけて<strong>元に戻す</strong></td><td>10 秒</td></tr>
+<tr><td>返事を終えようとしたとき</td><td><code>stop_commit_guard.py</code></td>
+<td>大事な記録の保存漏れがあれば<strong>終了させない</strong></td><td>5 秒</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>見張りが「効かなくなる」ことがある、という話</h4>
+<p>
+見張りを呼ぶのは Claude Code 側です。もし Python が見つからないなどで見張りが<strong>起動に失敗すると、
+Claude Code はそれを「問題なし」と解釈して通してしまいます</strong>。
+つまり全部の規則が黙って無効になった状態で作業が続きます。
+</p>
+<p style="margin-bottom:0">
+これはハーネス側からは止められません。できるのは<strong>気づけるようにすること</strong>だけなので、
+①会話の開始時に自己診断する ②進捗ダッシュボードの先頭に「見張りの状態」を出す
+③見張り自身が想定外のエラーで落ちたときは「通す」ではなく「止める」（安全側に倒す）
+の 3 つを入れています。
+</p>
+</div>
+
+<h3>担当者（エージェント）― 5 人</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>担当者</th><th>担当する工程</th><th>できること</th><th>できないこと</th></tr></thead>
+<tbody>
+<tr><td><code>requirements-analyst</code></td><td>要件定義</td><td>人と対話して要件をまとめる</td><td>承認を自分で書けない（承認は親のセッションが書く）</td></tr>
+<tr><td><code>solution-architect</code></td><td>土台・設計</td><td>機能分割・技術選定・検証コマンドの宣言</td><td>実装はしない</td></tr>
+<tr><td><code>feature-builder</code></td><td>機能 1 つの実装</td><td>自分の機能フォルダの中だけ書き換え</td><td>他機能・設計・ハーネス本体は書けない</td></tr>
+<tr><td><code>gate-reviewer</code></td><td>実装の第三者点検</td><td>読む・調べる・判定する</td><td><strong>書き換えられない</strong>（道具として渡していない）</td></tr>
+<tr><td><code>integrator</code></td><td>組み上げ</td><td>各機能をつないで結合テスト</td><td>他機能の中身は直せない</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>手順書（スキル）― 4 つ</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>スキル</th><th>いつ使うか</th><th>何をするか</th></tr></thead>
+<tbody>
+<tr><td><code>init-app</code></td><td>「新しいアプリを作りたい」</td><td>フォルダの雛形を作り、要件定義の担当者に引き継ぐ</td></tr>
+<tr><td><code>new-feature-worktree</code></td><td>機能の実装に着手するとき</td><td>その機能専用の作業場所と雛形を作る</td></tr>
+<tr><td><code>sync-progress</code></td><td>進捗を見たいとき</td><td>ダッシュボードを作り直す（<code>--html</code> で見やすい画面も出せる）</td></tr>
+<tr><td><code>diff-design</code></td><td>「仕様を変えたい」</td><td>要件を新しい版として書き直し、設計の差分を機械的に出す</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="when">4. いつ何が動くのか（時間順）</h2>
+
+<h3>会話を 1 回始めてから終わるまで</h3>
+<ol>
+<li><strong>開始</strong> ― 見張りの自己診断が走る（0.05 秒くらい。異常がなければ何も表示されない）</li>
+<li><strong>AI が考える</strong> ― ここには誰も介入しない</li>
+<li><strong>AI がファイルを読もう／書こうとする</strong> ― <span class="tag t-stop">直前に見張りが判定</span>。ダメなら実行されず、AI には「なぜ止まったか」と「正しい進み方」が返る</li>
+<li><strong>書けた場合</strong> ― 直後に進捗ダッシュボードが自動で作り直される</li>
+<li><strong>コマンドを実行した場合</strong> ― 直後に「事前チェックをすり抜けた書き込みが無いか」を実際のファイル内容で確認し、あれば元に戻す</li>
+<li><strong>返事を終えようとする</strong> ― 大事な記録に保存漏れがあれば<span class="tag t-stop">終了を拒否</span>され、保存してからでないと終われない</li>
+</ol>
+
+<h3>アプリを 1 本作り終えるまで</h3>
+<ol>
+<li><code>init-app</code> で雛形を作る → <code>requirements-analyst</code> が要件をまとめる → <strong>人が承認</strong></li>
+<li><code>solution-architect</code> が土台と設計を作る → 承認</li>
+<li>機能ごとに <code>new-feature-worktree</code> → <code>feature-builder</code> が実装
+  <ul>
+    <li>実装が終わったら <code>code-review</code>（自己点検）</li>
+    <li>次に <code>gate-reviewer</code>（別の担当者による第三者点検）</li>
+    <li>最後に検証スクリプトを実行して<strong>受領書</strong>を作る</li>
+    <li>受領書ができて初めて「テスト完了」にできる</li>
+  </ul>
+</li>
+<li>全機能が「テスト完了」になったら <code>integrator</code> が組み上げ、つなぎ目のテストを実行</li>
+<li>GitHub に push すると CI が 16 項目を再チェック</li>
+</ol>
+
+<h2 id="read">5. 誰がどの文書を読むのか（読む量の一覧）</h2>
+
+<p>
+AI に読ませる文字が多いほど、実際の作業に使える注意力が減ります。そこで<strong>「常にかかる読み込み量」に上限を決め、
+機械的に守らせています</strong>（1 つの担当者につき 46,000 バイトまで）。
+</p>
+
+<h3>担当者ごとの「必ず読む量」</h3>
+
+<div class="scroll">
+<table>
+<thead><tr>
+<th>担当者</th><th class="num">指示書</th><th class="num">規約から読む節</th><th class="num">手順書</th>
+<th class="num">合計（上限 46,000）</th></tr></thead>
+<tbody>
+<tr><td><code>requirements-analyst</code></td><td class="num">4,164</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>4,164</strong></td></tr>
+<tr><td><code>solution-architect</code></td><td class="num">11,352</td><td class="num">13,647<br><small>（6,9,10〜14節）</small></td><td class="num">0</td><td class="num"><strong>24,999</strong></td></tr>
+<tr><td><code>feature-builder</code></td><td class="num">3,696</td><td class="num">0<br><small>（読まない）</small></td><td class="num">4,701<br><small>（実装手順）</small></td><td class="num"><strong>8,397</strong></td></tr>
+<tr><td><code>gate-reviewer</code></td><td class="num">4,907</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>4,907</strong></td></tr>
+<tr><td><code>integrator</code></td><td class="num">8,224</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>8,224</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box tip">
+<h4>「規約を全部読む担当者はいない」のがポイント</h4>
+<p style="margin-bottom:0">
+規約（<code>harness/CONVENTIONS.md</code>）は全体で 30,717 バイトありますが、これを丸ごと読む担当者は 1 人もいません。
+各担当者は指示書の先頭に「私は 6・9・10〜14 節だけ読みます」と<strong>宣言</strong>し、その節だけを取り出して読みます。
+宣言が「読まない」の担当者は、規約の本文を 1 文字も読みません（「7節 規則7」のような<strong>出典の書き置き</strong>はしてよい。
+これは読みに行けという指示ではなく、人が後で辿るための手がかりです）。
+</p>
+</div>
+
+<h3>そのときだけ読む文書（上の表には入りません）</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>文書</th><th class="num">大きさ</th><th>誰が、どういうときに読むか</th></tr></thead>
+<tbody>
+<tr><td><code>quality/security-baseline.md</code></td><td class="num">4,165</td><td>実装・技術選定・組み上げ・第三者点検のとき（実質いつも読む）</td></tr>
+<tr><td><code>quality/design-baseline.md</code></td><td class="num">3,576</td><td><strong>画面のある機能のときだけ</strong></td></tr>
+<tr><td><code>quality/review-rubric.md</code></td><td class="num">4,871</td><td><code>gate-reviewer</code> が点検するとき（点検の唯一の判断基準）</td></tr>
+<tr><td><code>STACK_PACK.md</code></td><td class="num">7,011</td><td>技術ごとの流儀パックを採用したときだけ</td></tr>
+<tr><td><code>procedures/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネスを直す人が、失敗の記録をテストに変えるとき</td></tr>
+<tr><td><code>CLAIMS.md</code></td><td class="num">20,793</td><td><strong>アプリ作成では一切読まれない</strong>。CI のプログラムと、ハーネスを保守する人だけ</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>正直に書いておきます ― 測定にはまだ隙間があります</h4>
+<p>
+上の「必ず読む量」の表が数えているのは、①指示書 ②規約から読む節 ③<code>harness/procedures/</code> の手順書 の 3 つです。
+ところが <code>quality/</code> の文書は、実際には<strong>ほぼ必ず読まれます</strong>（実装なら security-baseline、点検なら review-rubric）。
+これは数に入っていません。実際に読まれる量を足すとこうなります。
+</p>
+<div class="scroll" style="margin:.8rem 0 0">
+<table>
+<thead><tr><th>担当者</th><th class="num">表の数字</th><th class="num">実際に読む量</th><th class="num">画面ありのとき</th></tr></thead>
+<tbody>
+<tr><td><code>requirements-analyst</code></td><td class="num">4,164</td><td class="num">4,164</td><td class="num">4,164</td></tr>
+<tr><td><code>solution-architect</code></td><td class="num">24,999</td><td class="num">29,164</td><td class="num">29,164</td></tr>
+<tr><td><code>feature-builder</code></td><td class="num">8,397</td><td class="num">12,562</td><td class="num">16,138</td></tr>
+<tr><td><code>gate-reviewer</code></td><td class="num">4,907</td><td class="num">13,943</td><td class="num">17,519</td></tr>
+<tr><td><code>integrator</code></td><td class="num">8,224</td><td class="num">12,389</td><td class="num">15,965</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin-bottom:0">
+<strong>実際の量でも全員 46,000 の上限内には収まっています</strong>が、機械が数えているのは左の列だけ、というのは事実です。
+<code>quality/</code> を数えていない理由は「画面のあるアプリかどうかで読む・読まないが変わり、ファイルを見ただけでは決まらないから」です。
+数え方を厳しくすることは可能なので、必要なら対応できます。
+</p>
+</div>
+
+<h2 id="docs">6. 文書の役割分担 ― 書き足すときはどこへ</h2>
+
+<p>
+<strong>同じことを 2 箇所に書かない</strong>のが、この仕組みの一貫した方針です。
+2 箇所にあると必ず片方だけ直されて食い違うからです（実際に起きて、手順どおりやると機械に拒否される状態になりました）。
+食い違いは CI が機械的に検出します。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>書きたいこと</th><th>置き場所</th><th>理由・注意</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>機械が強制する決まり</strong><br>（破ったら止まるもの）</td>
+<td><code>harness/CONVENTIONS.md</code></td>
+<td><strong>ここだけに書く。</strong>担当者の指示書には「7節 規則7」のように番号で参照させる。
+<strong>いま 15 節で凍結中で、16 節以降を作ると CI が落ちます</strong>。既存の節に足してください</td>
+</tr>
+<tr>
+<td><strong>なぜそうしているか</strong><br>（背景・設計の意図・経緯）</td>
+<td><code>HARNESS_GUIDE.md</code></td>
+<td>規約が太ると全担当者の読み込み量が増えるので、説明はこちらへ。18 節が「規約から移した説明」の置き場</td>
+</tr>
+<tr>
+<td><strong>誰が何をどの順でやるか</strong><br>（手順）</td>
+<td>その担当者の指示書、または<br><code>harness/procedures/*.md</code></td>
+<td>規約には書かない。<code>procedures/</code> に置いたら指示書に
+<code>always-reads</code> の宣言を足すこと（足さないと CI が落ちます）</td>
+</tr>
+<tr>
+<td><strong>品質の下限</strong><br>（セキュリティ・デザイン・点検基準）</td>
+<td><code>harness/quality/*.md</code></td>
+<td>必要なときだけ読まれる。何もインストールしなくても常に効く「最低ライン」</td>
+</tr>
+<tr>
+<td><strong>「これを止める」という主張とその証拠</strong></td>
+<td><code>harness/CLAIMS.md</code></td>
+<td>規則を足したら<strong>必ずここに行を足す</strong>。書いたテスト名が実在するか CI が確認します</td>
+</tr>
+<tr>
+<td><strong>技術ごとの流儀</strong><br>（Python ではこう書く 等）</td>
+<td>外部の「スタックパック」<br>形式は <code>harness/STACK_PACK.md</code></td>
+<td><strong>ハーネス本体には絶対に書かない。</strong>特定技術に依存しないことが売りなので</td>
+</tr>
+<tr>
+<td><strong>ファイルの形式の決まり</strong></td>
+<td><code>harness/schemas/*.json</code></td>
+<td>機械が読むファイルの形。CI の項目 A が全部チェックする</td>
+</tr>
+<tr>
+<td><strong>雛形</strong></td>
+<td><code>harness/templates/</code></td>
+<td>新しく作るファイルのひな形</td>
+</tr>
+<tr>
+<td><strong>使ってみて困ったこと</strong></td>
+<td><code>DOGFOODING-LOG.md</code></td>
+<td>深刻度が「高」「最高」なら、<strong>再発を見つけるテストを書くまで完了にしない</strong>ルール</td>
+</tr>
+<tr>
+<td><strong>ハーネス自体の変更履歴</strong></td>
+<td><code>CHANGELOG.md</code> / <code>VERSION</code></td>
+<td>ハーネス本体を触ったら<strong>CHANGELOG の追記が必須</strong>（CI の項目 Q が確認）</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="box tip">
+<h4>迷ったときの 3 つの質問</h4>
+<ol style="margin-bottom:0">
+<li><strong>破ったら機械が止めるか？</strong> → はい なら <code>CONVENTIONS.md</code>（既存の節に）</li>
+<li><strong>「なぜ」の話か？</strong> → はい なら <code>HARNESS_GUIDE.md</code></li>
+<li><strong>特定の担当者の作業手順か？</strong> → はい なら その指示書か <code>procedures/</code></li>
+</ol>
+</div>
+
+<h2 id="git">7. git のブランチと「触ってよい場所」</h2>
+
+<h3>ブランチの名前は 4 種類だけ</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>用途</th><th>名前の形</th><th>例</th><th>そこで触れる場所</th></tr></thead>
+<tbody>
+<tr><td>アプリの雛形作り</td><td><code>app/&lt;アプリ名&gt;/bootstrap</code></td><td><code>app/todo/bootstrap</code></td><td>そのアプリのフォルダ</td></tr>
+<tr><td>機能の実装</td><td><code>feature/&lt;アプリ名&gt;/&lt;機能名&gt;</code></td><td><code>feature/todo/todo-list-api</code></td><td>その機能のフォルダだけ</td></tr>
+<tr><td><strong>ハーネス本体の改修</strong></td><td><code>harness/&lt;内容&gt;</code></td><td><code>harness/fix-guard</code></td><td><strong>ハーネス本体を触れる唯一の場所</strong></td></tr>
+<tr><td>組み上げ（任意）</td><td><code>integration/&lt;アプリ名&gt;</code></td><td><code>integration/todo</code></td><td>組み上げフォルダ</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>保護のかかり方</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>保護される場所</th><th>誰なら書けるか</th><th>止めるもの</th></tr></thead>
+<tbody>
+<tr>
+<td><code>harness/</code> <code>.claude/</code> <code>.github/</code><br>（＝ハーネス本体）</td>
+<td><strong><code>harness/</code> で始まるブランチにいるときだけ</strong><br>
+（例外: <code>.claude/settings.local.json</code> は個人設定なのでいつでも可）</td>
+<td>規則1（実行前）＋ CI の項目 B（push 後）</td>
+</tr>
+<tr>
+<td>他の機能のフォルダ</td>
+<td>その機能専用の作業場所にいるときだけ<br>（<code>status.yaml</code> だけは例外）</td>
+<td>規則2 ＋ CI の項目 C</td>
+</tr>
+<tr>
+<td>要件・土台・設計の文書</td>
+<td>機能実装用の作業場所からは<strong>書けない</strong></td>
+<td>規則6</td>
+</tr>
+<tr>
+<td>承認済みの契約書</td>
+<td>誰も書き換えられない（追記だけ可）</td>
+<td>規則3 ＋ CI の項目 D</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>逃げ道は 1 つだけ、しかも記録が残ります</h4>
+<p style="margin-bottom:0">
+ハーネス本体の保護（規則1）だけは、<code>HARNESS_UNLOCK=1</code> という設定で一時的に外せます。
+外すと警告が出ます。<strong>ふだんの運用では使いません。</strong><br>
+それ以外の規則（とくにコマンド経由の書き込み検知や危険操作の拒否）には、<strong>解除するしくみを意図的に作っていません</strong>。
+AI が自分で解除できてしまったら、「機械が強制する」という前提そのものが崩れるからです。
+誤って止まる場合は、設定で逃げるのではなく<strong>検知のプログラム自体を直します</strong>。
+</p>
+</div>
+
+<h3>「作業場所（worktree）」について</h3>
+<p>
+機能を並行して作るために、機能 1 つにつき git の作業場所を 1 つ用意します。場所は
+<code>apps/&lt;アプリ名&gt;/.worktrees/&lt;機能名&gt;/</code> です。
+</p>
+<p>
+ここに落とし穴があって、<strong>作業場所の中にも同じ形のフォルダ構造がもう一度現れます</strong>。
+以前、この二重構造のせいで規則 1・2・3・5・9・10 が<strong>まとめて素通り</strong>していたことがありました
+（受領書なしで「テスト完了」を書き込めてしまった）。
+いまは書き込み先のパスを「どの作業場所に属するか」で読み替えてから判定しているので、
+どこから書いても同じ規則が同じ意味で効きます。
+</p>
+
+<h2 id="gate">8. 通過チェックのしくみ ― 機械が決めるか、AI が決めるか</h2>
+
+<p>これがこのハーネスの中心です。<strong>「何を機械が決め、何を AI に任せているか」を曖昧にしない</strong>ことを重視しています。</p>
+
+<h3>3 つの層</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>層</th><th>誰が判定</th><th>いつ</th><th>すり抜けられるか</th></tr></thead>
+<tbody>
+<tr><td><strong>① 見張り（12 の規則）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>操作の直前</td><td>Claude Code を使わない編集ならすり抜ける</td></tr>
+<tr><td><strong>② 事後チェック</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>コマンド実行の直後</td><td>すり抜けた書き込みを元に戻す（実行自体は止められない）</td></tr>
+<tr><td><strong>③ CI（16 項目 A〜Q）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>push したあと</td><td>①②をすり抜けた分をここで弾く</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>状態の進み方は 1 段ずつ</h3>
+<pre><code>未着手 → 契約ドラフト → 契約承認 → 実装中 → 実装完了 → テスト完了 → 統合済み</code></pre>
+<p>
+飛び越しも後退もできません（機械が拒否）。「一時停止」と「差し替え済み」だけは別枠で入れます。
+一時停止から戻るときは<strong>履歴をさかのぼって直前の状態から判定する</strong>ので、
+「いったん一時停止にしてから好きな状態へ飛ぶ」という抜け道も塞いであります。
+</p>
+
+<h3>いちばん重要な「受領書」の中身</h3>
+<p>
+検証スクリプトが実際にコマンドを走らせて、この形の記録を <code>status.yaml</code> に書き込みます。
+<strong>これは人にも AI にも書けません</strong>（書き換えようとすると機械が拒否します）。
+</p>
+<pre><code>verification_receipt:
+  commit: "a1b2c3d..."     ← 検証した時点のコミット。ここが要
+  test:
+    exit_code: 0           ← 0 以外なら「テスト完了」にできない
+    at:        "2026-08-24T10:00:00Z"
+    tests:     42          ← テストが 0 件なら「空振り」として拒否
+    failures:  0
+    skipped:   1           ← 飛ばした割合が多すぎると拒否
+  build:     { exit_code: 0, at: ... }   ← 宣言したものだけ検証される
+  typecheck: { exit_code: 0, at: ... }
+  lint:      { exit_code: 0, at: ... }
+  traceability:
+    declared: 5            ← 契約で「このテストで確かめる」と宣言した数
+    matched:  5
+    missing:  []           ← 実在しないテスト名があれば拒否
+    failed:   []           ← 失敗しているものがあれば拒否</code></pre>
+
+<div class="box tip">
+<h4>なぜ「コミット」が要なのか</h4>
+<p style="margin-bottom:0">
+受領書は「<strong>この時点のコードで通った</strong>」という主張です。だから受領書に記録されたコミットと、
+いまのコミットが一致していなければ「テスト完了」にできません。
+これが無いと、<strong>実装を書き換えたあとも昔の成功記録を使い回せて</strong>しまいます。
+push 後の CI では、同じことを別の形（受領書のコミット以降、その機能のフォルダが変わっていないこと）で確認しています。
+</p>
+</div>
+
+<h3>第三者点検（gate-reviewer）の結果はどう扱うか</h3>
+<p>
+AI の判定なので、<strong>そのままでは通過の根拠にしません</strong>。代わりに次の 3 つで囲っています。
+</p>
+<ul>
+<li><strong>判定は機械的な足し算で決める</strong> ― 「重大」が 1 件以上なら NG、0 件なら OK。AI が総合的に「まあ大丈夫でしょう」と言うことはできません</li>
+<li><strong>判断基準は 1 つの文書だけ</strong> ― <code>review-rubric.md</code> に書かれた軸以外の指摘は無効</li>
+<li><strong>書き換える道具を渡さない</strong> ― 直すのは実装者の仕事。点検役が自分で直して自分で通す、ができません</li>
+</ul>
+<p>記録の形はこうです。<strong>件数は数字で書きます</strong>（指摘の文章を並べるのは形式違反）。</p>
+<pre><code>review:
+  verdict: GO          ← GO / NO-GO / ESCALATED（3 回まとまらず人へ）
+  at:      "2026-08-24T10:00:00Z"
+  rounds:  2           ← 何回やったか
+  blockers: 0          ← 重大の件数（1 以上なら自動的に NO-GO）
+  majors:   1
+  minors:   3
+  notes:   "Major: ..." ← 指摘の本文はここに 1 本にまとめる</code></pre>
+<p>
+ただしこの記録は<strong>「記録」であって「証明」ではありません</strong>。
+受領書と違って「実際に実行した」という裏付けが無いからです。だから機械的な通過条件にはしていません。
+</p>
+
+<h3>機械が決めること／AI に任せていること</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>判定するもの</th><th>誰が決めるか</th><th>根拠</th></tr></thead>
+<tbody>
+<tr><td>どこに書き込んでよいか</td><td><span class="tag t-auto">機械</span></td><td>パスとブランチ名の照合</td></tr>
+<tr><td>状態を進めてよいか</td><td><span class="tag t-auto">機械</span></td><td>状態機械の定義と履歴</td></tr>
+<tr><td>テストが通ったか</td><td><span class="tag t-auto">機械</span></td><td>実際に実行した終了コードとテスト結果ファイル</td></tr>
+<tr><td>機能どうしのつなぎ目が合っているか</td><td><span class="tag t-auto">機械</span></td><td>入出力の形式定義どうしを突き合わせる</td></tr>
+<tr><td>要件が全部テストで覆われているか</td><td><span class="tag t-auto">機械</span></td><td>要件 ID とテスト名の対応表</td></tr>
+<tr><td>危険な操作かどうか</td><td><span class="tag t-auto">機械</span></td><td>コマンド文字列の解析（規則12）</td></tr>
+<tr><td>実装の品質が十分か</td><td><span class="tag t-mix">AI が指摘 → 機械が集計</span></td><td>点検基準の文書＋重大件数の足し算</td></tr>
+<tr><td>機能の分け方が適切か</td><td><span class="tag t-ai">AI</span></td><td>意図的に AI に任せている（機械には判定できない）</td></tr>
+<tr><td>要件の内容が正しいか</td><td><span class="tag t-ai">人 ＋ AI</span></td><td><strong>要件の承認だけは常に人が必須</strong></td></tr>
+<tr><td>承認者が本当に人間か</td><td>―</td><td><strong>判定できない。</strong>「承認者名と日時が空でないこと」までしか機械化できない</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>危険な操作の拒否（規則12）</h3>
+<p>次の 6 つは、他の規則が許していても<strong>問答無用で拒否</strong>されます。</p>
+<div class="scroll">
+<table>
+<thead><tr><th>種別</th><th>拒否される例</th><th>通る例</th></tr></thead>
+<tbody>
+<tr><td>リポジトリの外を消す</td><td><code>rm -rf /</code>、<code>rm -rf ../別プロジェクト</code>、<code>rm -rf $変数</code></td><td><code>rm -rf ./build</code></td></tr>
+<tr><td>秘密ファイルを読む</td><td><code>.env</code>、<code>*.pem</code>、<code>*.key</code>、SSH や AWS の設定</td><td><code>.env.example</code>（見本）</td></tr>
+<tr><td>履歴を壊す</td><td><code>git push --force</code>、<code>git reset --hard</code>、<code>git clean -fdx</code></td><td><code>git push</code>、<code>git revert</code></td></tr>
+<tr><td>検証を飛ばす</td><td><code>git commit --no-verify</code></td><td>ふつうの <code>git commit</code></td></tr>
+<tr><td>外部に送る</td><td>データを付けた POST、貼り付けサイトへの送信</td><td>ふつうの読み取りダウンロード</td></tr>
+<tr><td>権限を上げる</td><td><code>sudo</code> を付けたコマンド</td><td>―</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+<strong>「これを実行してよいですか？」と AI に確認させる方式は採っていません。</strong>
+自動で最後まで進めるモードでは AI が自分で「はい」と答えてしまうので、確認は歯止めになりません。
+人の判断を挟みたい操作は、<strong>拒否したうえで人が自分の手で実行する</strong>運用にしています。
+</p>
+
+<h2 id="care">9. 気をつけて見たほうがいいところ</h2>
+
+<dl class="qa">
+<dt>Q. 見張りが止めてきたら、回り道を探していい？</dt>
+<dd>いいえ。<strong>止まったこと自体が「いまやろうとしていることが工程上おかしい」という信号</strong>です。
+エラーメッセージに正しい進み方が書いてあるので、そちらに従ってください。</dd>
+
+<dt>Q. 進捗ダッシュボードを手で直していい？</dt>
+<dd>いけません。<code>PROGRESS.md</code> と <code>STATE.machine.yaml</code> は<strong>自動生成</strong>です。
+手で直しても次の更新で消えますし、push 後の CI が「中身と一致していない」として弾きます。</dd>
+
+<dt>Q. ダッシュボードのどこを見れば状況がわかる？</dt>
+<dd>先頭に「自動化モード」「要件・設計の承認状況」「<strong>見張りの状態</strong>」「ハーネスの版」が出ます。
+見張りの状態が「異常」なら、<strong>その会話では機械の強制が効いていない可能性があります</strong>。
+<code>--html</code> を付ければ、非エンジニア向けの画面も出せます。</dd>
+
+<dt>Q. 「テスト完了」にできない、と言われたら？</dt>
+<dd>だいたい原因は 3 つのどれかです。①受領書が無い ②検証したあとにコードを変えた
+③宣言したテスト名が実在しない。<strong>いちばん多いのは②</strong>で、受領書を作ったあとに
+うっかり先にコミットして、記録と現状がずれるパターンです。</dd>
+
+<dt>Q. ハーネス自体を直したいときは？</dt>
+<dd><code>harness/&lt;内容&gt;</code> という名前のブランチを作ってください。それ以外のブランチでは書き込めません。
+直したら <code>CHANGELOG.md</code> への追記も必須です（忘れると CI が落ちます）。</dd>
+
+<dt>Q. 規約に新しい節を足したい</dt>
+<dd>できません。<strong>15 節で凍結されています</strong>。既存の節の中に足してください。
+どうしても新設が必要なら、人の明示的な許可を取ってから凍結の設定を変える必要があります。</dd>
+</dl>
+
+<h2 id="words">10. 用語の言いかえ表</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>この文書での言い方</th><th>正式な用語</th><th>ひとこと</th></tr></thead>
+<tbody>
+<tr><td>見張り</td><td>Hook（フック）</td><td>AI が道具を使うたびに機械が自動で呼ぶプログラム</td></tr>
+<tr><td>担当者</td><td>subagent（サブエージェント）</td><td>役割ごとに分けた AI。それぞれ別の記憶を持つ</td></tr>
+<tr><td>手順書</td><td>Skill（スキル）</td><td>決まった作業の進め方をまとめたもの</td></tr>
+<tr><td>作業場所</td><td>git worktree</td><td>同じリポジトリを複数の場所に展開して並行作業する仕組み</td></tr>
+<tr><td>受領書</td><td>verification_receipt</td><td>検証を実際に実行した記録。手書き禁止</td></tr>
+<tr><td>契約書</td><td>contract.yaml</td><td>機能の入出力の約束。承認後は凍結される</td></tr>
+<tr><td>規約</td><td>CONVENTIONS.md</td><td>機械が強制する決まりの唯一の置き場所</td></tr>
+<tr><td>読み込み量の上限</td><td>コンテキスト予算</td><td>AI が常に読む文字数の上限。CI が機械的に守らせる</td></tr>
+<tr><td>push 後のチェック</td><td>CI（継続的インテグレーション）</td><td>GitHub 上で走るサーバー側の再チェック</td></tr>
+</tbody>
+</table>
+</div>
+
+<footer>
+harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
+正確な用語版: <code>harness-flow-technical.html</code>　規約本体: <code>harness/CONVENTIONS.md</code>　設計意図: <code>HARNESS_GUIDE.md</code>
 </footer>
 
 </div>
+</body>
+</html>
