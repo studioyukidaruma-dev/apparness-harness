@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10〜12 を強制する（Rule 4/8 は別 hook）。
+Rule 3・7・9・10・11 は書き込み前後の内容比較に依存するため、書き込み後の内容を再現できない手段
+（Bash・NotebookEdit 等）による該当ファイルへの書き込みは `check_requires_simulatable_tool` が一律拒否する。
 **依存ゼロ**（標準ライブラリのみ）。Edit/Write/MultiEdit/NotebookEdit は確実にブロックする。
 Bash 経由の間接書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト等、`path_utils.extract_bash_candidate_paths`
 で検知できる範囲）も同様にブロックする。検知は shlex によるクォート考慮トークン化に基づくため、
@@ -498,29 +500,47 @@ def check_rule3_contract_freeze(
     return None
 
 
-# Rule 7・9・10 が「書き込み前後の内容比較」で判定するファイル。Bash はコマンド文字列からしか
-# 判定できず、書き込み後の内容を予測できないため、これらへの Bash 経由の書き込みは一律拒否する。
-CONTENT_JUDGED_RES = (STATUS_YAML_RE, REQUIREMENTS_RE, ARCHITECTURE_RE)
+# Rule 3・7・9・10・11 が「書き込み前後の内容比較」で判定するファイル。
+# 書き込み後の内容を予測できない手段では、これらのゲートが一度も走らないまま素通りする。
+CONTENT_JUDGED_RES = (STATUS_YAML_RE, REQUIREMENTS_RE, ARCHITECTURE_RE, INTEGRATION_RECORD_RE)
+
+# `path_utils.simulate_write_result()` が書き込み後の内容を再現できるツール。
+# ここに無いツールは「判定できない手段」であり、CONTENT_JUDGED_RES への書き込みを拒否する。
+CONTENT_SIMULATABLE_TOOLS = ("Edit", "Write", "MultiEdit")
 
 
-def check_bash_requires_structured_tool(rel_path: str) -> str | None:
-    """Bash 経由で Rule 7・9・10 を迂回できる穴を塞ぐ（CONVENTIONS.md 7節・F-021）。
+def check_requires_simulatable_tool(rel_path: str, tool_name: str) -> str | None:
+    """内容比較で判定するファイルを、結果を予測できない手段で書くことを拒否する（F-021）。
 
     `sed -i` で `status: APPROVED` や `state: TESTED` にすれば、内容比較に依存する
-    Rule 7・9・10 は一度も走らなかった。決定論的強制を掲げる以上、書き込み手段しだいで
-    ゲートが消えるのは設計上の穴なので、判定できない手段そのものを拒否する。
+    Rule 3・7・9・10・11 は一度も走らなかった。決定論的強制を掲げる以上、**書き込み手段しだいで
+    ゲートが消えるのは設計上の穴**なので、判定できない手段そのものを拒否する。
 
-    ハーネス自身のスクリプト（`run_verification.py` 等）による書き込みは、コマンド文字列に
-    対象ファイルのパスが現れないためここには掛からない（それらは受領書のように、
-    実行の裏付けを伴う正規の書き込み経路である）。
+    当初は Bash だけを対象にしていたが、それでは不十分だった（実測で確認）:
+
+    - `NotebookEdit` は `simulate_write_result()` が扱えず、書き込み後の内容として
+      **変更前の内容がそのまま返る**。Rule 9・10 から見れば「何も変わっていない」ので
+      受領書なしの `state: TESTED` が素通りした。
+    - `integration.machine.yaml` は対象に入っておらず、Bash / NotebookEdit から
+      **統合受領書を手書きできた**（INV-2 違反）。
+
+    そこで判定を「Bash かどうか」ではなく「**書き込み後の内容を再現できる手段かどうか**」に
+    変えた。将来ツールが増えても、`CONTENT_SIMULATABLE_TOOLS` に追加しない限り自動的に拒否側に入る。
+
+    `tool_name` が空のときは判定しない。事後検証（`post_tool_use_guard.py`）は
+    「実際に何が変わったか」を見る経路であり、そこにはハーネス自身のスクリプト
+    （`run_verification.py` 等。受領書という実行の裏付けを伴う正規の書き込み経路）による
+    変更も含まれるため、ここで拒否すると受領書そのものが巻き戻される。
     """
+    if not tool_name or tool_name in CONTENT_SIMULATABLE_TOOLS:
+        return None
     if not any(pattern.match(rel_path) for pattern in CONTENT_JUDGED_RES):
         return None
     return (
-        f"拒否: {rel_path} への Bash 経由の書き込みは受け付けません。\n"
-        "Edit/Write/MultiEdit を使ってください（承認・状態遷移・検証受領書のゲート"
-        "（Rule 7・9・10）は書き込み前後の内容を比較して判定するため、"
-        "Bash では検証できないまま素通りしてしまいます）。"
+        f"拒否: {rel_path} への {tool_name} 経由の書き込みは受け付けません。\n"
+        "Edit/Write/MultiEdit を使ってください（承認・状態遷移・検証受領書・統合受領書のゲート"
+        "（Rule 3・7・9・10・11）は書き込み前後の内容を比較して判定するため、"
+        f"{tool_name} では書き込み後の内容を再現できず、検証できないまま素通りしてしまいます）。"
     )
 
 
@@ -563,11 +583,10 @@ def run_checks(
     reason = check_rule3_contract_freeze(rel_path, toplevel, tool_name, tool_input)
     if reason:
         return reason
-    if tool_name == "Bash":
-        reason = check_bash_requires_structured_tool(rel_path)
-        if reason:
-            return reason
-    if tool_name in ("Edit", "Write", "MultiEdit"):
+    reason = check_requires_simulatable_tool(rel_path, tool_name)
+    if reason:
+        return reason
+    if tool_name in CONTENT_SIMULATABLE_TOOLS:
         reason = check_rule11_integration_receipt_immutable(rel_path, tool_name, tool_input, toplevel)
         if reason:
             return reason

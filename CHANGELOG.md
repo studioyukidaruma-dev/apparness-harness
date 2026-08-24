@@ -38,7 +38,7 @@
   `open_issues` / `VERSION` / 強制レイヤの診断だけで、AI に作文させない。生成物は
   `.gitignore` 対象。skill / subagent は増やしていない。
 - 実証が無かった Rule 4・6・8 と、worktree 経由での Rule 1・3・5、CI 項目 A・B・E・F・G・I の
-  テストを追加（454 → 629 テスト）。
+  テストを追加（454 → 656 テスト）。
 
 ### Changed
 
@@ -81,6 +81,18 @@
   何を探して無かったか、見つかったときに何を保全すべきかを記録した。
 
 ### Fixed
+
+- **内容比較ゲート（Rule 3・7・9・10・11）の迂回経路 3 件を塞いだ**（実測で再現して確認）。
+  判定を「Bash かどうか」ではなく「`simulate_write_result()` が書き込み後の内容を再現できる手段か」
+  に一般化した（`check_requires_simulatable_tool`）。`CONTENT_JUDGED_RES` に
+  `integration.machine.yaml` を追加。
+  - `NotebookEdit` で受領書なしの `state: TESTED` を書き込めた（`simulate_write_result()` が
+    NotebookEdit を扱えず、書き込み後の内容として変更前の内容がそのまま返るため、
+    Rule 9・10 から見れば「何も変わっていない」状態になっていた）。
+  - `Bash` で `integration.machine.yaml` を書き換えられた ＝ **統合受領書を手書きできた**（INV-2 違反）。
+  - `NotebookEdit` でも同上。
+  - 事後検証（`post_tool_use_guard.py`）にはこの制限を掛けない。掛けると `run_verification.py` が
+    書き込んだ受領書が巻き戻り、`TESTED` へ永久に進めなくなる。この逃がしも回帰テストで固定した。
 
 - **コンテキスト予算の空洞化を塞いだ**: プロンプト本文を `harness/procedures/*.md` へ移して
   「起動直後にこれを読め」と書くと、agent のファイルサイズは減るのにセッションに載るバイト数は

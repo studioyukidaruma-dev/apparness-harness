@@ -178,10 +178,16 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
 
 構造化ツール呼び出しに加え、`Bash` 経由の間接的な書き込み（検知範囲は
 `path_utils.extract_bash_candidate_paths`）も Rule 1・2・3・5・6 でブロックします。
-Rule 7・9・10 は書き込み前後の内容比較に依存し Bash では判定できないため、`status.yaml`・
-`requirements.machine.yaml`・`architecture.machine.yaml` への Bash 経由の書き込みは**一律拒否**します。
 検知は静的検知（実行前）と事後検証（`post_tool_use_guard.py`。内容ハッシュ比較で巻き戻す）の
 2 段構えです。
+
+**Rule 3・7・9・10・11 は書き込み前後の内容比較に依存するため、書き込み後の内容を再現できない
+手段（`Bash`・`NotebookEdit` 等）による `status.yaml`・`requirements.machine.yaml`・
+`architecture.machine.yaml`・`integration.machine.yaml` への書き込みは一律拒否します**
+（`check_requires_simulatable_tool`）。判定基準は「どのツールか」ではなく
+「`path_utils.simulate_write_result` が結果を再現できるか」です。ハーネス自身のスクリプト
+（`run_verification.py` 等）による書き込みは、コマンド文字列にパスが現れず、事後検証も
+実行主体を問わないため従来どおり通ります。
 
 **強制レイヤ自身の健全性は起動時に自己診断します。** `SessionStart` フック
 （`session_start_healthcheck.py`）が、hooks の import 可否・`path_utils` の主要関数・

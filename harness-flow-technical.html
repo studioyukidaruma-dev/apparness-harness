@@ -75,7 +75,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <p class="lead">
 apparness ハーネスの実行時アーキテクチャ。介入点・参照文書・コンテキスト予算・ブランチ保護・
 ゲート判定の書式と決定性を、実装に対応づけて記述する。<br>
-対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 641 件緑<br>
+対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 656 件緑<br>
 平易版: <code>harness-flow-plain.html</code>
 </p>
 
@@ -245,7 +245,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 
     <rect x="8" y="536" width="924" height="52" rx="6" fill="var(--warn-bg)" stroke="var(--warn)"/>
     <text x="18" y="556" font-weight="700" fill="var(--ink)">CI（GitHub Actions / .github/workflows/harness-checks.yml）</text>
-    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 641 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
+    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 656 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
 
     <line x1="128" y1="98" x2="128" y2="110" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
     <line x1="128" y1="182" x2="128" y2="194" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
@@ -366,25 +366,26 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 <td><code>status: APPROVED</code> にする書き込みは、
 ①<code>based_on_requirements_version</code> == 要件の現 <code>version</code>
 ②同一書き込みで <code>approved_by</code>/<code>approved_at</code> が非空</td>
-<td><code>simulate_write_result()</code> で書き込み後内容を再現して判定</td><td><strong>一律 deny</strong></td></tr>
+<td><code>simulate_write_result()</code> で書き込み後内容を再現して判定</td>
+<td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
 <tr><td class="id">8</td><td>Stop / SubagentStop</td>
 <td>フェーズ節目 3 ファイルに未コミット変更があれば停止を deny</td>
 <td><code>git status --porcelain --untracked-files=all</code></td><td>―</td></tr>
 <tr><td class="id">9</td><td><code>status.yaml</code> の <code>state</code></td>
 <td>直線状態は 1 段階前進のみ。終端（<code>INTEGRATED</code>/<code>SUPERSEDED</code>）から変更不可。
 <code>BLOCKED</code> 復帰は <code>state_history[]</code> を時刻順に遡って直前の非 BLOCKED 状態から判定</td>
-<td><code>validate_status_transition()</code></td><td><strong>一律 deny</strong></td></tr>
+<td><code>validate_status_transition()</code></td><td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
 <tr><td class="id">10</td><td><code>status.yaml</code> → <code>TESTED</code></td>
 <td>①受領書が存在 ②宣言された全コマンドが <code>exit_code: 0</code>
 ③<code>receipt.commit</code> == 現在の HEAD ④JUnit 集計（空振り・失敗・skip 率）
 ⑤<code>traceability.missing/failed</code> が空。<br>
 加えて <code>verification_receipt</code> の Edit/Write による変更を<strong>常に deny</strong></td>
 <td><code>merge_verification_declaration()</code> ＋ <code>validate_verification_receipt()</code></td>
-<td><strong>一律 deny</strong></td></tr>
+<td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
 <tr><td class="id">11</td><td><code>status.yaml</code> → <code>INTEGRATED</code></td>
 <td><code>integration.machine.yaml</code> に統合受領書があり、<code>architecture.machine.yaml</code> の
 <code>interfaces[]</code> 全エッジが <code>interface_coverage[]</code> に <code>test_ids</code> 付きで存在</td>
-<td><code>interface_coverage_gaps()</code></td><td><strong>一律 deny</strong></td></tr>
+<td><code>interface_coverage_gaps()</code></td><td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
 <tr><td class="id">12</td><td>Bash コマンド全体 / Read の <code>file_path</code></td>
 <td>D-1〜D-6 を無条件 deny。<strong>他 Rule と独立に判定し deny が勝つ</strong></td>
 <td><code>detect_dangerous_bash_operation()</code> / <code>detect_dangerous_read()</code></td>
@@ -488,20 +489,47 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 
 <p>
 <code>PreToolUse</code> の matcher は 7 ツールだが、<strong>全 Rule が全ツールに適用されるわけではない</strong>。
-内容比較に依存する Rule 7・9・10・11 は <code>run_checks()</code> 内で
-<code>tool_name in ("Edit", "Write", "MultiEdit")</code> に限定されている。
+内容比較に依存する Rule 3・7・9・10・11 は <code>run_checks()</code> 内で
+<code>tool_name in CONTENT_SIMULATABLE_TOOLS</code>（＝ <code>Edit</code>/<code>Write</code>/<code>MultiEdit</code>）に
+限定されている。
 </p>
+<p>
+この限定は<strong>そのままでは穴になる</strong>。実測で 3 件の素通りを確認した:
+①<code>NotebookEdit</code> で受領書なしの <code>state: TESTED</code> が書けた
+（<code>simulate_write_result()</code> が NotebookEdit を扱えず、書き込み後の内容として変更前の内容が
+そのまま返るため、Rule 9・10 から見れば「何も変わっていない」）
+②<code>Bash</code> で <code>integration.machine.yaml</code> を書けた（統合受領書の手書き ＝ INV-2 違反）
+③<code>NotebookEdit</code> でも同じ。
+</p>
+<p>
+対処として、判定を「Bash かどうか」ではなく<strong>「書き込み後の内容を再現できる手段かどうか」</strong>に
+一般化した（<code>check_requires_simulatable_tool()</code>）。
+<code>CONTENT_JUDGED_RES</code> に <code>integration.machine.yaml</code> を追加し、
+<code>CONTENT_SIMULATABLE_TOOLS</code> に無いツールは自動的に拒否側へ入る
+（将来ツールが増えても既定で安全側）。
+</p>
+<div class="box warn">
+<h4>この制限を事後検証には掛けない（掛けると受領書が消える）</h4>
+<p style="margin-bottom:0">
+<code>check_requires_simulatable_tool()</code> は <code>tool_name</code> が空のとき判定しない。
+事後検証（<code>post_tool_use_guard.py</code>）は <code>run_checks()</code> を <code>tool_name</code> なしで呼び、
+<strong>「実際に何が変わったか」</strong>を見る経路だからである。そこには <code>run_verification.py</code> が
+書き込んだ受領書——実行の裏付けを伴う正規の書き込み——も含まれる。ここで拒否側に倒すと
+<strong>受領書そのものが巻き戻され、<code>TESTED</code> へ永久に進めなくなる</strong>。
+この逃がしは <code>test_post_tool_use_guard.py::test_a_harness_script_writing_the_receipt_is_not_reverted</code> が固定している。
+</p>
+</div>
 
 <div class="scroll">
 <table>
 <thead><tr><th>ツール</th><th>適用される Rule</th><th>備考</th></tr></thead>
 <tbody>
 <tr><td><code>Edit</code> / <code>Write</code> / <code>MultiEdit</code></td><td>1・2・3・5・6・7・9・10・11・12</td><td>全 Rule が効く</td></tr>
-<tr><td><code>NotebookEdit</code></td><td>1・2・3・5・6</td>
-<td><strong>7・9・10・11 は適用されない</strong>（<code>tool_name</code> が上記タプルに含まれないため）。
-<code>notebook_path</code> が <code>status.yaml</code> 等を指す状況は想定されていないが、構造上の穴ではある</td></tr>
-<tr><td><code>Bash</code></td><td>1・2・3・5・6・12 ＋ 構造化ツール要求</td>
-<td>7・9・10・11 は内容を予測できないため、対象 3 ファイルへの Bash 書き込みを<strong>一律 deny</strong>して代替</td></tr>
+<tr><td><code>NotebookEdit</code></td><td>1・2・3・5・6 ＋ 手段の制限</td>
+<td>7・9・10・11 は適用されない（<code>simulate_write_result()</code> が結果を再現できない）。
+そのため<strong>内容比較で判定する 4 ファイルへの書き込みを一律 deny</strong> して代替する</td></tr>
+<tr><td><code>Bash</code></td><td>1・2・3・5・6・12 ＋ 手段の制限</td>
+<td>同上。コマンド文字列からは書き込み後の内容を予測できないため</td></tr>
 <tr><td><code>Read</code> / <code>NotebookRead</code></td><td>12 のみ（D-2）</td><td>読み取りなので書き込み系 Rule は無関係</td></tr>
 </tbody>
 </table>
@@ -908,7 +936,7 @@ push 時点で既にコミット済みのため、それぞれ対象外。
 
 <h3>CI ジョブ構成（<code>.github/workflows/harness-checks.yml</code>）</h3>
 <ul>
-<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 641 件）</li>
+<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 656 件）</li>
 <li><code>ci-check</code> — <code>ci_check.py --branch … [--base …]</code>（<code>fetch-depth: 0</code>）</li>
 <li><code>vuln-scan</code> — OSV-Scanner（バージョン固定＋SHA256 検証）→ <code>vuln_scan.py</code></li>
 </ul>
@@ -1019,7 +1047,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <td>同関数の戻り値を集計</td></tr>
 <tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
 <td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
-<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（641 passed）</td></tr>
+<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（656 passed）</td></tr>
 </tbody>
 </table>
 </div>

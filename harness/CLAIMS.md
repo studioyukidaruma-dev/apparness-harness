@@ -39,6 +39,7 @@
 
 | 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
 |---|---|---|---|---|
+| 手段の制限 | 内容比較で判定するファイル（`status.yaml`・`requirements.machine.yaml`・`architecture.machine.yaml`・`integration.machine.yaml`）を、結果を再現できない手段（Bash・NotebookEdit 等）で書くこと | `test_pre_tool_use_guard.py::test_notebook_edit_cannot_write_content_judged_files` / `test_pre_tool_use_guard.py::test_bash_cannot_write_content_judged_files` / `test_pre_tool_use_guard.py::test_integration_receipt_cannot_be_handwritten_through_bash` / `test_pre_tool_use_guard.py::test_the_simulatable_tool_set_matches_simulate_write_result` | 2026-08-24 | 事後検証は実行主体を問わないため、この制限を掛けない（掛けると `run_verification.py` の受領書が巻き戻る）。その逃がしは `test_post_tool_use_guard.py::test_a_harness_script_writing_the_receipt_is_not_reverted` が固定 |
 | 静的検知 | `sed -i`/`cp`/`mv`/`tee`/リダイレクトによるガード対象への書き込み | `test_pre_tool_use_guard.py::test_bash_indirect_write_to_a_guarded_path_is_blocked` / `test_pre_tool_use_guard.py::test_bash_cannot_write_files_judged_by_content_comparison` / `test_path_utils_bash.py::test_the_heredoc_redirect_target_is_still_detected` | 2026-08-24 | 変数展開されたパスは原理的に検知できない（だから事後検証がある）。ヒアドキュメント本体は**データ**として抽出対象から外している（T-020） |
 | 事後検証 | 静的検知をすり抜けた書き込みの検出と巻き戻し | `test_post_tool_use_guard.py::test_variable_expanded_path_is_detected_and_reverted` / `test_post_tool_use_guard.py::test_write_through_a_script_is_detected_and_reverted` | 2026-08-24 | 実行そのものは止められない（PostToolUse なので事後）。巻き戻せるのはファイル内容だけ |
 
