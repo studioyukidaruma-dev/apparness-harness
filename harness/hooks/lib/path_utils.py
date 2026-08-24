@@ -4,13 +4,23 @@ Hook はツール呼び出しのたびに毎回起動されるため、起動コ
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+from typing import Any, Callable
 
 MULTI_EDIT_FILE_FIELD = "file_path"
 NOTEBOOK_EDIT_FIELD = "notebook_path"
+# 構造化編集ツールと、その「書き込み先」を保持するフィールド名。判定対象のツールかどうかと、
+# どのフィールドを読むかの単一情報源（`extract_structured_edit_paths` と、入力健全性の判定が共有する）。
+STRUCTURED_EDIT_PATH_FIELDS = {
+    "Edit": MULTI_EDIT_FILE_FIELD,
+    "Write": MULTI_EDIT_FILE_FIELD,
+    "MultiEdit": MULTI_EDIT_FILE_FIELD,
+    "NotebookEdit": NOTEBOOK_EDIT_FIELD,
+}
 
 # schemas/status.schema.json の state enum と対応。CONVENTIONS.md 5節の状態機械の単一情報源はここではなく
 # CONVENTIONS.md 側だが、値の並びはこの定数と一致させること。
@@ -33,12 +43,52 @@ _BASH_WRITE_REDIRECT_OPS = {">", ">>"}
 _BASH_SEGMENT_BREAKS = {";", "&&", "||", "|", "&", "(", ")"}
 
 
-def read_hook_input() -> dict:
+class HookInputError(ValueError):
+    """hook の入力（stdin の JSON）そのものを解釈できなかった。
+
+    `read_hook_input_strict()` だけが送出する。ブロックする hook はこれを握りつぶさず
+    fail-closed（exit 2）に倒す。詳細は `read_hook_input_strict()` の docstring を参照。
+    """
+
+
+def read_hook_input() -> dict[str, Any]:
+    """壊れた入力を `{}` として扱う寛容版。**ブロックしない hook 専用**。
+
+    `{}` は「ツール名なし＝判定対象外」として通過するため、ブロックする hook がこれを使うと
+    「入力が壊れている」と「判定対象ではない」を区別できなくなる（F-R1）。
+    ブロックする hook では `read_hook_input_strict()` を使うこと。
+    """
     raw = sys.stdin.read()
     try:
         return json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         return {}
+
+
+def read_hook_input_strict() -> dict[str, Any]:
+    """入力を解釈できなければ `HookInputError` を送出する fail-closed 版。
+
+    ブロックする hook（`pre_tool_use_guard.py` / `stop_commit_guard.py`）は「判定できないなら
+    通すのではなく止める」という規範で書かれているが、寛容版の `read_hook_input()` は
+    `JSONDecodeError` を `{}` に潰すため、その保証が **payload を解釈できた場合にしか効いて
+    いなかった**（F-R1）。解釈そのものが失敗した場合にも同じ規範が効くようにする。
+
+    空の stdin（`raw.strip()` が空）は従来どおり `{}` を返して通す。ホストがイベントを
+    payload 無しで呼ぶ経路が実在し、そこを止めると通常運用が壊れるため、
+    止める対象は「内容があるのに JSON オブジェクトとして読めない」場合に限る。
+    """
+    raw = sys.stdin.read()
+    if not raw.strip():
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HookInputError(f"stdin を JSON として解釈できません: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise HookInputError(
+            f"stdin の JSON がオブジェクトではありません（{type(payload).__name__}）"
+        )
+    return payload
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str | None:
@@ -87,7 +137,7 @@ def get_git_dir(cwd: str) -> str | None:
     return _run_git(["rev-parse", "--absolute-git-dir"], cwd=cwd)
 
 
-def parse_porcelain(status_text: str | None) -> dict:
+def parse_porcelain(status_text: str | None) -> dict[str, str]:
     """`git status --porcelain` の出力を {パス: 状態コード} に変換する。"""
     result: dict[str, str] = {}
     for line in (status_text or "").splitlines():
@@ -104,8 +154,6 @@ def parse_porcelain(status_text: str | None) -> dict:
 
 def revert_path(rel_path: str, cwd: str) -> bool:
     """1 つのパスを HEAD の状態へ巻き戻す。未追跡ファイルは削除する。成功なら True。"""
-    import os
-
     if _run_git(["checkout", "HEAD", "--", rel_path], cwd=cwd) is not None:
         return True
     # HEAD に存在しない（新規追加された）ファイル。index から外して実体を消す
@@ -127,8 +175,6 @@ SNAPSHOT_MAX_CONTENT_BYTES = 1_000_000
 def _file_digest(abs_path: str) -> str | None:
     """ファイル内容の SHA-1。読めなければ None（＝存在しない／読めない、として扱う）。"""
     import hashlib
-    import os
-
     try:
         if not os.path.isfile(abs_path):
             return None
@@ -138,7 +184,7 @@ def _file_digest(abs_path: str) -> str | None:
         return None
 
 
-def capture_worktree_state(toplevel: str) -> dict | None:
+def capture_worktree_state(toplevel: str) -> dict[str, dict[str, Any]] | None:
     """未コミットの各パスについて `{code, sha, text}` を記録する。
 
     **状態コードではなく内容のハッシュで比較する**のが要点（F-050）。
@@ -150,15 +196,13 @@ def capture_worktree_state(toplevel: str) -> dict | None:
     `text` は巻き戻し先として使う。HEAD ではなく **Bash 実行直前の内容**へ戻すことで、
     実行前から未コミットだった変更（人間の編集など）を巻き添えで消さずに済む。
     """
-    import os
-
     status = get_status_porcelain(toplevel)
     if status is None:
         return None
-    state: dict = {}
+    state: dict[str, dict[str, Any]] = {}
     for rel_path, code in parse_porcelain(status).items():
         abs_path = os.path.join(toplevel, rel_path)
-        entry: dict = {"code": code, "sha": _file_digest(abs_path)}
+        entry: dict[str, Any] = {"code": code, "sha": _file_digest(abs_path)}
         try:
             if entry["sha"] and os.path.getsize(abs_path) <= SNAPSHOT_MAX_CONTENT_BYTES:
                 with open(abs_path, "r", encoding="utf-8") as f:
@@ -169,7 +213,7 @@ def capture_worktree_state(toplevel: str) -> dict | None:
     return state
 
 
-def diff_worktree_state(before: dict, after: dict) -> list[str]:
+def diff_worktree_state(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     """スナップショット同士を比べ、**内容が実際に変わった**パスを返す。"""
     changed = []
     for rel_path, entry in after.items():
@@ -179,10 +223,8 @@ def diff_worktree_state(before: dict, after: dict) -> list[str]:
     return sorted(changed)
 
 
-def restore_from_snapshot(rel_path: str, toplevel: str, entry: dict | None) -> bool:
+def restore_from_snapshot(rel_path: str, toplevel: str, entry: dict[str, Any] | None) -> bool:
     """Bash 実行直前の内容へ戻す。スナップショットに内容が無ければ HEAD へ戻す。"""
-    import os
-
     if entry is None:
         return revert_path(rel_path, toplevel)  # 実行前に存在しなかった＝新規作成
     text = entry.get("text")
@@ -202,8 +244,6 @@ def find_main_repo_root(worktree_toplevel: str) -> str:
     """git worktree のメインリポジトリのルートを返す（.git ファイルの gitdir 記載から辿る）。
     通常の（worktree でない）チェックアウトなら worktree_toplevel をそのまま返す。
     """
-    import os
-
     git_path = os.path.join(worktree_toplevel, ".git")
     if os.path.isdir(git_path):
         return worktree_toplevel
@@ -224,18 +264,16 @@ def find_main_repo_root(worktree_toplevel: str) -> str:
     return gitdir[:idx]
 
 
-def extract_structured_edit_paths(tool_name: str, tool_input: dict) -> list[str]:
+def extract_structured_edit_paths(tool_name: str, tool_input: dict[str, Any]) -> list[str]:
     """Edit/Write/MultiEdit/NotebookEdit の対象絶対パスを返す。"""
-    if tool_name == "NotebookEdit":
-        path = tool_input.get(NOTEBOOK_EDIT_FIELD)
-        return [path] if path else []
-    if tool_name in ("Edit", "Write", "MultiEdit"):
-        path = tool_input.get(MULTI_EDIT_FILE_FIELD)
-        return [path] if path else []
-    return []
+    field = STRUCTURED_EDIT_PATH_FIELDS.get(tool_name)
+    if field is None:
+        return []
+    path = tool_input.get(field)
+    return [path] if path else []
 
 
-def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
+def _classify_bash_lines(command: str) -> list[tuple[str, str, str]]:
     """`command` を物理行に分け、各行の直後に置くべき区切り文字（`;`/`\\n`/` `）を判定する。
 
     shlex は改行を単なる空白として読み捨てるため、これに頼ると「改行だけで区切られた
@@ -254,9 +292,13 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
     ヒアドキュメント（`<<EOF` 等）の本体をコマンド境界と誤認しないよう、本体行・終端子行の
     直後は区切りにしない。終端子行が最後に保留していたヒアドキュメントを閉じたら、その行の
     直後からは通常のコマンド境界判定を再開する。
+
+    戻り値は `(行, 区切り文字, 種別)` の列。種別は `"command"`（通常のコマンド行）か
+    `"heredoc"`（ヒアドキュメントの本体行・終端子行）。本体行は**コマンドではなくデータ**なので、
+    パス候補の抽出対象から外せるように区別して返す（F-A4。`_normalize_bash_newlines` 参照）。
     """
     lines = command.split("\n")
-    result: list[tuple[str, str]] = []
+    result: list[tuple[str, str, str]] = []
     quote: str | None = None  # None / "'" / '"'
     heredoc_queue: list[str] = []  # 保留中のヒアドキュメント終端子（出現順、複数連結にも対応）
 
@@ -268,7 +310,7 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
                 sep = ";" if not heredoc_queue else "\n"
             else:
                 sep = "\n"
-            result.append((line, sep))
+            result.append((line, sep, "heredoc"))
             continue
 
         i, n = 0, len(line)
@@ -336,18 +378,32 @@ def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
             sep = "\n"
         else:
             sep = ";"
-        result.append((line, sep))
+        result.append((line, sep, "command"))
 
     return result
 
 
-def _normalize_bash_newlines(command: str) -> str:
+def _normalize_bash_newlines(command: str, drop_heredoc_bodies: bool = False) -> str:
     """`_classify_bash_lines` の分類に従い、コマンド境界として扱ってよい改行だけを `;` に
-    変換した文字列を返す（トークン化前の前処理）。"""
+    変換した文字列を返す（トークン化前の前処理）。
+
+    `drop_heredoc_bodies` が真なら、**ヒアドキュメントの本体行と終端子行を落とす**。
+    本体はコマンドではなくデータであり、そこに現れる文字列をコマンドとして解釈すると
+    誤検知になる（F-A4。文書を `cat > x.html <<'EOF' ... EOF` で書き出そうとしたところ、
+    本文の HTML に含まれる `>` が**リダイレクト演算子**として、直後の
+    `harness/hooks/...` が**書き込み先**としてトークン化され、Rule 1 が発火した）。
+
+    落とすのは本体だけで、**ヒアドキュメントを開始した行そのもの**（`cat > path <<EOF` の
+    `> path`）は残す。リダイレクト先は依然として本物の書き込み先だからである。
+
+    本体行は削除するのではなく**中身を空にして行そのものは残す**。行ごと落とすと、終端子行が
+    持っていたコマンド境界（`;`）まで消え、ヒアドキュメントの**後ろにあるコマンド**
+    （`cat <<EOF ... EOF` の次の行の `cp`）が前のセグメントに融合して検知漏れになる。
+    """
     classified = _classify_bash_lines(command)
     parts: list[str] = []
-    for idx, (line, sep) in enumerate(classified):
-        parts.append(line)
+    for idx, (line, sep, kind) in enumerate(classified):
+        parts.append("" if (drop_heredoc_bodies and kind == "heredoc") else line)
         if idx < len(classified) - 1:
             parts.append(sep)
     return "".join(parts)
@@ -361,7 +417,7 @@ def _tokenize_bash_command(command: str) -> list[str] | None:
     クォート不整合等でトークン化できない場合は None を返す（判定不能として安全側＝許可に倒す）。
     """
     try:
-        normalized = _normalize_bash_newlines(command)
+        normalized = _normalize_bash_newlines(command, drop_heredoc_bodies=True)
         lexer = shlex.shlex(normalized, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         return list(lexer)
@@ -416,8 +472,6 @@ def extract_bash_candidate_paths(command: str) -> list[str]:
 
 def to_worktree_relative(abs_or_rel_path: str, toplevel: str) -> str:
     """worktree のルートからの相対パス（POSIX区切り）を返す。既に相対ならそのまま正規化する。"""
-    import os
-
     if not os.path.isabs(abs_or_rel_path):
         return abs_or_rel_path.replace("\\", "/")
     try:
@@ -442,8 +496,6 @@ def resolve_write_target(target: str, cwd: str, toplevel: str) -> tuple[str, str
     相対パスは `cwd` を基準に解決する。セッションの cwd は worktree ルートとは限らない
     （機能ディレクトリで動いていることが多い）ため、toplevel 基準で解釈すると取り違える。
     """
-    import os
-
     abs_target = target if os.path.isabs(target) else os.path.join(cwd, target)
     abs_target = os.path.normpath(abs_target)
     for root in (toplevel, find_main_repo_root(toplevel)):
@@ -473,8 +525,6 @@ def resolve_worktree_scope(rel_path: str, toplevel: str) -> tuple[str, str]:
 
     worktree の中から書いている場合は接頭辞が現れないので、この関数は恒等写像になる（既存動作を変えない）。
     """
-    import os
-
     path = rel_path.replace("\\", "/")
     base = toplevel
     while True:
@@ -485,7 +535,7 @@ def resolve_worktree_scope(rel_path: str, toplevel: str) -> tuple[str, str]:
         path = path[m.end():]
 
 
-def read_state_field(status_yaml_path) -> str | None:
+def read_state_field(status_yaml_path: str | os.PathLike[str]) -> str | None:
     """status.yaml / architecture.machine.yaml から `state:`/`status:` 行だけを正規表現で軽量抽出する。
     hooks は PyYAML に依存しないため、フルパースはしない。
     """
@@ -500,7 +550,7 @@ def read_state_field(status_yaml_path) -> str | None:
     return None
 
 
-def simulate_write_result(tool_name: str, tool_input: dict, current_content: str) -> str:
+def simulate_write_result(tool_name: str, tool_input: dict[str, Any], current_content: str) -> str:
     """PreToolUse 時点でまだ書き込まれていない、書き込み後のファイル内容をシミュレートする。
     Edit/MultiEdit はファイル全体を渡してこないため、Rule7 のような「書き込み後の内容」を
     見て判定するルールはこれで再現してから検査する。
@@ -533,14 +583,14 @@ def extract_scalar_field(content: str, key: str) -> str | None:
     return m.group(1).strip().strip('"\'')
 
 
-def extract_state_history(content: str) -> list:
+def extract_state_history(content: str) -> list[dict[str, Any]]:
     """`status.yaml` の `state_history[]` を取り出す（依存ゼロのパーサを使う）。"""
     data = parse_simple_yaml(content) if content else {}
     history = data.get("state_history") if isinstance(data, dict) else None
     return [e for e in history if isinstance(e, dict)] if isinstance(history, list) else []
 
 
-def resolve_effective_previous_state(state_history: list | None) -> str | None:
+def resolve_effective_previous_state(state_history: list[Any] | None) -> str | None:
     """`BLOCKED` の直前にあった実質的な状態を `state_history[]` から復元する。
 
     `at`（ISO-8601 の UTC 文字列）があればそれで昇順に並べ、無いエントリは記載順のまま先に置く
@@ -557,7 +607,7 @@ def resolve_effective_previous_state(state_history: list | None) -> str | None:
 
 
 def validate_status_transition(
-    old_state: str | None, new_state: str, state_history: list | None = None
+    old_state: str | None, new_state: str, state_history: list[Any] | None = None
 ) -> str | None:
     """status.yaml の `state` 遷移が CONVENTIONS.md 5節の状態機械に沿っているか判定する。
     妥当（または判定不能）なら None、不正なら拒否理由の文字列を返す。
@@ -615,7 +665,7 @@ def _parse_inline_string_list(text: str) -> list[str]:
     return [item.strip().strip('"\'') for item in inner.split(",") if item.strip()]
 
 
-def extract_required_skills(content: str) -> list[dict]:
+def extract_required_skills(content: str) -> list[dict[str, Any]]:
     """shared-kernel.yaml の `required_skills:` リストを軽量パースする。
     `- name: "..."` に続く `plugin_ref: "..."` / `purpose: "..."` / `applies_to: [...]` を
     同一エントリとして拾う。フルな YAML パーサーではなく、テンプレートで規定した書式のみを前提にする。
@@ -632,7 +682,7 @@ def extract_required_skills(content: str) -> list[dict]:
     block = content[start:start + block_match.start()] if block_match else content[start:]
 
     skills: list[dict] = []
-    current: dict | None = None
+    current: dict[str, Any] | None = None
     for line in block.splitlines():
         name_m = re.match(r"^\s*-\s*name\s*:\s*(.+?)\s*$", line)
         if name_m:
@@ -657,8 +707,6 @@ def get_enabled_plugins(repo_root: str) -> set[str]:
     """.claude/settings.json と .claude/settings.local.json の enabledPlugins をマージして返す。
     キー形式は "<plugin-name>@<marketplace>"。JSON 標準ライブラリのみ使用。
     """
-    import os
-
     enabled: set[str] = set()
     for name in ("settings.json", "settings.local.json"):
         path = os.path.join(repo_root, ".claude", name)
@@ -697,7 +745,7 @@ def allow() -> None:
 # （Hook は「判定不能なら安全側＝許可に倒す」方針であり、パース失敗でツールを止めない）。
 # 正確な検証は CI 側の JSON Schema（PyYAML でフルパース）が担う。
 
-def _yaml_split_key(text: str):
+def _yaml_split_key(text: str) -> tuple[str, str] | None:
     """`key: value` 行を (キー, 値) に分ける。マッピング行でなければ None。
 
     YAML ではキーの区切りは「空白か行末が続くコロン」だけである。単純な `^(.+?):(.*)$` だと
@@ -758,7 +806,7 @@ def _yaml_strip_comment(line: str) -> str:
     return "".join(out).rstrip()
 
 
-def _yaml_scalar(text: str):
+def _yaml_scalar(text: str) -> Any:
     text = text.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
         return text[1:-1]
@@ -779,7 +827,7 @@ def _yaml_scalar(text: str):
     return text
 
 
-def _yaml_flow(text: str, pos: int = 0):
+def _yaml_flow(text: str, pos: int = 0) -> tuple[Any, int]:
     """`{...}` / `[...]` のフロー記法を読む。(値, 次の位置) を返す。"""
     def skip_ws(i: int) -> int:
         while i < len(text) and text[i] in (" ", "\t"):
@@ -809,7 +857,7 @@ def _yaml_flow(text: str, pos: int = 0):
     if pos >= len(text):
         return None, pos
     if text[pos] == "{":
-        result: dict = {}
+        result: dict[str, Any] = {}
         pos += 1
         while True:
             pos = skip_ws(pos)
@@ -833,7 +881,7 @@ def _yaml_flow(text: str, pos: int = 0):
             if pos < len(text) and text[pos] == ",":
                 pos += 1
     if text[pos] == "[":
-        items: list = []
+        items: list[Any] = []
         pos += 1
         while True:
             pos = skip_ws(pos)
@@ -855,7 +903,7 @@ def _yaml_flow(text: str, pos: int = 0):
 _YAML_BLOCK_SCALAR_MARKERS = {"|", ">", "|-", ">-", "|+", ">+"}
 
 
-def _yaml_consume_block_scalar(lines: list[list], i: int, indent: int, marker: str):
+def _yaml_consume_block_scalar(lines: list[list[Any]], i: int, indent: int, marker: str) -> tuple[str, int]:
     """ブロックスカラーの本体行（親キーより深いインデントの行）をまとめて読み飛ばす。"""
     body: list[str] = []
     while i < len(lines) and lines[i][0] > indent:
@@ -865,15 +913,15 @@ def _yaml_consume_block_scalar(lines: list[list], i: int, indent: int, marker: s
     return joiner.join(body), i
 
 
-def _yaml_parse_block(lines: list[list], i: int, indent: int):
+def _yaml_parse_block(lines: list[list[Any]], i: int, indent: int) -> tuple[Any, int]:
     """`lines`（(インデント, 本文) の列）の位置 `i` から、インデント `indent` のブロックを読む。"""
     if i < len(lines) and lines[i][1].startswith("-"):
         return _yaml_parse_sequence(lines, i, indent)
     return _yaml_parse_mapping(lines, i, indent)
 
 
-def _yaml_parse_mapping(lines: list[list], i: int, indent: int):
-    result: dict = {}
+def _yaml_parse_mapping(lines: list[list[Any]], i: int, indent: int) -> tuple[dict[str, Any], int]:
+    result: dict[str, Any] = {}
     while i < len(lines):
         line_indent, text = lines[i]
         if line_indent < indent:
@@ -914,8 +962,8 @@ def _yaml_parse_mapping(lines: list[list], i: int, indent: int):
     return result, i
 
 
-def _yaml_parse_sequence(lines: list[list], i: int, indent: int):
-    items: list = []
+def _yaml_parse_sequence(lines: list[list[Any]], i: int, indent: int) -> tuple[list[Any], int]:
+    items: list[Any] = []
     while i < len(lines):
         line_indent, text = lines[i]
         if line_indent != indent or not text.startswith("-"):
@@ -953,11 +1001,11 @@ def _yaml_parse_sequence(lines: list[list], i: int, indent: int):
     return items, i
 
 
-def parse_simple_yaml(content: str):
+def parse_simple_yaml(content: str) -> Any:
     """ハーネスが規定する範囲の YAML を dict/list/スカラーに変換する（依存ゼロ）。
     解釈できない行は読み飛ばす。空なら `{}` を返す。
     """
-    lines: list[list] = []
+    lines: list[list[Any]] = []
     for raw in content.splitlines():
         stripped = _yaml_strip_comment(raw)
         if not stripped.strip():
@@ -991,11 +1039,11 @@ VERIFICATION_COMMANDS = {
 DEFAULT_MAX_SKIP_RATIO = 0.2
 
 
-def merge_verification_declaration(shared_kernel_content: str, contract_content: str) -> dict:
+def merge_verification_declaration(shared_kernel_content: str, contract_content: str) -> dict[str, Any]:
     """`shared-kernel.yaml`（全機能共通）に `contract.yaml`（機能個別）を上書きして解決する。
     値が null/空文字のキーは「宣言なし」として扱い、上書きにも使わない。
     """
-    def _block(content: str) -> dict:
+    def _block(content: str) -> dict[str, Any]:
         data = parse_simple_yaml(content) if content else {}
         block = data.get("verification") if isinstance(data, dict) else None
         return block if isinstance(block, dict) else {}
@@ -1055,7 +1103,7 @@ def interface_coverage_gaps(architecture_content: str, integration_content: str)
     arch = parse_simple_yaml(architecture_content) if architecture_content else {}
     interfaces = (arch.get("interfaces") if isinstance(arch, dict) else None) or []
 
-    def _key(entry: dict) -> tuple:
+    def _key(entry: dict[str, Any]) -> tuple[Any, ...]:
         return (
             entry.get("producer_feature"), entry.get("producer_output"),
             entry.get("consumer_feature"), entry.get("consumer_input"),
@@ -1082,10 +1130,10 @@ def interface_coverage_gaps(architecture_content: str, integration_content: str)
 
 
 def validate_verification_receipt(
-    declaration: dict,
+    declaration: dict[str, Any],
     receipt,
     head_commit: str | None,
-    declared_test_ids: list | None = None,
+    declared_test_ids: list[Any] | None = None,
     *,
     target_state: str = "TESTED",
     declaration_label: str = "`contract.yaml` の `test_strategy.coverage[]`",
@@ -1142,7 +1190,7 @@ def validate_verification_receipt(
 
 
 def validate_traceability(
-    declared_test_ids: list | None,
+    declared_test_ids: list[Any] | None,
     traceability,
     *,
     target_state: str = "TESTED",
@@ -1188,7 +1236,7 @@ def validate_traceability(
     return None
 
 
-def validate_junit_summary(declaration: dict, test_entry: dict) -> str | None:
+def validate_junit_summary(declaration: dict[str, Any], test_entry: dict[str, Any]) -> str | None:
     """受領書に記録された JUnit XML の集計値を検証する（③: 空振り・スキップ率の検出）。
     JUnit XML は pytest/jest/vitest/go-test/cargo/JUnit/RSpec/PHPUnit がいずれも出力できる
     事実上のクロススタック標準であり、ハーネスは言語を知らずにこれらを判定できる。
@@ -1238,7 +1286,7 @@ def approval_value_is_empty(value) -> bool:
     return False
 
 
-def find_empty_approval_fields(data) -> list:
+def find_empty_approval_fields(data: Any) -> list[str]:
     """マッピングから、空のままの承認フィールド名を列挙する。"""
     if not isinstance(data, dict):
         return []
@@ -1271,4 +1319,273 @@ def validate_approval_record(content: str, doc_label: str, approved_value: str =
         "（CONVENTIONS.md 9節）。status を変えるのと同じ書き込みで "
         "`approved_by`（承認した人間の識別子）と "
         "`approved_at`（`date -u +%Y-%m-%dT%H:%M:%SZ` で取得）を設定してください。"
+    )
+
+
+# ======================================================================================
+# Rule 12: 危険操作フロア（CONVENTIONS.md 7節）
+# ======================================================================================
+# 他の Rule はすべて「工程の整合性」を守るもので、危険操作を止める規則は 1 件も無かった。
+# AUTONOMOUS モードで長時間走らせる前提のハーネスとして、これは実運用上いちばん重い穴だった。
+#
+# 判定は**既存の Bash トークナイザ**（`_tokenize_bash_command` / `_BASH_SEGMENT_BREAKS`）を
+# 再利用する。新しいパース系を増やすと、片方だけ直して検知が食い違う。
+#
+# **バイパス用の環境変数は用意しない**（INV-4）。AI 自身が解除できてしまえば決定論的強制の
+# 目的そのものが崩れる。誤検知はこの検知ロジック自体を直して対応する。
+
+def iter_bash_segments(command: str) -> list[list[str]]:
+    """Bash コマンド文字列を「1 コマンド分」のトークン列に分割する。
+
+    `extract_bash_candidate_paths` が内部で行っている分割を、書き込み先の抽出以外の判定
+    （Rule 12）からも使えるように切り出したもの。両者は必ず同じトークン化を通る。
+    """
+    tokens = _tokenize_bash_command(command)
+    if not tokens:
+        return []
+    segments: list[list[str]] = [[]]
+    for tok in tokens:
+        if tok in _BASH_SEGMENT_BREAKS:
+            segments.append([])
+        else:
+            segments[-1].append(tok)
+    return [s for s in segments if s]
+
+
+# --- D-2: 秘密ファイル -----------------------------------------------------------------
+
+SECRET_PATH_PATTERNS = (
+    r"(^|/)\.env$",
+    r"(^|/)\.env\.[^/]+$",
+    r"\.pem$",
+    r"\.key$",
+    r"(^|/)[^/]*id_rsa[^/]*$",
+    r"(^|/)[^/]*id_ed25519[^/]*$",
+    r"(^|/)\.ssh(/|$)",
+    r"(^|/)\.aws(/|$)",
+    r"(^|/)\.npmrc$",
+    r"(^|/)\.netrc$",
+    r"(^|/)credentials\.json$",
+)
+# 秘密そのものではなく「秘密の書き方の見本」。実運用で必ず読む必要があるため除外する。
+SECRET_PATH_EXEMPT_RE = re.compile(r"(^|/)\.env\.(example|sample|template|dist)$")
+_SECRET_PATH_RE = re.compile("|".join(SECRET_PATH_PATTERNS))
+
+# ファイルの中身を読み出す代表的なコマンド。ここに無いコマンドの引数に現れたパスは、
+# 読み取りとは限らない（例: `echo ".env" >> .gitignore`）ので対象にしない。
+SECRET_READ_COMMANDS = {
+    "cat", "head", "tail", "less", "more", "bat", "nl", "od", "xxd", "strings",
+    "base64", "cut", "tac", "readlink", "openssl",
+}
+
+
+def is_secret_path(path: str) -> bool:
+    """秘密ファイルとみなすパスか。`.env.example` 等の見本は除外する。"""
+    normalized = str(path).replace("\\", "/").strip().strip("\"'")
+    if not normalized:
+        return False
+    if SECRET_PATH_EXEMPT_RE.search(normalized):
+        return False
+    return bool(_SECRET_PATH_RE.search(normalized))
+
+
+# --- D-1: 再帰削除 ---------------------------------------------------------------------
+
+# 綴りだけで拒否する削除対象。解決を試みるまでもなく、リポジトリ配下に留まる保証が無い。
+_UNRESOLVABLE_TARGET_RE = re.compile(r"(^|/)\.\.(/|$)|\$|^~|^/$|^\.$|^\*")
+
+
+def _is_flag(token: str) -> bool:
+    return token.startswith("-") and token != "-"
+
+
+def _recursive_delete_targets(tokens: list[str]) -> list[str]:
+    """`rm -r` / `find ... -delete` の削除対象を返す（対象が無ければ空）。"""
+    cmd, args = tokens[0], tokens[1:]
+    if cmd == "rm":
+        recursive = any(
+            a == "--recursive" or (_is_flag(a) and not a.startswith("--") and ("r" in a or "R" in a))
+            for a in args
+        )
+        if not recursive:
+            return []
+        return [a for a in args if not _is_flag(a)]
+    if cmd == "find":
+        if not any(a in ("-delete", "-exec", "-execdir") for a in args):
+            return []
+        targets = []
+        for a in args:
+            if _is_flag(a):
+                break  # find の探索パスは述語（`-name` 等）より前にしか現れない
+            targets.append(a)
+        return targets or ["."]
+    return []
+
+
+# --- D-3 / D-4: 履歴の破壊と検証のスキップ ----------------------------------------------
+
+_GIT_DESTRUCTIVE = {
+    "push": (("--force", "-f", "--force-with-lease"), "リモート履歴の破壊"),
+    "reset": (("--hard",), "作業ツリーと履歴の破棄"),
+    "filter-branch": ((), "履歴の書き換え"),
+}
+_GIT_VERIFICATION_SKIP = ("--no-verify", "-n", "--no-gpg-sign")
+
+
+def _git_subcommand(tokens: list[str]) -> tuple[str | None, list[str]]:
+    """`git -C dir push --force` のような前置オプションを飛ばしてサブコマンドを返す。"""
+    args = tokens[1:]
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"):
+            i += 2
+            continue
+        if _is_flag(a):
+            i += 1
+            continue
+        return a, args[i + 1:]
+    return None, []
+
+
+# --- D-5: 外部送信 ---------------------------------------------------------------------
+
+_EGRESS_COMMANDS = {"curl", "wget", "nc", "ncat", "netcat", "socat"}
+_EGRESS_UPLOAD_FLAGS = {
+    "-d", "--data", "--data-binary", "--data-raw", "--data-urlencode",
+    "-F", "--form", "-T", "--upload-file", "--post-data", "--post-file",
+}
+# ここへ到達できると、秘密や内部情報が匿名で外に出る。到達自体を拒否する。
+_EGRESS_HOSTS = (
+    "pastebin.com", "hastebin.com", "dpaste.", "paste.rs", "ix.io", "sprunge.us",
+    "termbin.com", "transfer.sh", "0x0.st", "file.io", "gist.github.com",
+    "webhook.site", "requestbin.", "ngrok.io", "ngrok-free.app", "bashupload.com",
+    "oshi.at", "litterbox.catbox.moe", "catbox.moe",
+)
+
+
+def _is_upload(tokens: list[str]) -> str | None:
+    cmd, args = tokens[0], tokens[1:]
+    if cmd not in _EGRESS_COMMANDS:
+        return None
+    joined = " ".join(args)
+    for host in _EGRESS_HOSTS:
+        if host in joined:
+            return f"{cmd} による {host} への到達"
+    if cmd in ("nc", "ncat", "netcat", "socat"):
+        return None  # ホスト名が上に無ければ、宛先が判定できない。綴りだけでは止めない
+    for i, a in enumerate(args):
+        # `--post-file=x` のような `=` 付きの綴りも同じ扱いにする
+        flag = a.split("=", 1)[0]
+        if flag in _EGRESS_UPLOAD_FLAGS or flag.startswith("--data"):
+            return f"{cmd} によるデータ送信（{flag}）"
+        if a in ("-X", "--request") and i + 1 < len(args) and args[i + 1].upper() in (
+            "POST", "PUT", "PATCH", "DELETE"
+        ):
+            return f"{cmd} による {args[i + 1].upper()} リクエスト"
+    return None
+
+
+# --- 判定本体 ---------------------------------------------------------------------------
+
+DANGEROUS_OPS_HINT = (
+    "\nこの操作はハーネスが無条件に拒否します（CONVENTIONS.md 7節 Rule 12）。"
+    "解除用の環境変数はありません。\n"
+    "必要な操作なら、AI ではなく**人間が自分の手で**実行してください。"
+    "誤検知だと考える場合は、検知ロジック（`path_utils` の Rule 12 節）を直して対応します。"
+)
+
+
+def detect_dangerous_bash_operation(
+    command: str,
+    cwd: str,
+    toplevel: str,
+    resolve: Callable[[str, str, str], tuple[str, str]] | None = None,
+) -> str | None:
+    """Bash コマンドが Rule 12 の禁止操作を含むなら、拒否理由を返す。
+
+    `resolve` は `(target, cwd, toplevel) -> (rel_path, root)` の解決関数（既定は
+    `resolve_write_target`）。テストから差し替えられるようにしてある。
+    """
+    resolve = resolve or resolve_write_target
+    for tokens in iter_bash_segments(command):
+        cmd = tokens[0]
+
+        # D-6: sudo を伴う任意コマンド
+        if cmd in ("sudo", "doas", "su"):
+            return (
+                f"拒否: `{cmd}` を伴うコマンドは実行できません（D-6）。\n"
+                "権限昇格を伴う操作は、影響範囲がリポジトリの外に及びます。" + DANGEROUS_OPS_HINT
+            )
+
+        # D-1: リポジトリルート外への再帰削除
+        for target in _recursive_delete_targets(tokens):
+            if _UNRESOLVABLE_TARGET_RE.search(target):
+                return (
+                    f"拒否: 再帰削除の対象 {target!r} が、リポジトリ配下に留まると確認できません（D-1）。\n"
+                    "`..` を含む綴り・未展開の変数・`/`・`.`・ワイルドカードの先頭指定は、"
+                    "解決するまでもなく拒否します。削除したいパスを、リポジトリルートからの"
+                    "相対パスで明示してください。" + DANGEROUS_OPS_HINT
+                )
+            rel, _root = resolve(target, cwd, toplevel)
+            if rel.startswith("/") or rel.startswith("../") or rel == "..":
+                return (
+                    f"拒否: {target!r} はリポジトリの外を指しています。再帰削除はできません（D-1）。"
+                    + DANGEROUS_OPS_HINT
+                )
+
+        # D-2: 秘密ファイルの読み取り
+        if cmd in SECRET_READ_COMMANDS:
+            for a in tokens[1:]:
+                if not _is_flag(a) and is_secret_path(a):
+                    return (
+                        f"拒否: {a!r} は秘密情報を含みうるファイルです。読み取れません（D-2）。\n"
+                        "設定値が必要なら、値そのものではなく `.env.example` などの見本を参照するか、"
+                        "ユーザーに必要な項目名を尋ねてください。" + DANGEROUS_OPS_HINT
+                    )
+
+        # D-3 / D-4: 履歴の破壊と検証のスキップ
+        if cmd == "git":
+            sub, rest = _git_subcommand(tokens)
+            if sub == "clean" and any(
+                _is_flag(a) and not a.startswith("--") and "x" in a and "f" in a for a in rest
+            ):
+                return (
+                    "拒否: `git clean -fdx` は無視されているファイルごと消します（D-3）。\n"
+                    "消したい対象を個別に指定してください。" + DANGEROUS_OPS_HINT
+                )
+            if sub in _GIT_DESTRUCTIVE:
+                flags, label = _GIT_DESTRUCTIVE[sub]
+                if not flags or any(a in flags for a in rest):
+                    return (
+                        f"拒否: `git {sub}` による{label}はできません（D-3）。\n"
+                        "履歴が壊れると、受領書（Rule 10）が指すコミットも辿れなくなります。"
+                        "やり直しが必要なら、打ち消しコミットを積んでください。" + DANGEROUS_OPS_HINT
+                    )
+            if sub == "commit" and any(a in _GIT_VERIFICATION_SKIP for a in rest):
+                return (
+                    "拒否: 検証を飛ばすコミット（`--no-verify` 等）はできません（D-4）。\n"
+                    "フックが止めているなら、止めている理由のほうを解消してください。"
+                    + DANGEROUS_OPS_HINT
+                )
+
+        # D-5: 外部送信
+        egress = _is_upload(tokens)
+        if egress:
+            return (
+                f"拒否: {egress} はできません（D-5）。\n"
+                "リポジトリの内容を外部に送る操作は、送り先と内容を人間が確認する必要があります。"
+                + DANGEROUS_OPS_HINT
+            )
+    return None
+
+
+def detect_dangerous_read(path: str) -> str | None:
+    """Read ツールが秘密ファイルを開こうとしていないか（D-2 の構造化ツール側）。"""
+    if not is_secret_path(path):
+        return None
+    return (
+        f"拒否: {path!r} は秘密情報を含みうるファイルです。読み取れません（D-2）。\n"
+        "設定値が必要なら、値そのものではなく `.env.example` などの見本を参照するか、"
+        "ユーザーに必要な項目名を尋ねてください。" + DANGEROUS_OPS_HINT
     )

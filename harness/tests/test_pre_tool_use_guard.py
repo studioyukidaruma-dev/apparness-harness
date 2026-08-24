@@ -12,6 +12,8 @@ import json
 import pathlib
 import subprocess
 
+import path_utils
+import pre_tool_use_guard
 import pytest
 
 HOOK = pathlib.Path(__file__).resolve().parent.parent / "hooks" / "pre_tool_use_guard.py"
@@ -644,3 +646,94 @@ def test_rule3_rejects_open_issue_append_through_bash(repo) -> None:
         repo, "Bash", {"command": f"echo 'open_issues: []' >> {FEATURE_DIR}/contract.yaml"}
     )
     assert result.returncode == 2
+
+
+# --------------------------------------------------------------------------------------
+# 内容比較で判定するファイルは「結果を予測できる手段」でしか書けない
+#
+# 当初この制限は Bash だけを対象にしていたが、実測で 3 つの素通りを確認した:
+#   ① NotebookEdit で `state: TESTED` を書き込める（受領書ゲートが一度も走らない）
+#      `simulate_write_result()` が NotebookEdit を扱えず、書き込み後の内容として
+#      変更前の内容がそのまま返るため、Rule 9・10 から見れば「何も変わっていない」。
+#   ② Bash で `integration.machine.yaml` を書き換えられる（統合受領書を手書きできる）
+#   ③ NotebookEdit でも同じ（②③ は INV-2 違反）
+# 判定を「Bash かどうか」ではなく「書き込み後の内容を再現できる手段かどうか」に変えて塞いだ。
+# --------------------------------------------------------------------------------------
+
+CONTENT_JUDGED_PATHS = {
+    "status.yaml": f"{FEATURE_DIR}/status.yaml",
+    "requirements.machine.yaml": f"apps/{APP}/00-requirements/requirements.machine.yaml",
+    "architecture.machine.yaml": f"apps/{APP}/02-design/architecture.machine.yaml",
+    "integration.machine.yaml": f"apps/{APP}/04-integration/integration.machine.yaml",
+}
+
+
+@pytest.mark.parametrize("label,rel", sorted(CONTENT_JUDGED_PATHS.items()))
+def test_notebook_edit_cannot_write_content_judged_files(repo, label: str, rel: str) -> None:
+    """NotebookEdit は書き込み後の内容を再現できないため、これらのファイルを書けない。"""
+    result = run_hook(
+        repo, "NotebookEdit", {"notebook_path": str(repo / rel), "new_source": "state: TESTED"}
+    )
+    assert result.returncode == 2, f"{label} が NotebookEdit で素通りした: {result.stdout}"
+    assert "NotebookEdit" in result.stderr
+
+
+@pytest.mark.parametrize("label,rel", sorted(CONTENT_JUDGED_PATHS.items()))
+def test_bash_cannot_write_content_judged_files(repo, label: str, rel: str) -> None:
+    result = run_hook(repo, "Bash", {"command": f"echo x >> {rel}"})
+    assert result.returncode == 2, f"{label} が Bash で素通りした: {result.stdout}"
+
+
+def test_notebook_edit_bypass_of_the_receipt_gate_is_closed(repo) -> None:
+    """穴の本体: 受領書なしの `state: TESTED` を NotebookEdit で書き込めないこと。"""
+    result = run_hook(
+        repo,
+        "NotebookEdit",
+        {"notebook_path": str(repo / FEATURE_DIR / "status.yaml"),
+         "new_source": status_yaml("TESTED")},
+    )
+    assert result.returncode == 2
+    assert "Rule 3・7・9・10・11" in result.stderr
+
+
+def test_integration_receipt_cannot_be_handwritten_through_bash(repo) -> None:
+    """INV-2: 統合受領書を Bash で手書きできないこと。"""
+    rel = f"apps/{APP}/04-integration/integration.machine.yaml"
+    command = f"printf 'verification_receipt:\\n  commit: \"{head_of(repo)}\"\\n' > {rel}"
+    result = run_hook(repo, "Bash", {"command": command})
+    assert result.returncode == 2
+    assert "integration.machine.yaml" in result.stderr
+
+
+def test_notebook_edit_is_allowed_outside_content_judged_files(repo) -> None:
+    """過剰ブロックしていないこと。本来の用途（ノートブックの編集）は通る。"""
+    result = run_hook(
+        repo,
+        "NotebookEdit",
+        {"notebook_path": str(repo / FEATURE_DIR / "src" / "analysis.ipynb"), "new_source": "print(1)"},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_structured_tools_are_still_allowed_on_content_judged_files(repo) -> None:
+    """Edit/Write/MultiEdit は従来どおり通る（内容は各 Rule が判定する）。"""
+    result = run_hook(repo, "Write", write_status(repo, status_yaml("IMPLEMENTED")))
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_simulatable_tool_set_matches_simulate_write_result() -> None:
+    """許可する手段の集合が、実際に内容を再現できるツールと一致していること。
+
+    ここがずれると「再現できないのに許可される」（＝ゲートが空振りする）か、
+    「再現できるのに拒否される」（＝過剰ブロック）のどちらかが起きる。
+    """
+    current = "state: IMPLEMENTED\n"
+    for tool in pre_tool_use_guard.CONTENT_SIMULATABLE_TOOLS:
+        payload = {
+            "Write": {"content": "state: TESTED\n"},
+            "Edit": {"old_string": "IMPLEMENTED", "new_string": "TESTED"},
+            "MultiEdit": {"edits": [{"old_string": "IMPLEMENTED", "new_string": "TESTED"}]},
+        }[tool]
+        assert path_utils.simulate_write_result(tool, payload, current) != current, tool
+    for tool in ("Bash", "NotebookEdit"):
+        assert path_utils.simulate_write_result(tool, {"new_source": "state: TESTED"}, current) == current

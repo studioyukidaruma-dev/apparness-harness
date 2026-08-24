@@ -5,13 +5,19 @@ apps/<app_id>/PROGRESS.md（人間向け）と STATE.machine.yaml（機械向け
 このスクリプトの出力する2ファイルは手書き禁止。post_tool_use_sync.py から
 status.yaml 更新時に自動で呼ばれるほか、`sync-progress` skill から手動でも呼べる。
 
+`--html` を付けると、同じデータから非エンジニア向けの単一ファイル HTML
+（apps/<app_id>/PROGRESS.html）も生成する。**入力は status.yaml / contract.yaml の
+open_issues / VERSION / 強制レイヤの診断だけ**で、AI に作文させない（決定論を維持する）。
+生成物は .gitignore 対象（派生物は判断の根拠にしない）。
+
 使い方:
-    python3 harness/scripts/render_progress.py --app <app_id>
-    python3 harness/scripts/render_progress.py --all
+    python3 harness/scripts/render_progress.py --app <app_id> [--html]
+    python3 harness/scripts/render_progress.py --all [--html]
 """
 from __future__ import annotations
 
 import argparse
+import html
 import pathlib
 import re
 import sys
@@ -96,7 +102,7 @@ def _collect_status_paths(app_dir: pathlib.Path) -> list[pathlib.Path]:
     return [by_feature_id[k] for k in sorted(by_feature_id)]
 
 
-def render_app(app_dir: pathlib.Path) -> None:
+def render_app(app_dir: pathlib.Path, as_html: bool = False) -> None:
     app_id = app_dir.name
     statuses = []
     for status_path in _collect_status_paths(app_dir):
@@ -129,7 +135,11 @@ def render_app(app_dir: pathlib.Path) -> None:
 
     _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode, statuses)
     _write_state_machine_yaml(app_dir, app_id, req_status, design_status, autonomy_mode, statuses)
-    print(f"再生成しました: {app_dir / 'PROGRESS.md'}, {app_dir / 'STATE.machine.yaml'}")
+    generated = [str(app_dir / "PROGRESS.md"), str(app_dir / "STATE.machine.yaml")]
+    if as_html:
+        _write_progress_html(app_dir, app_id, req_status, design_status, autonomy_mode, statuses)
+        generated.append(str(app_dir / "PROGRESS.html"))
+    print("再生成しました: " + ", ".join(generated))
 
 
 def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode, statuses) -> None:
@@ -145,6 +155,8 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
                   f"（`AUTONOMY.yaml` 参照。要件定義の承認はモードに関わらず常に人間必須）")
     lines.append(f"- 要件定義 (00-requirements): **{req_status}**")
     lines.append(f"- 設計 (02-design): **{design_status}**")
+    lines.append(_enforcement_line(app_dir))
+    lines.append(_harness_version_line(app_dir))
     lines.append("")
 
     if not statuses:
@@ -200,6 +212,57 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
     lines.append("")
 
     write_if_changed(app_dir / "PROGRESS.md", "\n".join(lines))
+
+
+def _harness_dir(app_dir: pathlib.Path) -> pathlib.Path:
+    """このアプリを作っているハーネス本体のディレクトリ。
+
+    `_common.harness_root()` は git 情報から**メインリポジトリ側**を返す（worktree の
+    スナップショットと食い違わないため。F-049）。git 情報が取れない場所ではそれが
+    `<app_dir>/harness` に退避してしまうので、`apps/<app-id>` という構造上の位置関係
+    （CONVENTIONS.md 1節）からも解決を試みる。
+    """
+    candidate = _common.harness_root(app_dir)
+    if candidate.is_dir():
+        return candidate
+    return app_dir.parent.parent / "harness"
+
+
+def _harness_version_line(app_dir: pathlib.Path) -> str:
+    """このアプリを作っているハーネスの版（`VERSION`）。
+
+    どの版のハーネスで作られたアプリなのかが成果物から辿れないと、不具合報告と改修の
+    対応が取れない（CI 項目 Q）。
+    """
+    try:
+        version = (_harness_dir(app_dir).parent / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "- ハーネス版: **不明**（`VERSION` が読めません）"
+    return f"- ハーネス版: **v{version}**"
+
+
+def _enforcement_line(app_dir: pathlib.Path) -> str:
+    """強制レイヤの健全性を 1 行で表示する（F-A2）。
+
+    Hook が起動に失敗しても Claude Code はそれを「通過」として扱うため、強制が黙って
+    無効化された状態が続きうる。ダッシュボードは人間が状況を確認する最終的な担保
+    （CONVENTIONS.md 9節）なので、そこに状態を出す。
+
+    実行環境（Python のバージョン等）に依存する判定は含めない。`PROGRESS.md` は
+    コミットされる成果物で、CI の項目 G が再生成結果との一致を見るため、環境ごとに
+    差分が出る値を混ぜると構造的に不合格になる。
+    """
+    try:
+        harness = _harness_dir(app_dir)
+        # hooks は依存ゼロで、scripts より後に読み込まれる。ここで初めて import することで、
+        # hooks が欠けている環境でもダッシュボードの生成自体は止めない（止めると Rule 4 が
+        # 連鎖して壊れ、進捗が見えなくなる ＝ 可視化したい状況で可視化が消える）。
+        sys.path.insert(0, str(harness / "hooks"))
+        import session_start_healthcheck  # noqa: PLC0415
+
+        return session_start_healthcheck.progress_line(str(harness.parent))
+    except Exception as exc:  # noqa: BLE001
+        return f"- 強制レイヤ: **診断不能**（{type(exc).__name__}: {exc}）"
 
 
 def _verification_summary(status: dict) -> str:
@@ -268,11 +331,166 @@ def _write_state_machine_yaml(app_dir, app_id, req_status, design_status, autono
     )
 
 
+# --------------------------------------------------------------------------------------
+# 非エンジニア向けの HTML 面（T-030 / F-A8）
+#
+# 新しい skill は増やさない（NG-3）。既に決定論的なレンダラがあるのだから、その出力形式を
+# 1 つ足すだけでよい。**AI に作文させない**ことが要点で、入力は status.yaml と
+# contract.yaml の open_issues、VERSION、強制レイヤの診断だけ。
+# --------------------------------------------------------------------------------------
+
+# 状態 → (表示ラベル, タグの色クラス)
+_HTML_STATE_TAG = {
+    "NOT_STARTED": "tag-idle",
+    "CONTRACT_DRAFTED": "tag-idle",
+    "CONTRACT_APPROVED": "tag-warn",
+    "IN_PROGRESS": "tag-warn",
+    "IMPLEMENTED": "tag-warn",
+    "TESTED": "tag-ok",
+    "INTEGRATED": "tag-ok",
+    "BLOCKED": "tag-bad",
+    "SUPERSEDED": "tag-idle",
+}
+
+
+def _tag(text: str, css_class: str) -> str:
+    return f'<span class="tag {css_class}">{html.escape(str(text))}</span>'
+
+
+def _verification_tag(status: dict) -> str:
+    summary = _verification_summary(status)
+    if summary.startswith("OK"):
+        return _tag(summary, "tag-ok")
+    if summary.startswith("失敗"):
+        return _tag(summary, "tag-bad")
+    return _tag(summary, "tag-idle")
+
+
+def _review_tag(status: dict) -> str:
+    summary = _review_summary(status)
+    if summary.startswith("GO"):
+        return _tag(summary, "tag-ok")
+    if summary.startswith("NO-GO"):
+        return _tag(summary, "tag-bad")
+    return _tag(summary, "tag-idle")
+
+
+def _collect_open_issues(app_dir: pathlib.Path, statuses: list) -> list[tuple[str, dict]]:
+    """各機能の `contract.yaml` から未解決の `open_issues[]` を集める（CONVENTIONS.md 7節 Rule 3）。
+
+    契約の穴は凍結後も追記だけが許されており、統合時に拾われるべき申し送りである。
+    人間が見る面に出ないと、追記した意味が薄れる。
+    """
+    issues: list[tuple[str, dict]] = []
+    for status_path in _collect_status_paths(app_dir):
+        contract_path = status_path.parent / "contract.yaml"
+        if not contract_path.exists():
+            continue
+        try:
+            contract = _common.load_yaml(contract_path) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        feature_id = contract.get("feature_id") or status_path.parent.name
+        for issue in contract.get("open_issues") or []:
+            if isinstance(issue, dict) and str(issue.get("status", "")).upper() != "RESOLVED":
+                issues.append((str(feature_id), issue))
+    return issues
+
+
+def _write_progress_html(app_dir, app_id, req_status, design_status, autonomy_mode, statuses) -> None:
+    template_path = _harness_dir(app_dir) / "templates" / "progress.html.tmpl"
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except OSError:
+        print(f"警告: {template_path} が見つかりません。HTML の生成をスキップします", file=sys.stderr)
+        return
+
+    done = sum(1 for s in statuses if s.get("state") in DONE_STATES)
+    total = len(statuses)
+    percent = int(done * 100 / total) if total else 0
+    # `_enforcement_line` は Markdown 用に `**` を含むので、HTML では落とす
+    enforcement = _enforcement_line(app_dir).lstrip("- ").replace("**", "")
+    enforcement_class = "tag-ok" if "OK" in enforcement else "tag-bad"
+
+    cards = [
+        _card("進捗", f"{done} / {total} 機能が完了",
+              f'<div class="bar"><span style="width:{percent}%"></span></div>'),
+        _card("要件定義", req_status, _status_tag_html(req_status)),
+        _card("設計", design_status, _status_tag_html(design_status)),
+        _card("自動化モード", autonomy_mode,
+              '<div class="label">要件定義の承認はモードに関わらず常に人間必須</div>'),
+        _card("強制レイヤ", "", _tag(enforcement, enforcement_class)),
+    ]
+
+    rows = []
+    for s in statuses:
+        state = s.get("state", "?")
+        rows.append(
+            "<tr>"
+            f"<td><code>{html.escape(str(s.get('feature_id', '?')))}</code></td>"
+            f"<td>{_tag(f'{STATE_LABEL.get(state, state)}', _HTML_STATE_TAG.get(state, 'tag-idle'))}</td>"
+            f"<td>{_verification_tag(s)}</td>"
+            f"<td>{_review_tag(s)}</td>"
+            f"<td>{html.escape(', '.join(s.get('blockers') or []) or '—')}</td>"
+            f"<td>{html.escape(str(s.get('last_updated_at') or '—'))}</td>"
+            "</tr>"
+        )
+    if not rows:
+        rows.append('<tr><td colspan="6">機能はまだ登録されていません。</td></tr>')
+
+    issues = _collect_open_issues(app_dir, statuses)
+    if issues:
+        items = "".join(
+            f"<li><code>{html.escape(feature_id)}</code> "
+            f"{html.escape(str(issue.get('id') or ''))}: "
+            f"{html.escape(str(issue.get('summary') or ''))}</li>"
+            for feature_id, issue in issues
+        )
+        issues_html = f'<ul class="plain">{items}</ul>'
+    else:
+        issues_html = '<p class="empty">未解決の申し送りはありません。</p>'
+
+    try:
+        version = "v" + (_harness_dir(app_dir).parent / "VERSION").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError:
+        version = "版不明"
+
+    output = (
+        template.replace("__APP_ID__", html.escape(str(app_id)))
+        .replace("__GENERATED_AT__", html.escape(_common.now_iso()))
+        .replace("__VERSION__", html.escape(version))
+        .replace("__SUMMARY_CARDS__", "\n".join(cards))
+        .replace("__FEATURE_ROWS__", "\n".join(rows))
+        .replace("__OPEN_ISSUES__", issues_html)
+    )
+    write_if_changed(app_dir / "PROGRESS.html", output)
+
+
+def _card(label: str, value: str, extra: str = "") -> str:
+    value_html = f'<div class="value">{html.escape(str(value))}</div>' if value else ""
+    return f'<div class="card"><div class="label">{html.escape(label)}</div>{value_html}{extra}</div>'
+
+
+def _status_tag_html(status: str) -> str:
+    if status == "APPROVED":
+        return _tag("承認済み", "tag-ok")
+    if status in ("N/A", None, ""):
+        return _tag("未着手", "tag-idle")
+    return _tag("未承認", "tag-warn")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--app", help="apps/<app_id> の app_id")
     group.add_argument("--all", action="store_true", help="apps/ 配下すべてを再生成")
+    parser.add_argument(
+        "--html",
+        action="store_true",
+        help="非エンジニア向けの単一ファイル HTML（PROGRESS.html）も生成する",
+    )
     args = parser.parse_args(argv[1:])
 
     root = _common.repo_root()
@@ -284,14 +502,14 @@ def main(argv: list[str]) -> int:
             return 0
         for app_dir in sorted(apps_dir.iterdir()):
             if app_dir.is_dir() and not app_dir.name.startswith("."):
-                render_app(app_dir)
+                render_app(app_dir, as_html=args.html)
         return 0
 
     app_dir = apps_dir / args.app
     if not app_dir.exists():
         print(f"エラー: {app_dir} が存在しません", file=sys.stderr)
         return 2
-    render_app(app_dir)
+    render_app(app_dir, as_html=args.html)
     return 0
 
 

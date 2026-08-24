@@ -1,7 +1,7 @@
 """`path_utils` の Bash パース（Rule 1/2/3/5/6 を Bash 経由の間接書き込みにも効かせるための
 検知ロジック）の回帰テスト。
 
-ここに固定してあるシナリオは、`HARNESS_GUIDE.md` 11 節・`ROADMAP.md` に記録された
+ここに固定してあるシナリオは、`docs/HARNESS_GUIDE.md` 11 節に記録された
 実地検証（真陽性 10 件・真陰性 4 件、および旧 `harness/fix-bash-guard-tokenizer` の
 単一行シナリオ）をそのままテストコードに落としたものである。検知ロジックを触るときは、
 このファイルが緑のままであることを必ず確認すること。
@@ -146,4 +146,68 @@ def test_normalize_bash_newlines(label: str, command: str, expected: str) -> Non
 
 def test_classify_bash_lines_marks_heredoc_terminator() -> None:
     classified = path_utils._classify_bash_lines("cat <<EOF\nbody\nEOF\necho done")
-    assert [sep for _line, sep in classified] == ["\n", "\n", ";", ";"]
+    assert [sep for _line, sep, _kind in classified] == ["\n", "\n", ";", ";"]
+    assert [kind for _line, _sep, kind in classified] == [
+        "command", "heredoc", "heredoc", "command"
+    ]
+
+
+# --------------------------------------------------------------------------------------
+# ヒアドキュメント本体の誤検知（F-A4 / T-020）
+#
+# 文書を `cat > x.html <<'EOF' ... EOF` で書き出そうとしたところ、本文の HTML に含まれる `>` が
+# リダイレクト演算子として、直後の `harness/hooks/...` が書き込み先としてトークン化され、
+# Rule 1 が発火して拒否された。安全側の誤りだが、CONVENTIONS.md 7節が定める
+# 「誤検知は検知ロジック自体を修正する」の対象。
+#
+# **緩める方向の変更なので、リダイレクト先が従来どおり検知されることを対で固定する。**
+# すり抜けた場合の二段目（`post_tool_use_guard.py` の事後検証）は test_post_tool_use_guard.py。
+# --------------------------------------------------------------------------------------
+
+HTML_BODY = (
+    "<h1>ハーネス比較</h1>\n"
+    "<p>実装は <code>harness/hooks/pre_tool_use_guard.py</code> にあります。</p>\n"
+    "<p>設定は <code>.claude/settings.json</code> です。</p>"
+)
+
+
+def test_heredoc_body_mentioning_guarded_paths_is_not_a_write_target() -> None:
+    found = candidates(f"cat > report.html <<'EOF'\n{HTML_BODY}\nEOF")
+    assert found == ["report.html"], found
+
+
+def test_heredoc_body_is_ignored_for_unquoted_delimiters_too() -> None:
+    found = candidates(f"cat > report.html <<EOF\n{HTML_BODY}\nEOF")
+    assert "harness/hooks/pre_tool_use_guard.py" not in found
+
+
+def test_heredoc_body_is_ignored_for_dash_delimiters() -> None:
+    found = candidates(f"cat > report.html <<-EOF\n{HTML_BODY}\n\tEOF")
+    assert "harness/hooks/pre_tool_use_guard.py" not in found
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("cat > harness/CONVENTIONS.md <<'EOF'\nbody\nEOF", "harness/CONVENTIONS.md"),
+        ("cat <<'EOF' > harness/CONVENTIONS.md\nbody\nEOF", "harness/CONVENTIONS.md"),
+        ("tee harness/CONVENTIONS.md <<'EOF'\nbody\nEOF", "harness/CONVENTIONS.md"),
+        ("cat >> harness/CONVENTIONS.md <<EOF\nbody\nEOF", "harness/CONVENTIONS.md"),
+    ],
+)
+def test_the_heredoc_redirect_target_is_still_detected(command: str, expected: str) -> None:
+    """本体を無視しても、書き込み先そのものは従来どおり検知されること。"""
+    assert expected in candidates(command), command
+
+
+def test_a_command_after_a_heredoc_is_still_detected() -> None:
+    """本体を落とすときに終端子行のコマンド境界まで消すと、後続コマンドが検知漏れする。"""
+    command = f"cat > note.txt <<EOF\nbody\nEOF\ncp a.py {GUARDED}"
+    assert GUARDED in candidates(command)
+
+
+def test_quoted_strings_in_general_are_still_scanned() -> None:
+    """除外するのはヒアドキュメント本体だけ。引用符で囲まれた引数一般を外してはいけない。"""
+    assert GUARDED in candidates(f'cp "a.py" "{GUARDED}"')
+    assert GUARDED in candidates(f"mv 'a.py' '{GUARDED}'")
+

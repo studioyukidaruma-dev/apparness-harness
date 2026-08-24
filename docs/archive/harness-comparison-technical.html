@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ハーネス比較技術報告書 — apparness vs claude-code-harness</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #F6F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EFF2F6;
+    --ink: #14181F;
+    --muted: #5B6675;
+    --line: #DDE2E9;
+    --line-strong: #C3CBD6;
+    --accent: #1D5E8C;
+    --accent-soft: #E3EEF6;
+    --amber: #A66207;
+    --amber-soft: #FAEEDC;
+    --red: #A32B22;
+    --red-soft: #F9E6E4;
+    --green: #2A6A4C;
+    --green-soft: #E2F0E8;
+    --shadow: 0 1px 2px rgba(20, 24, 31, .06), 0 8px 24px -16px rgba(20, 24, 31, .25);
+
+    --f-sans: "IBM Plex Sans JP", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #10141A;
+      --surface: #171D25;
+      --surface-2: #1E2630;
+      --ink: #E4E9F0;
+      --muted: #94A0AF;
+      --line: #262F3A;
+      --line-strong: #3A4756;
+      --accent: #6FADD9;
+      --accent-soft: #17303F;
+      --amber: #DBA05A;
+      --amber-soft: #35281A;
+      --red: #E08078;
+      --red-soft: #38211F;
+      --green: #6CBE95;
+      --green-soft: #17301F;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #10141A;
+    --surface: #171D25;
+    --surface-2: #1E2630;
+    --ink: #E4E9F0;
+    --muted: #94A0AF;
+    --line: #262F3A;
+    --line-strong: #3A4756;
+    --accent: #6FADD9;
+    --accent-soft: #17303F;
+    --amber: #DBA05A;
+    --amber-soft: #35281A;
+    --red: #E08078;
+    --red-soft: #38211F;
+    --green: #6CBE95;
+    --green-soft: #17301F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-sans);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 56px; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; font-weight: 600; }
+  h1 { font-size: 36px; letter-spacing: -.02em; }
+  h2 { font-size: 24px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; }
+  p { margin: 0; }
+  code, .mono { font-family: var(--f-mono); font-size: .88em; }
+  .prose { max-width: 68ch; display: flex; flex-direction: column; gap: 14px; }
+  .muted { color: var(--muted); }
+
+  header .eyebrow {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  }
+  header .lede { font-size: 18px; color: var(--muted); max-width: 66ch; margin-top: 16px; }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+  .sec-head { display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--line-strong); padding-top: 16px; }
+  .sec-num { font-family: var(--f-mono); font-size: 12px; color: var(--muted); letter-spacing: .1em; }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); }
+
+  /* --- swimlane --- */
+  .lane { min-width: 1080px; display: grid; grid-template-columns: 158px 190px 190px 176px 1fr 210px; }
+  .lane > div { padding: 12px 14px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 13.5px; line-height: 1.62; }
+  .lane > div:nth-child(6n) { border-right: none; }
+  .lane .hd {
+    position: sticky; top: 0; background: var(--surface-2); font-family: var(--f-mono);
+    font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 2px solid var(--line-strong); padding-top: 10px; padding-bottom: 10px;
+  }
+  .lane .phase { background: var(--surface-2); }
+  .lane .phase b { display: block; font-size: 15px; font-weight: 600; }
+  .lane .phase .pid { font-family: var(--f-mono); font-size: 11px; color: var(--accent); letter-spacing: .08em; }
+  .lane .gate-row > div { background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); }
+  .gate-cell { grid-column: 1 / -1; padding: 12px 14px; background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); font-size: 13.5px; }
+  .gate-cell .gid { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; color: var(--amber); font-weight: 500; }
+
+  ul.tight { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 3px; }
+  ul.none { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+
+  .tag {
+    display: inline-block; font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; line-height: 1.5;
+  }
+  .t-det { color: var(--green); background: var(--green-soft); }
+  .t-ai { color: var(--red); background: var(--red-soft); }
+  .t-ops { color: var(--amber); background: var(--amber-soft); }
+  .t-rule { color: var(--accent); background: var(--accent-soft); }
+  .size { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+  .warnmark { color: var(--red); font-weight: 700; }
+
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th {
+    background: var(--surface-2); font-family: var(--f-mono); font-size: 11.5px; font-weight: 500;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--line-strong);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--f-mono); font-size: 12.5px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; font-size: 13px; }
+  .legend div { display: flex; align-items: center; gap: 8px; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 18px; border-radius: 0 4px 4px 0; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; }
+  .callout.warn { border-left-color: var(--red); }
+  .callout h3 { font-size: 15px; }
+
+  .audit { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+  .card h3 { display: flex; align-items: center; gap: 8px; }
+  .card p, .card li { font-size: 13.5px; line-height: 1.65; }
+  .card .where { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 640px) { .wrap { padding: 36px 16px 64px; } h1 { font-size: 28px; } }
+</style>
+<style>
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .verdict { border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .verdict .v-lbl { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .verdict strong { font-size: 17px; }
+  .bar { display: inline-block; height: 9px; border-radius: 2px; background: var(--accent); vertical-align: middle; }
+  .bar.b-alt { background: var(--amber); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13.5px; }
+  .kv dt { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+  .kv dd { margin: 0; }
+  .t-a { color: var(--accent); background: var(--accent-soft); }
+  .t-b { color: var(--amber); background: var(--amber-soft); }
+  .fn { font-size: 12.5px; color: var(--muted); max-width: 78ch; }
+  .win { font-family: var(--f-mono); font-size: 11px; letter-spacing: .05em; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .win-a { color: var(--accent); background: var(--accent-soft); border: 1px solid currentColor; }
+  .win-b { color: var(--amber); background: var(--amber-soft); border: 1px solid currentColor; }
+  .win-d { color: var(--muted); background: var(--surface-2); border: 1px solid currentColor; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Comparative Assessment / 2026-08-24</div>
+  <h1>ハーネス比較技術報告書</h1>
+  <p class="lede">
+    <b>apparness harness v1</b>（本リポジトリ）と <b>claude-code-harness v5.11.0</b>（OSS, MIT）を、
+    強制レイヤの実効性・監査可能性・トレーサビリティ・コンテキスト統制・運用成熟度の 5 軸で比較する。
+    数値はすべて対象リポジトリおよび配布 zip に対する実測値であり、両者の README の主張は根拠として採用していない。
+  </p>
+</header>
+
+<div class="legend">
+  <div><span class="tag t-a">A</span> apparness harness v1</div>
+  <div><span class="tag t-b">B</span> claude-code-harness v5.11.0</div>
+  <div><span class="tag t-det">決定論</span> Hook / スクリプトが機械判定。AI は迂回できない</div>
+  <div><span class="tag t-ops">運用ルール</span> プロンプト上の指示。実行の裏付けなし</div>
+  <div><span class="tag t-ai">自己申告</span> エージェント自身が結果を記述。反証不能</div>
+</div>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 0</div>
+    <h2>要旨</h2>
+  </div>
+
+  <div class="grid2">
+    <div class="verdict">
+      <div class="v-lbl">総合結論</div>
+      <strong>プロダクトとしての優劣は claude-code-harness が明確に上位。ただし両者は同一の問題を解いていない。</strong>
+      <p class="muted" style="font-size:14px">
+        claude-code-harness（以下 CCH）は<b>既存リポジトリでの継続的開発オペレーション</b>を対象とした汎用ハーネスであり、
+        危険操作の遮断・マルチホスト・配布・非エンジニア向け UI・リリース自動化まで含む完成品である。
+        apparness は<b>グリーンフィールドのアプリ生成工程</b>に特化した工程ハーネスであり、
+        対象領域が CCH の 1/5 程度に狭い。したがって「置き換え可能な競合」ではない。
+      </p>
+    </div>
+    <div class="verdict">
+      <div class="v-lbl">両者が重なる唯一の土俵での評価</div>
+      <strong>「AI が言い抜けできない決定論的強制」という軸に限れば、apparness が単位コード量あたりで優る。</strong>
+      <p class="muted" style="font-size:14px">
+        apparness の Rule 10 / Rule 11（検証受領書の HEAD 束縛）と CI 項目 I–K は、
+        <b>実行結果の内容そのもの</b>を検証する。CCH の同等機構（<code>[tdd.enforce]</code>）は
+        配布既定で <code>enabled = false</code> であり、Worker の <code>self_review</code> は
+        エージェント自身が <code>verified: true</code> と書き込む<b>自己申告</b>である。
+      </p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <h3>本報告書が採る評価原則</h3>
+    <p>
+      「ドキュメントに書いてある」ことは能力の証拠として扱わない。実際に配布物に存在し、
+      呼び出し経路が確認でき、失敗時にブロックする実装が読み取れるものだけを「強制されている」と判定する。
+      これは CCH 自身が <code>docs/claims-audit.md</code> で採用している規律をそのまま両者に適用したものである。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 1</div>
+    <h2>比較対象の同定と規模の実測</h2>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>項目</th><th>apparness harness</th><th>claude-code-harness</th></tr></thead>
+      <tbody>
+        <tr><td>版</td><td class="mono">v1（<code>main</code> / 851f07a）</td><td class="mono">v5.11.0（2026-08-22）</td></tr>
+        <tr><td>ライセンス・配布</td><td>非公開・リポジトリテンプレート。<span class="tag t-ai">配布形態なし</span></td><td>MIT・Claude Code plugin marketplace</td></tr>
+        <tr><td>対象ホスト</td><td class="mono">Claude Code のみ</td><td class="mono">Claude Code / Codex CLI / Cursor / Grok（<code>supported</code>）ほか 5 host（<code>candidate</code> 以下）</td></tr>
+        <tr><td>総ファイル数</td><td class="num">約 90（ハーネス本体 3 ディレクトリ）</td><td class="num">552（配布 zip は 642 エントリ）</td></tr>
+        <tr><td>総行数（md/py/json/yml/sh/js）</td><td class="num">12,398</td><td class="num">87,547</td></tr>
+        <tr><td>強制エンジン</td><td>Python 3 標準ライブラリのみ・依存ゼロ。<span class="num">hooks 2,189 行</span>＋<span class="num">scripts 3,141 行</span></td><td>Go 製単一バイナリ（約 13 MB × 4 プラットフォーム）</td></tr>
+        <tr><td>自己テスト</td><td class="num">pytest 17 ファイル / 3,819 行（CI ジョブ <code>harness-selftest</code> に配線）</td><td><span class="tag t-ai">配布物にテストディレクトリ非同梱</span>（検証スクリプトはリポジトリ側に存在）</td></tr>
+        <tr><td>subagent</td><td class="num">5</td><td class="num">4</td></tr>
+        <tr><td>skill</td><td class="num">4</td><td class="num">23</td></tr>
+        <tr><td>スクリプト</td><td class="num">16（Python）</td><td class="num">155（sh / js / py）</td></tr>
+        <tr><td>ドキュメント</td><td class="num">規約 36 KB ＋ ガイド 83 KB ＋ ドッグフーディング記録 141 KB</td><td class="num">docs 143 ファイル ＋ CHANGELOG 538 KB</td></tr>
+        <tr><td>git 履歴</td><td class="num">1 コミット（スカッシュ済みテンプレート）</td><td class="num">CHANGELOG に v5.11.0 まで連続した版履歴</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn">
+    ※ apparness の総行数はハーネス本体 3 ディレクトリのみ。ルート直下のガイドとドッグフーディング記録は未計上。
+  </p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 2</div>
+    <h2>問題設定の違い — 同一土俵ではない</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      優劣を論じる前に、両者が守ろうとしている対象が異なることを確定させる。
+      これを混同すると「apparness には削除ガードが無い」「CCH には要件トレーサビリティが無い」という指摘が、
+      どちらも「設計上の欠落」なのか「範囲外」なのか判定できなくなる。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:20%">観点</th><th>apparness</th><th>claude-code-harness</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>解こうとしている問題</b></td>
+          <td>「AI にアプリを 0 から作らせると、コンテキスト肥大で精度が落ち、約束事項が守られない」</td>
+          <td>「AI に実装を任せると、計画が会話に埋もれ、テストが後回しになり、レビューが後追いになり、リリース根拠が記憶頼りになる」</td>
+        </tr>
+        <tr>
+          <td><b>作業の起点</b></td>
+          <td>空のリポジトリ → <code>init-app</code> → 要件定義から生成</td>
+          <td>既存リポジトリ → <code>/harness-plan</code> → タスク台帳に作業を積む</td>
+        </tr>
+        <tr>
+          <td><b>単位</b></td>
+          <td>アプリ → 独立機能（1 機能 = 1 契約 = 1 git worktree）</td>
+          <td>タスク（台帳の 1 行）</td>
+        </tr>
+        <tr>
+          <td><b>守っている対象</b></td>
+          <td><b>工程の整合性。</b>要件 → 設計 → 契約 → 実装 → 統合という上下関係が壊れないこと</td>
+          <td><b>マシンとリポジトリの安全、および出荷判断の根拠。</b>危険操作が実行されないこと、証跡が揃わないまま出荷されないこと</td>
+        </tr>
+        <tr>
+          <td><b>並行実行モデル</b></td>
+          <td>機能ごとに git worktree を切り、<b>別セッション</b>が担当。Hook が担当外への書き込みを拒否</td>
+          <td>Lead / Worker / Reviewer の三者分離を<b>同一セッション内の subagent</b> で構成（Breezing）</td>
+        </tr>
+        <tr>
+          <td><b>ゴール</b></td>
+          <td>全機能 <code>INTEGRATED</code>。アプリが 1 本完成する</td>
+          <td>タグとリリースノートが、検証済み証跡だけから生成される</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <h3>帰結</h3>
+    <p>
+      apparness の Hook 11 ルールのうち<b>危険操作を防ぐものは 0 件</b>である。
+      これは設計範囲の外だが、<b>実運用上は明確な穴</b>になる（§3.3）。
+      逆に CCH には「要件 ID → 機能 → テスト ID → JUnit XML」という縦の突合が配布物に存在しない。
+      これも欠陥ではなく、CCH が要件定義フェーズを持たないためである。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 3</div>
+    <h2>強制レイヤの比較 — 決定論の実効性</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      本報告書の中核。両者とも「AI の自己申告に依存しない」ことを標榜するが、
+      <b>何を機械が読んで判定しているか</b>の粒度が根本的に異なる。
+    </p>
+  </div>
+
+  <h3 style="margin-top:8px">3.1 apparness — 内容検証型ゲート（Rule 1–11）</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:5%">#</th><th style="width:20%">ルール</th><th>判定対象と条件</th><th style="width:16%">種別</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">1</td><td>ハーネス非侵襲性</td><td>ハーネス本体 3 ディレクトリへの書き込みを、ブランチが専用接頭辞でない限り拒否</td><td><span class="tag t-det">パス</span></td></tr>
+        <tr><td class="mono">2</td><td>担当外ガード</td><td>worktree ルートの basename ≠ <code>feature-id</code> なら当該機能ディレクトリへの書き込みを拒否</td><td><span class="tag t-det">パス</span></td></tr>
+        <tr><td class="mono">3</td><td>契約凍結</td><td><code>contract.yaml</code> は対応する状態が <code>CONTRACT_DRAFTED</code> を超えたら書き込み拒否。凍結後は <code>open_issues[]</code> への追記のみ許可</td><td><span class="tag t-det">内容</span></td></tr>
+        <tr><td class="mono">4</td><td>進捗自動再生成</td><td>状態ファイル更新時に進捗レンダラを起動（非ブロッキング）</td><td><span class="tag t-det">副作用</span></td></tr>
+        <tr><td class="mono">5</td><td>必須 Skill 充足</td><td>実装ソースへの書き込みを、共有カーネルの <code>required_skills[].plugin_ref</code> が <code>enabledPlugins</code> に無ければ拒否</td><td><span class="tag t-det">内容</span></td></tr>
+        <tr><td class="mono">6</td><td>上位文書ガード</td><td>feature worktree からの要件・共有基盤・設計への書き込みを常に拒否</td><td><span class="tag t-det">パス</span></td></tr>
+        <tr><td class="mono">7</td><td>要件↔設計整合</td><td>設計を <code>APPROVED</code> にする書き込みを、<code>based_on_requirements_version</code> ≠ 要件の現 <code>version</code> なら拒否</td><td><span class="tag t-det">内容</span></td></tr>
+        <tr><td class="mono">8</td><td>節目コミット強制</td><td>応答終了時に状態・要件・設計へ未コミット変更があれば停止を拒否</td><td><span class="tag t-det">git 状態</span></td></tr>
+        <tr><td class="mono">9</td><td>状態遷移妥当性</td><td>書き込み前後の <code>state</code> を比較。後退・飛び越し・終端からの変更を拒否。<code>BLOCKED</code> 経由の抜け穴は <code>state_history[]</code> を遡って封鎖</td><td><span class="tag t-det">内容</span></td></tr>
+        <tr><td class="mono">10</td><td><b>検証受領書ゲート</b></td><td><code>TESTED</code> への遷移を、受領書が存在し・宣言された全コマンドが <code>exit_code: 0</code> であり・受領書の <code>commit</code> が現 HEAD と一致する場合のみ許可。<b>受領書自体の Edit/Write は常時拒否</b></td><td><span class="tag t-det">実行結果</span></td></tr>
+        <tr><td class="mono">11</td><td><b>統合受領書ゲート</b></td><td><code>INTEGRATED</code> への遷移を、<code>interfaces[]</code> の全エッジを覆う <code>interface_coverage[]</code> と有効な受領書がある場合のみ許可</td><td><span class="tag t-det">実行結果</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="tag t-det">決定論</span> 受領書の HEAD 束縛</h3>
+      <p>
+        Rule 10 の本質は <code>exit_code: 0</code> ではなく <b><code>commit == HEAD</code> の一致条件</b>にある。
+        これが無ければ「一度通したテスト結果を、実装を書き換えた後も使い回す」ことができてしまう。
+        CI 側は HEAD が先行しているため、<b>受領書の commit が HEAD の祖先であり、
+        かつそのコミット以降に機能ディレクトリが未変更</b>という等価条件で再検証する。
+      </p>
+      <p class="where">CI 項目 I / 検証ランナーが生成、Hook が改変を拒否</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">決定論</span> Bash 間接書き込みの二段検知</h3>
+      <p>
+        インプレース編集・コピー・リダイレクト等による迂回に対し、<b>静的検知</b>で未然にブロックし、
+        取りこぼしを<b>事後検証</b>が実行前後の<b>内容ハッシュ</b>比較で捕捉して実行直前の内容へ巻き戻す。
+        <b>この検知に解除用の環境変数は意図的に用意されていない</b>——AI 自身が解除できれば決定論的強制の目的が崩れるため。
+      </p>
+      <p class="where">PreToolUse 静的検知 ＋ PostToolUse 事後検証</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">決定論</span> worktree スコープの読み替え</h3>
+      <p>
+        worktree を通るパスは当該 worktree 基準に読み替えてから Rule に掛ける。
+        読み替えを欠くと機能ディレクトリにアンカーされた Rule 1・2・3・5・9・10 が<b>まとめて素通り</b>する。
+        これは実装上の理屈ではなく<b>ドッグフーディングで実証された実害</b>である
+        （F-029/F-030: メインセッションから受領書なしで <code>state: TESTED</code> を書き込めていた）。
+      </p>
+      <p class="where">ドッグフーディング記録 F-029 / F-030、ガイド §5</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-det">決定論</span> CI によるサーバーサイド再検証</h3>
+      <p>
+        Hook はローカルの Claude Code プロセス内でしか効かない。apparness は同じ判定を
+        GitHub Actions 上で項目 A–O として再実行する（3 ジョブ: セルフテスト・規約チェック・脆弱性スキャン）。
+        脆弱性スキャナはバージョン固定＋SHA-256 検証で導入される。
+      </p>
+      <p class="where">CI ワークフロー 3 ジョブ / 規約チェッカ 756 行</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px">3.2 claude-code-harness — 危険操作ポリシー型ガードレール</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:22%">層</th><th>内容</th><th style="width:20%">迂回可能性</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>実行時フロア</b>（5 分類）</td>
+          <td>課金 / 外部送信 / 秘密ファイル読み取り / 本番反映 / 作業ツリー外の破壊。設定・環境変数・権限モードから到達できない独立経路に配置</td>
+          <td><span class="tag t-det">設定からは不可</span></td>
+        </tr>
+        <tr>
+          <td><b>ガードレール R01–R15</b></td>
+          <td>保護ブランチへの直接 push、保護ファイル書き込み、force push、履歴巻き戻し、検証スキップ、再帰削除など。判定は deny / ask / warn の 3 段</td>
+          <td><span class="tag t-ops">一部プロジェクト設定で変更可</span></td>
+        </tr>
+        <tr>
+          <td><b>宣言的 permissions</b></td>
+          <td>設定 TOML の <code>allow</code> / <code>ask</code> / <code>deny</code> 配列。環境変数ファイル・秘密鍵・SSH 鍵・クラウド認証情報の読み取りを deny</td>
+          <td>TOML 編集で変更可（ただし settings 自体の Write/Edit は deny）</td>
+        </tr>
+        <tr>
+          <td><b>egress denylist</b></td>
+          <td>クラウドメタデータ 3 エンドポイント ＋ paste 系ファイル共有 6 サイト</td>
+          <td>同期コマンド経由でのみ変更</td>
+        </tr>
+        <tr>
+          <td><b>自己改変防止</b></td>
+          <td>ルール定義・deny ベースライン・settings ファイル・自己監査ポリシーを「人間のみ編集可」の階級として固定</td>
+          <td><span class="tag t-det">AI 経路からは不可</span></td>
+        </tr>
+        <tr>
+          <td><b>kill switch</b></td>
+          <td>ホームディレクトリ配下の停止ファイルの存在で、LLM の判断より前に全ツール使用を deny</td>
+          <td><span class="tag t-det">LLM 判断より前段</span></td>
+        </tr>
+        <tr>
+          <td><b>PreToolUse agent hook</b></td>
+          <td>編集系ツールに対し Haiku を同期呼び出しし、ハードコードされた秘密・未実装 TODO・注入系脆弱性を検出して deny</td>
+          <td><span class="tag t-ai">LLM 判定のため非決定的</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:24px">3.3 直交する強み — どちらの穴も実害がある</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:34%">脅威</th><th style="width:23%">apparness</th><th style="width:23%">CCH</th><th style="width:20%">判定</th></tr></thead>
+      <tbody>
+        <tr><td>AI が「テストを通した」と嘘をつく</td><td><span class="tag t-det">Rule 10 が実行結果と HEAD で遮断</span></td><td><span class="tag t-ai">self_review は自己申告。TDD 強制は既定 off</span></td><td><span class="win win-a">apparness</span></td></tr>
+        <tr><td>要件が変わったのに設計が追従していない</td><td><span class="tag t-det">Rule 7 が承認を拒否</span></td><td><span class="tag t-ops">SSOT 順序は文書規範</span></td><td><span class="win win-a">apparness</span></td></tr>
+        <tr><td>並行実装した機能どうしの I/O が食い違う</td><td><span class="tag t-det">JSON Schema 突合（項目 J）＋ Rule 11</span></td><td>—（機能分割の概念なし）</td><td><span class="win win-a">apparness</span></td></tr>
+        <tr><td>MUST 要件の実装漏れ・テスト漏れ</td><td><span class="tag t-det">FR→機能→受入基準→JUnit test id を突合（項目 K）</span></td><td><span class="tag t-ops">RTM は spec の invariant として宣言。配布物に実装なし</span></td><td><span class="win win-a">apparness</span></td></tr>
+        <tr><td><b>再帰削除でリポジトリ外を破壊</b></td><td><span class="tag t-ai">検知なし。完全に素通り</span></td><td><span class="tag t-det">R05 ＋ 実行時フロア（作業ツリー外）</span></td><td><span class="win win-b">CCH</span></td></tr>
+        <tr><td><b>環境変数ファイル・秘密鍵の読み取りと外部送信</b></td><td><span class="tag t-ai">検知なし</span></td><td><span class="tag t-det">deny リスト ＋ 秘密読み取りフロア ＋ egress denylist</span></td><td><span class="win win-b">CCH</span></td></tr>
+        <tr><td><b>force push / 履歴巻き戻し</b></td><td><span class="tag t-ai">検知なし</span></td><td><span class="tag t-det">R06 ほかで deny / ask</span></td><td><span class="win win-b">CCH</span></td></tr>
+        <tr><td>AI が自分を縛る設定ファイルを書き換える</td><td><span class="tag t-det">Rule 1（ただし環境変数で解除可）</span></td><td><span class="tag t-det">constitution 階級として人間のみ。解除経路なし</span></td><td><span class="win win-b">CCH</span></td></tr>
+        <tr><td>Hook 自体が起動しない・落ちる</td><td><span class="tag t-ai">python3 不在・例外時は全ルールが黙って無効化</span></td><td><span class="tag t-ai">shim がバイナリ不在時に exit 0・空 stdout で fail-open</span></td><td><span class="win win-d">両者とも fail-open</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <h3>共通の構造的弱点: 起動失敗時の fail-open</h3>
+    <p>
+      CCH の起動 shim は、対象プラットフォームのバイナリが見つからないとき
+      <b>stderr に診断を出して exit 0・stdout 空</b>で終了する（Claude Code はこれを「判断なし＝通過」と解釈する）。
+      hooks 定義側も plugin root を特定できない場合は skip して exit 0 する。
+      これは UX 上の意図的な選択だが、<b>「外せない実行時フロア」という主張はバイナリが実在し実行可能であることを前提にしている</b>。
+      apparness も <code>python3</code> が PATH に無ければ同じ状態になる。
+      <b>いずれのハーネスも、強制レイヤの健全性を起動時に自己診断する仕組みを持たない点で同じ穴を持つ。</b>
+    </p>
+  </div>
+
+  <div class="callout">
+    <h3>本調査中に観測した apparness の誤検知（実データ）</h3>
+    <p>
+      本報告書を生成する過程で、リポジトリルート直下の HTML ファイルを heredoc 経由で書き出そうとしたところ、
+      apparness の PreToolUse ガードが<b>ハーネス本体への書き込みとして拒否</b>した。
+      原因は、静的検知がヒアドキュメントの本文とコマンド引数を区別せず、
+      <b>HTML の本文中に現れたハーネス配下のパス文字列</b>を書き込み対象候補として抽出したためである。
+      規約 §7 は「誤検知を見つけたら検知ロジック自体を修正する」と定めており、
+      これは<b>その手順に載せるべき実測サンプル</b>にあたる（改修方針 P1-3 に反映）。
+      なお安全側への誤りであり、構造化ツール（Write）に切り替えることで正しく書き込めた点は、
+      規約が意図した回避経路どおりに動いている。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 4</div>
+    <h2>監査可能性とサプライチェーン</h2>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="tag t-a">A</span> apparness — 全文可読・依存ゼロ</h3>
+      <ul class="tight">
+        <li>強制ロジックは Python 標準ライブラリのみ（hooks 2,189 行）。第三者が全文を読める</li>
+        <li>スクリプト群は PyYAML / jsonschema のみに依存</li>
+        <li>判定ロジックに対する pytest 3,819 行が同梱され、CI で実行される</li>
+        <li>脆弱性スキャナをバージョン固定＋SHA-256 検証で導入（サプライチェーン規律あり）</li>
+      </ul>
+      <p class="where">実測: Python ソース総行数 5,330 行</p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-b">B</span> CCH — バイナリ配布・ソース不同梱</h3>
+      <ul class="tight">
+        <li>配布 zip（642 エントリ）に <b>Go ソースツリーのエントリが 0 件</b>。<code>go.work</code> は当該ディレクトリの使用を宣言するが実体が存在しない</li>
+        <li>ガードレール判定は 13 MB の Go バイナリ 4 本のみ。<b>ソースからの再現ビルドが利用者側で不可能</b></li>
+        <li><code>scorecard.yml</code> は <code>binary-artifacts</code> チェックを <code>remediated</code> と注記（「リリースビルドとバイナリメタデータは別途検証」）</li>
+        <li>配布物にテストが無く、導入後の自己検証手段が <code>doctor</code> サブコマンドに限られる</li>
+        <li>README は「記述が機械で検査されている」と主張するが、その検査自体も配布物には含まれない</li>
+      </ul>
+      <p class="where">実測: 配布 zip 内の Go ソースエントリ数 = 0</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>評価</h3>
+    <p>
+      <b>監査可能性は apparness が明確に優る。</b>
+      「AI に自分を縛らせる」システムでは、縛る側のコードが読めることの価値は大きい。
+      ただしこれは配布形態の差でもあり、CCH の GitHub リポジトリ本体には Go ソースが存在する可能性が高い
+      （<code>.gitignore</code> はビルド成果物とチェックサムのみを除外しており、ソースツリー自体は除外していない）。
+      <b>本報告書が判定できるのは「手元の配布物では検証不能」という事実までである</b>——
+      これは CCH 自身の <code>not_observed != absent</code> 原則に従った記述である。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 5</div>
+    <h2>トレーサビリティと検証証跡</h2>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:26%">突合の鎖</th><th style="width:37%">apparness</th><th style="width:37%">CCH</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>要件 → 機能</td>
+          <td><code>functional_requirements[].id</code>（書式をスキーマで固定）↔ <code>features[].covers_requirements</code>。<b>必須フィールド</b>。項目 K が MUST 要件の取りこぼしと存在しない ID 参照を検出</td>
+          <td>要件定義フェーズを持たない。タスク台帳の行が最上位</td>
+        </tr>
+        <tr>
+          <td>機能 → テスト</td>
+          <td>契約の <code>test_strategy.coverage[]</code>（<code>requirement</code> / <code>acceptance_criterion</code> / <code>test_ids</code>）</td>
+          <td>Worker の <code>self_review</code> における <code>dod-items-verified-with-evidence</code>。<b>evidence 文字列はエージェントが記述</b></td>
+        </tr>
+        <tr>
+          <td>テスト → 実行結果</td>
+          <td>検証ランナーが JUnit XML のテストケースと <code>test_ids</code> を突合し、受領書に <code>missing</code> / <code>failed</code> を記録。<b>Rule 10 がこれを見て <code>TESTED</code> を拒否</b></td>
+          <td><code>[tdd.enforce] enabled = false</code>（配布既定）。<code>level = "off"</code>、<code>hook_enabled = false</code></td>
+        </tr>
+        <tr>
+          <td>機能間 I/F</td>
+          <td><code>interfaces[]</code> の両端 JSON Schema を突合（型一致・必須項目の包含関係・enum 包含）。スタック非依存</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>統合 → 実行結果</td>
+          <td>統合記録の <code>interface_coverage[]</code> が全エッジを覆い、統合検証ランナーの受領書が有効な場合のみ <code>INTEGRATED</code>（Rule 11・項目 N）</td>
+          <td>リリーススキルのリリース前検査。証跡パックを生成</td>
+        </tr>
+        <tr>
+          <td>空振り検出</td>
+          <td>JUnit XML の <code>tests="0"</code>・失敗・スキップ率（既定上限 0.2）を言語非依存に機械判定</td>
+          <td><code>test-wiring-auditor</code> agent（LLM 判定）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <h3>CCH の <code>self_review</code> の構造的限界</h3>
+    <p>
+      CCH は Worker に 6 つの自己検証ルール（DRY 違反ゼロ・宣言シンボルの呼び出し経路・既存テスト回帰なし等）を課し、
+      <code>{rule, verified: true, evidence: "&lt;実コマンド出力&gt;"}</code> の形で返させる。
+      Lead は <code>verified=false</code> または <code>evidence=""</code> があれば自動差し戻す。
+      これは<b>形式としては優れている</b>が、<code>verified</code> も <code>evidence</code> も<b>エージェント自身が書く文字列</b>であり、
+      Lead がそれを実行して再現するわけではない。
+      apparness の受領書は検証ランナーが実際にサブプロセスを起動して終了コードを記録したものであり、
+      <b>AI がその内容を Edit/Write で書き換えようとすると Rule 10 が常時拒否する</b>。
+      「証拠を語る」と「証拠を作らせない」の差である。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 6</div>
+    <h2>コンテキスト統制 — apparness 固有の強み、かつ現在の限界</h2>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:12%">CI 項目</th><th style="width:34%">何を強制するか</th><th>現在の実測値</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">L</td>
+          <td>常時読み込まれるコンテキストの総量に上限を課す</td>
+          <td>
+            <dl class="kv">
+              <dt>規約本体</dt><dd class="num"><b>35,891</b> / 36,000 バイト（残 <b>109</b> B・使用率 99.7%）</dd>
+              <dt>feature-builder</dt><dd class="num"><b>11,981</b> / 12,000 バイト（残 <b>19</b> B・使用率 99.8%）</dd>
+              <dt>solution-architect</dt><dd class="num">11,352 / 12,000（節 6,9,10,11,12,13,14 を読み込み）</dd>
+              <dt>integrator</dt><dd class="num">8,224 / 12,000</dd>
+              <dt>gate-reviewer</dt><dd class="num">4,907 / 12,000</dd>
+              <dt>requirements-analyst</dt><dd class="num">4,164 / 12,000</dd>
+            </dl>
+          </td>
+        </tr>
+        <tr><td class="mono">M</td><td>規約本体と agent / skill プロンプトの間にほぼ同一の段落があれば不合格（二重管理＝drift の検出）</td><td>実例 F-048 から導入</td></tr>
+        <tr><td class="mono">O</td><td>規約本体は 15 節で凍結。<b>16 節以降の新設を拒否</b></td><td>2026-08-23 より凍結中</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="verdict">
+      <div class="v-lbl">評価: 強み</div>
+      <strong>この 3 項目は CCH に存在しない、apparness の最も独創的な装置である。</strong>
+      <p class="muted" style="font-size:14px">
+        AI ハーネスの最大の失敗様式は<b>規範文書の肥大による自壊</b>である。
+        CCH は 87,547 行・docs 143 ファイル・CHANGELOG 538 KB・skill 23 個・スクリプト 155 本に達しており、
+        <code>docs/cognitive-load-surfaces.md</code> や <code>docs/claude-md-structure-audit.md</code> という
+        <b>認知負荷を扱う文書自体が存在する</b>ことが、この問題を抱えていることの証左になっている。
+        apparness は同じ問題を<b>CI で機械的に押さえている</b>。
+      </p>
+    </div>
+    <div class="verdict">
+      <div class="v-lbl">評価: 現在の限界</div>
+      <strong>apparness は自らの予算上限に接触しており、規範文書を実質 1 行も追加できない状態にある。</strong>
+      <p class="muted" style="font-size:14px">
+        規約本体の残余は <b>109 バイト</b>、<code>feature-builder</code> は <b>19 バイト</b>。
+        さらに項目 O が新節の追加を拒否する。
+        <b>つまり「Rule を 1 本足す」という最も自然な改修が、現状では CI 落ちを引き起こす。</b>
+        改修に先立って<b>説明文のガイドへの移設による予算の再配分が必須</b>であり、
+        これは技術的負債ではなく<b>設計どおりに機能している制約</b>だが、次の改修サイクルの最初の作業項目になる。
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 7</div>
+    <h2>運用成熟度・配布・エコシステム（CCH 優位領域）</h2>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:22%">領域</th><th style="width:39%">CCH</th><th style="width:39%">apparness</th></tr></thead>
+      <tbody>
+        <tr><td>導入</td><td>marketplace 追加 → install → セットアップの 3 コマンド</td><td>リポジトリを丸ごと使う。配布形態・バージョン・CHANGELOG のいずれも無い</td></tr>
+        <tr><td>実行性能</td><td>Go 単一バイナリ。ツール呼び出しごとのプロセス起動が軽い</td><td>Python プロセスを毎回起動（timeout 5s / 10s / 15s）。編集系・Bash 全件に発火</td></tr>
+        <tr><td>マルチホスト</td><td>Claude Code / Codex CLI / Cursor / Grok が <code>supported</code>。共通の hook floor に集約</td><td>Claude Code 専用。内容比較に依存する Rule は Bash-only hook のホストでは原理的に成立しない</td></tr>
+        <tr><td>非エンジニア向け UI</td><td>計画概要 / 進捗 / 受け入れ の HTML 3 面を専用 skill が生成</td><td>進捗ダッシュボード（Markdown）のみ。自動生成・手書き禁止という規律は同等</td></tr>
+        <tr><td>リリース自動化</td><td>版判定・CHANGELOG・タグ・GitHub Release まで一括。リリース前検査で fail-closed</td><td>—</td></tr>
+        <tr><td>記憶</td><td>プロジェクト単位の記憶とセッション横断の想起（別リポジトリの companion）</td><td>—（状態ファイルと進捗ダッシュボードによる中断・再開性はある）</td></tr>
+        <tr><td>失敗の資産化</td><td><code>failure-codifier</code> skill がログから再発パターンを抽出し規則案を生成</td><td>ドッグフーディング記録に人手で 77 件を蓄積。仕組み化はされていない</td></tr>
+        <tr><td>レビュー</td><td>多角レビュー（dual / team-debate / blind-judge）、cross-family review を契約として要求</td><td><code>gate-reviewer</code> 1 種。判断基準を rubric のみに固定し、<b>verdict を深刻度の集計から機械的に決定</b>。レビューアに Write/Edit を与えない</td></tr>
+        <tr><td>i18n</td><td>英日 2 言語。skill frontmatter に併記</td><td>日本語のみ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <h3>apparness の <code>gate-reviewer</code> の設計は CCH より厳密</h3>
+    <p>
+      CCH のレビューは多角的だが、最終 verdict は LLM の判断である。
+      apparness は <b>Blocker が 1 件以上なら NO-GO、0 件なら GO</b> と<b>集計から機械的に決定</b>し、
+      1 ラウンド最大 5 件・3 ラウンド NO-GO で人間へエスカレーション、
+      レビューアに <code>Write</code> / <code>Edit</code> を与えない（直すのは実装者の責務）と定めている。
+      さらに rubric 外の指摘を無効とすることでレビューの発散を防いでいる。
+      規模は小さいが、<b>LLM 判断を機械的な集計規則で包む</b>という設計は CCH の invariant 1
+      （「決定論的検査が拘束力を持ち、LLM の意味論レビューは助言のみ」）を、より小さいコードで実現している。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 8</div>
+    <h2>認識論的規律 — CCH から学ぶべき最大の資産</h2>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3><code>not_observed != absent</code></h3>
+      <p>「観測していないこと」を「無いこと」と結論しない。手元に証拠が無いのは「ここでは証明できていない」という意味であり、不可能でも対応済みでもない。<b>ホスト対応表・機能表のすべての行にこの原則が適用されている。</b></p>
+    </div>
+    <div class="card">
+      <h3>False Parity Rule</h3>
+      <p>同じ capability 名でも enforcement 強度はホストごとに違う。「Cursor は deny できるが FS jail は無い」「Codex の hook は Bash のみ」を<b>表の中で明示する</b>。強みを均して見せることを禁止している。</p>
+    </div>
+    <div class="card">
+      <h3>claims-audit</h3>
+      <p>公開向けの主張を「いま証明済みか / 追加証跡が必要か」で分類する監査表。README を更新するときは先にこの表を見直す。<b>自社の目玉機能を "Not yet safe to claim strongly" と自己格下げしている行がある。</b></p>
+    </div>
+    <div class="card">
+      <h3>known-limitations</h3>
+      <p>Harness の制御外に根本原因がある問題を、症状 / 根本原因 / 適用中の緩和策 / 再検討の条件の 4 点セットで記録。<b>モデル側の safeguard がレビューを中断させる問題まで書いてある。</b></p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>apparness 側の対応物</h3>
+    <p>
+      apparness はガイド §7 に「決定論 vs AI 判断 対照表」を、§11 に「既知の制約」を持っており、思想としては同型である。
+      さらにドッグフーディング記録は 77 件の摩擦点を深刻度つきで記録し、
+      <b>「決定論的強制の中核が空振りしていた」（F-029/F-030）という自分にとって最も不利な事実を第一級の記録として残している</b>。
+      これは claims-audit と同じ規律である。
+      不足しているのは<b>「対照表の各行が今も本当に効いていることの継続的な証跡」</b>——
+      Rule ごとの「実際にブロックすることを実証するテスト」への紐付けが体系化されていない点である。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 9</div>
+    <h2>実証状況</h2>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:22%">項目</th><th>apparness</th><th>CCH</th></tr></thead>
+      <tbody>
+        <tr><td>実運用実績</td><td>3 アプリを <code>INTEGRATED</code> まで完走（2026-08-23 時点）</td><td>自己ホスティング（CCH 自身の開発に CCH を使用）。公開リリース v5.11.0 まで継続</td></tr>
+        <tr><td>摩擦点の記録</td><td>F-001〜F-067、F-073〜F-082（計 77 件）。深刻度 最高 / 高 / 中 / 低 で分類し改修状況を追跡</td><td>CHANGELOG 538 KB、計画ディレクトリ、証跡ディレクトリ、Judgment Ledger</td></tr>
+        <tr><td>最重要の発見</td><td>F-029/F-030: worktree 経由でパススコープが読み替えられず、Rule 1・2・3・5・9・10 が同時に素通り。<b>静的検知と事後検証の二段構えがどちらもこの経路で機能していなかった</b></td><td>Phase 111: マルチホストの安全性が均一でないことを認め、公開の tier 表記を Claude のみ「正式対応」に絞った</td></tr>
+        <tr><td>実証の残課題</td><td>ドッグフーディング成果物（生成アプリ）が本スナップショットに存在せず、git 履歴も 1 コミットに潰れている。<b>第三者が完走を追検証できない</b></td><td>配布物にテストが無く Go ソースも同梱されないため、<b>導入者が主張を追検証できない</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 10</div>
+    <h2>総合評価マトリクス</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      5 段階（1 = 不在 / 5 = 同種のツール群の中で先端）。数値は本報告書の判定であり、各行の根拠は上記の該当節に対応する。
+    </p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:26%">評価軸</th><th style="width:19%">apparness</th><th style="width:19%">CCH</th><th>コメント</th></tr></thead>
+      <tbody>
+        <tr><td>決定論的強制の深さ（内容検証）</td><td><span class="bar" style="width:90px"></span> <b>5</b></td><td><span class="bar b-alt" style="width:36px"></span> <b>2</b></td><td>受領書の HEAD 束縛は同カテゴリで最も厳密な部類</td></tr>
+        <tr><td>危険操作の遮断</td><td><span class="bar" style="width:18px"></span> <b>1</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>apparness は該当ルールが 0 件</td></tr>
+        <tr><td>トレーサビリティ</td><td><span class="bar" style="width:90px"></span> <b>5</b></td><td><span class="bar b-alt" style="width:36px"></span> <b>2</b></td><td>要件→機能→受入基準→JUnit の縦の鎖</td></tr>
+        <tr><td>監査可能性</td><td><span class="bar" style="width:90px"></span> <b>5</b></td><td><span class="bar b-alt" style="width:36px"></span> <b>2</b></td><td>配布物にソース・テストが無いことによる減点</td></tr>
+        <tr><td>コンテキスト統制</td><td><span class="bar" style="width:72px"></span> <b>4</b></td><td><span class="bar b-alt" style="width:36px"></span> <b>2</b></td><td>apparness は装置は先進的だが上限に接触中</td></tr>
+        <tr><td>適用範囲の広さ</td><td><span class="bar" style="width:18px"></span> <b>1</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>既存リポジトリでの日常作業に使えない</td></tr>
+        <tr><td>配布・導入容易性</td><td><span class="bar" style="width:18px"></span> <b>1</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>plugin marketplace 対応の差</td></tr>
+        <tr><td>マルチホスト</td><td><span class="bar" style="width:18px"></span> <b>1</b></td><td><span class="bar b-alt" style="width:72px"></span> <b>4</b></td><td>CCH 自身が parity 不成立を明示している分の減点</td></tr>
+        <tr><td>非エンジニア向け可視化</td><td><span class="bar" style="width:36px"></span> <b>2</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>HTML 3 面 vs Markdown 1 面</td></tr>
+        <tr><td>運用成熟度（版管理・履歴・リリース）</td><td><span class="bar" style="width:18px"></span> <b>1</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>apparness は VERSION も CHANGELOG も無い</td></tr>
+        <tr><td>認識論的規律（主張と証拠の分離）</td><td><span class="bar" style="width:72px"></span> <b>4</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>両者とも高水準。CCH は仕組み化まで到達</td></tr>
+        <tr><td>実行性能</td><td><span class="bar" style="width:54px"></span> <b>3</b></td><td><span class="bar b-alt" style="width:90px"></span> <b>5</b></td><td>Python プロセス起動 vs Go バイナリ</td></tr>
+        <tr style="border-top:2px solid var(--line-strong)"><td><b>単純合計</b></td><td><b class="num">33 / 60</b></td><td><b class="num">47 / 60</b></td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn">
+    ※ 単純合計は参考値にすぎない。適用範囲・配布・マルチホストの 3 軸は「apparness が意図的に選ばなかった範囲」であり、
+    同一の要求仕様に対する減点ではない。<b>同一の要求（グリーンフィールドのアプリ生成を工程として強制する）に絞れば、CCH では代替できない。</b>
+  </p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">§ 11</div>
+    <h2>結論と適用指針</h2>
+  </div>
+
+  <div class="verdict">
+    <div class="v-lbl">問い: どちらが優れたハーネスか</div>
+    <strong>汎用の開発ハーネスとしては claude-code-harness が優れている。決定論的な工程強制の核としては apparness が優れている。両者は補完関係にある。</strong>
+    <ul class="tight" style="margin-top:6px">
+      <li><b>既存リポジトリでの日々の開発を安全に回したい</b> → CCH。apparness は原理的に使えない。</li>
+      <li><b>新規アプリを、要件から統合まで工程として強制しながら生成したい</b> → apparness。CCH には要件・設計・機能契約という上下関係の概念がない。</li>
+      <li><b>AI の「やりました」を信用しない仕組みが欲しい</b> → apparness の Rule 10 / 11 が現時点でより厳密。CCH の TDD 強制は配布既定で無効。</li>
+      <li><b>AI に危険な操作をさせたくない</b> → CCH。apparness には該当ルールが 1 件も存在しない。</li>
+    </ul>
+  </div>
+
+  <div class="callout warn">
+    <h3>apparness にとっての最大のリスクは「CCH に劣ること」ではない</h3>
+    <p>
+      apparness の差別化は<b>内容検証型ゲート</b>にあり、これは CCH が持っていない。
+      危険なのは、CCH に追いつこうとして機能数・スキル数・ドキュメント量で張り合い、
+      <b>項目 L / M / O という自らの防波堤を緩めてしまうこと</b>である。
+      CCH の 87,547 行・143 docs という規模は強みであると同時に、
+      認知負荷を扱う文書の存在が示すとおり、それ自体が管理対象の問題になっている。
+      apparness が取り込むべきは<b>CCH の機能ではなく、CCH が押さえている脅威</b>——
+      すなわち危険操作の遮断と、強制レイヤ自身の健全性検証である。
+    </p>
+    <p>
+      具体的な改修方針は、同時に生成した <code>docs/plans/IMPROVEMENT-PLAN.md</code>（人間向け）と
+      <code>docs/plans/IMPROVEMENT-PLAN.machine.yaml</code>（AI 向け）を参照。
+    </p>
+  </div>
+</section>
+
+<footer style="border-top:1px solid var(--line);padding-top:20px">
+  <p class="fn">
+    調査日 2026-08-24 / 対象: apparness harness v1（851f07a）、claude-code-harness v5.11.0（2026-08-22 スナップショット）。
+    数値はすべて対象ツリーおよび配布 zip に対する実測。CCH の GitHub リポジトリ本体は参照していないため、
+    配布物に含まれない要素については <code>not_observed != absent</code> の原則で記述している。
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

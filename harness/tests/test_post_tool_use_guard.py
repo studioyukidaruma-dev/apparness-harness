@@ -188,3 +188,70 @@ def test_unmodified_dirty_paths_keep_their_content_when_another_path_is_reverted
     result = cycle(repo, 'T=harness/CONVENTIONS.md; echo tampered >> "$T"')
     assert result.returncode == 2
     assert (repo / "work.txt").read_text(encoding="utf-8") == "in progress\n"
+
+
+# --------------------------------------------------------------------------------------
+# 事後検証は「内容比較で判定するファイル」を巻き戻してはならない
+#
+# `check_requires_simulatable_tool` は「結果を予測できない手段」で status.yaml 等を書くことを
+# 拒否する。しかし事後検証は **実際に何が変わったか** を見る経路であり、そこには
+# `run_verification.py` が書き込んだ受領書——実行の裏付けを伴う正規の書き込み——も含まれる。
+# ここで拒否側に倒すと、**受領書そのものが巻き戻されて TESTED へ永久に進めなくなる**。
+# `tool_name` が空のとき判定しない、という逃がしがそれを防いでいる。このテストがその見張り番。
+# --------------------------------------------------------------------------------------
+
+APP_ID = "demo"
+FEATURE_ID = "feat-a"
+STATUS_REL = f"apps/{APP_ID}/03-features/{FEATURE_ID}/status.yaml"
+
+WRITER_SCRIPT = f'''import pathlib
+p = pathlib.Path("{STATUS_REL}")
+p.write_text(p.read_text(encoding="utf-8") + "verification_receipt:\\n  commit: \\"deadbeef1234567\\"\\n",
+             encoding="utf-8")
+'''
+
+
+@pytest.fixture()
+def app_repo(tmp_path: pathlib.Path) -> pathlib.Path:
+    root = tmp_path / "repo"
+    (root / f"apps/{APP_ID}/03-features/{FEATURE_ID}").mkdir(parents=True)
+    (root / STATUS_REL).write_text(
+        f'feature_id: "{FEATURE_ID}"\napp_id: "{APP_ID}"\nstate: IMPLEMENTED\n', encoding="utf-8"
+    )
+    (root / "writer.py").write_text(WRITER_SCRIPT, encoding="utf-8")
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.email", "t@example.com"],
+        ["config", "user.name", "tester"],
+        ["add", "-A"],
+        ["commit", "-q", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
+    return root
+
+
+def test_a_harness_script_writing_the_receipt_is_not_reverted(app_repo: pathlib.Path) -> None:
+    """スクリプト経由で書かれた受領書が事後検証で巻き戻されないこと。
+
+    コマンド文字列に status.yaml のパスが現れないため静的検知には掛からない。
+    事後検証は変更を検出するが、正規の書き込み経路なので巻き戻してはいけない。
+    """
+    result = cycle(app_repo, "python3 writer.py")
+    assert result.returncode == 0, result.stderr
+    content = (app_repo / STATUS_REL).read_text(encoding="utf-8")
+    assert "verification_receipt" in content, "受領書が巻き戻された（TESTED へ進めなくなる）"
+
+
+def test_a_variable_expanded_write_to_status_yaml_is_still_reverted_when_out_of_scope(
+    app_repo: pathlib.Path,
+) -> None:
+    """一方で、担当範囲外への変数展開経由の書き込みは従来どおり巻き戻る（Rule 2）。"""
+    other = f"apps/{APP_ID}/03-features/other-feature"
+    (app_repo / other).mkdir(parents=True)
+    (app_repo / other / "src").mkdir()
+    (app_repo / other / "src" / "x.py").write_text("original\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=app_repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", "other"], cwd=app_repo, check=True, capture_output=True)
+    result = cycle(app_repo, f'T={other}/src/x.py; echo tampered >> "$T"')
+    assert result.returncode == 2
+    assert (app_repo / other / "src" / "x.py").read_text(encoding="utf-8") == "original\n"

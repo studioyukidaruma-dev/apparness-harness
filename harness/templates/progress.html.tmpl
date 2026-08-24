@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__APP_ID__ の状況</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --ink: #1b1b1f;
+  --muted: #5d5d68;
+  --line: #e2e2e8;
+  --ok: #1f7a4d;
+  --ok-bg: #e6f4ec;
+  --warn: #8a5a00;
+  --warn-bg: #fdf1dc;
+  --bad: #a32b2b;
+  --bad-bg: #fbe9e9;
+  --idle: #5d5d68;
+  --idle-bg: #ececed;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161a;
+    --panel: #1f1f25;
+    --ink: #ececf1;
+    --muted: #a0a0ad;
+    --line: #33333d;
+    --ok: #6cd3a0;
+    --ok-bg: #16332a;
+    --warn: #e3b45f;
+    --warn-bg: #352c17;
+    --bad: #f08a8a;
+    --bad-bg: #3a1f1f;
+    --idle: #a0a0ad;
+    --idle-bg: #2a2a31;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 2rem 1.25rem 4rem;
+  background: var(--bg); color: var(--ink);
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  line-height: 1.75; font-size: 16px;
+}
+.wrap { max-width: 60rem; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: .01em; }
+h2 { font-size: 1.15rem; margin: 2.5rem 0 .75rem; }
+.sub { color: var(--muted); margin: 0 0 2rem; font-size: .9rem; }
+.note {
+  background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--muted);
+  border-radius: .4rem; padding: .85rem 1rem; margin: 0 0 2rem; font-size: .9rem; color: var(--muted);
+}
+.cards { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; padding: 1rem 1.1rem;
+}
+.card .label { font-size: .78rem; color: var(--muted); margin-bottom: .3rem; }
+.card .value { font-size: 1.15rem; font-weight: 650; }
+.bar { height: .6rem; border-radius: 999px; background: var(--idle-bg); overflow: hidden; margin: .6rem 0 0; }
+.bar > span { display: block; height: 100%; background: var(--ok); }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+.tag {
+  display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+  font-size: .78rem; font-weight: 650; white-space: nowrap;
+}
+.tag-ok { color: var(--ok); background: var(--ok-bg); }
+.tag-warn { color: var(--warn); background: var(--warn-bg); }
+.tag-bad { color: var(--bad); background: var(--bad-bg); }
+.tag-idle { color: var(--idle); background: var(--idle-bg); }
+ul.plain { margin: 0; padding-left: 1.2rem; }
+ul.plain li { margin: .3rem 0; }
+.empty { color: var(--muted); font-size: .92rem; margin: 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>__APP_ID__ の状況</h1>
+<p class="sub">__GENERATED_AT__ 時点 / ハーネス __VERSION__</p>
+
+<div class="note">
+このページは <code>status.yaml</code> と <code>STATE.machine.yaml</code> の内容だけから
+機械的に生成しています。AI が文章を書いている箇所はありません。<br>
+最新の状態を見るには <code>python3 harness/scripts/render_progress.py --app __APP_ID__ --html</code>
+を実行してください。
+</div>
+
+<div class="cards">
+__SUMMARY_CARDS__
+</div>
+
+<h2>機能ごとの状況</h2>
+<div class="scroll">
+<table>
+<thead><tr>
+<th>機能</th><th>状態</th><th>検証（実行結果）</th><th>レビュー（記録）</th><th>ブロッカー</th><th>最終更新</th>
+</tr></thead>
+<tbody>
+__FEATURE_ROWS__
+</tbody>
+</table>
+</div>
+
+<h2>申し送り（未解決の open_issues）</h2>
+__OPEN_ISSUES__
+
+<footer>
+検証欄は <code>run_verification.py</code> が実際にコマンドを実行した記録（受領書）です。手書きできません。<br>
+レビュー欄は <code>gate-reviewer</code> の審査結果の<strong>記録</strong>であり、実行の裏付けは持ちません。<br>
+生成物: <code>apps/__APP_ID__/PROGRESS.html</code>（<code>.gitignore</code> 対象。判断の根拠は
+<code>status.yaml</code> 側にあります）
+</footer>
+</div>
+</body>
+</html>

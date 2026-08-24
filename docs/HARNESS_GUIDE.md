@@ -2,15 +2,19 @@
 
 このリポジトリ（`apparness`）に構築した「どんなアプリでも Claude Code 駆動で自動生成できるハーネス」の説明書です。思想、使い方、フェーズごとにどのエージェント・スキル・フックが動くか、それぞれが何を読み込むか、決定論的に強制される部分とAIの判断に委ねられる部分の境界、ブランチ運用とその制限をまとめています。
 
-作成日: 2026-08-20 / 更新日: 2026-08-21 / 対象バージョン: v1（`main` ブランチ時点）
+作成日: 2026-08-20 / 更新日: 2026-08-24 / 対象バージョン: v1（`VERSION` = 1.0.0 ＋ `CHANGELOG.md` の Unreleased）
 
 v0（要件定義〜組み上げの一気通貫、Hooks Rule 1〜7）に加え、v1 で以下を追加済み:
 フェーズ節目のコミット強制（Rule 8）・`status.yaml` 状態遷移の妥当性チェック（Rule 9、
 `BLOCKED` 経由の抜け穴も封鎖）・Bash 経由の間接書き込みの実ブロック化と**事後検証**・
 CI 連携（12節）・依存ライブラリの脆弱性スキャン（13節）・**検証コマンドの宣言 → 実行 → 受領書
 → Rule 10**（14節）・**契約と要件の機械検証**（15節）・**独立レビューア**（16節）・
-**スタックパック規約**（17節）・ハーネス自身の pytest（12節）。未着手の項目は `ROADMAP.md`
-「v1 で着手予定の項目」を参照。
+**スタックパック規約**（17節）・ハーネス自身の pytest（12節）・**統合の受領書ゲート（Rule 11）**・
+**危険操作フロア（Rule 12）**・**強制レイヤ自身の健全性の自己診断と fail-closed 化**（5節）・
+**主張と証跡の対応表 `harness/CLAIMS.md`**（CI 項目 P）・**`VERSION` / `CHANGELOG.md`**（CI 項目 Q）。
+
+未着手・保留中の項目は `docs/plans/IMPROVEMENT-PLAN.machine.yaml` の `tasks[]`（`status` 付き）と
+`docs/plans/REPAIR-ORDER.machine.yaml` を参照してください。既知の制約とその再検討条件は 11節にあります。
 
 ---
 
@@ -20,7 +24,7 @@ CI 連携（12節）・依存ライブラリの脆弱性スキャン（13節）�
 2. [全体像（ディレクトリマップ）](#2-全体像ディレクトリマップ)
 3. [ワークフロー全体図](#3-ワークフロー全体図)
 4. [フェーズ詳細](#4-フェーズ詳細)
-5. [Hooks が強制する10のルール（決定論レイヤー）](#5-hooks-が強制する10のルール決定論レイヤー)
+5. [Hooks が強制する12のルール（決定論レイヤー）](#5-hooks-が強制する12のルール決定論レイヤー)
 6. [コンテキスト消費マップ](#6-コンテキスト消費マップ)
 7. [決定論 vs AI判断 対照表](#7-決定論-vs-ai判断-対照表)
 8. [ブランチ・worktree 運用とその制限](#8-ブランチworktree-運用とその制限)
@@ -33,6 +37,7 @@ CI 連携（12節）・依存ライブラリの脆弱性スキャン（13節）�
 15. [契約の機械検証（interfaces 突合・要件トレーサビリティ）](#15-契約の機械検証interfaces-突合要件トレーサビリティ)
 16. [独立レビューア（gate-reviewer）](#16-独立レビューアgate-reviewer)
 17. [スタックパック（スタック固有の標準の外部化）](#17-スタックパックスタック固有の標準の外部化)
+18. [CONVENTIONS.md から移設した設計意図・背景](#18-conventionsmd-から移設した設計意図背景)
 
 ---
 
@@ -59,7 +64,7 @@ graph TB
     subgraph ROOT["リポジトリルート"]
         subgraph CLAUDE[".claude/  実効設定・全worktreeに自動複製"]
             SETTINGS["settings.json<br/>Hooks登録"]
-            AGENTS["agents/*.md<br/>4つのsubagent"]
+            AGENTS["agents/*.md<br/>5つのsubagent"]
             SKILLS["skills/*/SKILL.md<br/>4つのskill"]
         end
         subgraph HARNESS["harness/  ハーネス本体（書き込み保護対象）"]
@@ -70,6 +75,12 @@ graph TB
             SCHEMAS["schemas/<br/>JSON Schema"]
             SCRIPTS["scripts/<br/>決定論ロジック（ci_check.py・vuln_scan.py含む）"]
             QUALITY["quality/<br/>品質ベースライン"]
+            PROC["procedures/<br/>フェーズ固有の長い手順<br/>（always-reads 宣言が必須）"]
+            CLAIMS["CLAIMS.md<br/>主張と証跡の対応表"]
+            TESTS["tests/<br/>ハーネス自身のpytest"]
+        end
+        subgraph VER["リポジトリルート直下"]
+            VERSION["VERSION / CHANGELOG.md<br/>版と変更履歴（CI項目Q）"]
         end
         subgraph GHACTIONS[".github/workflows/  ハーネス本体（書き込み保護対象）"]
             CIYML["harness-checks.yml<br/>push/PRごとにci_check.pyを実行"]
@@ -87,7 +98,9 @@ graph TB
     end
 
     SETTINGS -.呼び出す.-> HOOKS
-    AGENTS -.参照.-> CONV
+    AGENTS -.節を指定して参照.-> CONV
+    AGENTS -.起動直後に読む.-> PROC
+    HOOKS -.主張を記録.-> CLAIMS
     SKILLS -.実行.-> SCRIPTS
     CIYML -.呼び出す.-> SCRIPTS
     REQ --> FOUND
@@ -172,7 +185,7 @@ flowchart TD
 | tools | Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion |
 | 読み込むファイル | `harness/CONVENTIONS.md`（6, 9, 10, 11節）、`apps/<app-id>/AUTONOMY.yaml`、`00-requirements/requirements.machine.yaml`、`harness/quality/security-baseline.md` |
 | 触ってよい範囲 | `apps/<app-id>/01-foundation/` と `02-design/` のみ |
-| 進め方の特徴 | `shared-kernel.yaml`（共通部分）と `architecture.machine.yaml`（機能分割）を**逐次ではなく反復**して収束させる（[CONVENTIONS.md 11節](harness/CONVENTIONS.md)） |
+| 進め方の特徴 | `shared-kernel.yaml`（共通部分）と `architecture.machine.yaml`（機能分割）を**逐次ではなく反復**して収束させる（[CONVENTIONS.md 11節](../harness/CONVENTIONS.md)） |
 | AIが判断する部分 | 機能分割案、技術スタック選定（ライセンス・脆弱性をWebSearchで調査）、`required_skills[]` に追加するかどうかの判断 |
 | **決定論で強制される部分** | ①`status: APPROVED` 時の `approved_by`/`approved_at` 必須（スキーマ）。②**`based_on_requirements_version` が要件の現在の `version` と一致しないと Hook が APPROVED への変更自体を拒否**（Rule 7、正真正銘のブロック）。③APPROVED後は `contract.yaml`（設計時ドラフト）が凍結され Hook が書き込みを拒否（Rule 3） |
 | 実行するスクリプト | `harness/scripts/validate_yaml.py` |
@@ -227,9 +240,19 @@ flowchart TD
 
 ---
 
-## 5. Hooks が強制する10のルール（決定論レイヤー）
+## 5. Hooks が強制する12のルール（決定論レイヤー）
 
-`harness/hooks/pre_tool_use_guard.py`（PreToolUse）・`post_tool_use_sync.py`（PostToolUse）・`stop_commit_guard.py`（Stop/SubagentStop）で実装。**依存ゼロの標準ライブラリのみ**で動作し、ツール呼び出し・応答終了のたびに毎回起動されます。
+`harness/hooks/` の 5 本で実装します。**依存ゼロの標準ライブラリのみ**で動作し、ツール呼び出し・応答終了のたびに毎回起動されます。
+
+| ファイル | イベント | 担当 |
+|---|---|---|
+| `session_start_healthcheck.py` | SessionStart | 強制レイヤ自身の健全性診断と、git 情報が取れないことによる判定劣化の警告（exit 0 固定） |
+| `pre_tool_use_guard.py` | PreToolUse | Rule 1・2・3・5・6・7・9・10・11・12 |
+| `post_tool_use_sync.py` | PostToolUse | Rule 4（進捗の再生成。非ブロッキング） |
+| `post_tool_use_guard.py` | PostToolUse（Bash のみ） | 静的検知をすり抜けた書き込みの事後検知と巻き戻し |
+| `stop_commit_guard.py` | Stop / SubagentStop | Rule 8 |
+
+`.claude/settings.json` の `PreToolUse` の matcher は `Edit|Write|MultiEdit|NotebookEdit|Bash|Read|NotebookRead` です（`Read`/`NotebookRead` が入っているのは Rule 12 の D-2「秘密ファイルの読み取り」を止めるためです）。
 
 ```mermaid
 sequenceDiagram
@@ -238,12 +261,15 @@ sequenceDiagram
     participant FS as ファイルシステム
 
     Agent->>Hook: Edit/Write/MultiEdit または Bash 呼び出し(stdin JSON)
-    Note over Hook: Bash の場合はコマンド文字列から正規表現でパス候補を抽出し<br/>Rule1/2/3/5/6 のみ判定（Rule7/9/10は内容比較が必要なため対象外）
+    Note over Hook: Bash の場合はコマンド文字列からパス候補を抽出し Rule1/2/3/5/6 を判定。<br/>内容比較で判定するファイルへの Bash/NotebookEdit 書き込みは<br/>手段そのものを拒否する（check_requires_simulatable_tool）
+    Hook->>Hook: Rule12 危険操作フロア（他Ruleと独立。denyが勝つ）
     Hook->>Hook: Rule1 ハーネス非侵襲性チェック
     Hook->>Hook: Rule2 担当外ガード
     Hook->>Hook: Rule6 上位文書ガード
     Hook->>Hook: Rule5 必須Skill充足チェック
     Hook->>Hook: Rule3 契約凍結チェック
+    Hook->>Hook: 書き込み手段が結果を再現できるかの判定
+    Hook->>Hook: Rule11 統合の受領書ゲート
     Hook->>Hook: Rule7 要件↔設計整合性チェック
     Hook->>Hook: Rule9 status.yaml状態遷移チェック
     Hook->>Hook: Rule10 検証受領書ゲート
@@ -286,6 +312,8 @@ sequenceDiagram
 | 8 | フェーズ節目のコミット強制 | `status.yaml`/`requirements.machine.yaml`/`architecture.machine.yaml`（Stop/SubagentStop） | いずれかが `git status --porcelain --untracked-files=all` で未コミット |
 | 9 | 状態遷移の妥当性チェック | `status.yaml` の `state` 書き換え | 書き込み前後の `state` が妥当な遷移でない（直線状態の後退・複数段階の飛び越し、終端状態からの変更）。`BLOCKED` からの復帰は `state_history[]` を遡って直前の実質的な状態から判定する |
 | 10 | 検証受領書ゲート | `status.yaml` を `TESTED` にする書き込み／`verification_receipt` の書き換え | 受領書が無い・宣言されたコマンドが `exit_code: 0` でない・受領書の `commit` が現在の HEAD と不一致／受領書を Edit/Write で書き換えようとした（14節） |
+| 11 | 統合の受領書ゲート | `status.yaml` を `INTEGRATED` にする書き込み／`integration.machine.yaml` の受領書の書き換え | `04-integration/integration.machine.yaml` に `interfaces[]` の全エッジを覆う `interface_coverage[]` と有効な受領書（`run_integration_verification.py` 生成）が無い／受領書を手書きしようとした（15節） |
+| 12 | 危険操作フロア | Bash コマンド全体と `Read`/`NotebookRead` の対象パス（**他 Rule と独立に判定し、deny が勝つ**） | D-1 リポジトリ外への再帰削除／D-2 秘密ファイルの読み取り／D-3 履歴の破壊／D-4 検証のスキップ／D-5 外部送信／D-6 `sudo` 等（一覧は `CONVENTIONS.md` 7節） |
 
 **判定対象のパスは、`.worktrees/` を通る場合その worktree を基準に読み替えてから Rule に掛けます**
 （`path_utils.resolve_worktree_scope`）。8節のとおり worktree の実体は
@@ -293,7 +321,7 @@ sequenceDiagram
 という相対パスが再び現れます。メインの worktree から見た相対パスは接頭辞ぶんだけ深くなるため、
 読み替えをしないと `^apps/.../03-features/...` にアンカーされた Rule 1・2・3・5・9・10 が
 まとめて素通りします。ドッグフーディングで実証したもので、メインセッションから**受領書なしで
-`state: TESTED` を書き込めていました**（`DOGFOODING-LOG.md` F-029/F-030）。しかも `.worktrees/` は
+`state: TESTED` を書き込めていました**（`docs/maintenance/DOGFOODING-LOG.md` F-029/F-030）。しかも `.worktrees/` は
 メインリポジトリの `.gitignore` 対象なので `git status` に現れず、事後検証による巻き戻しも
 働きませんでした——静的検知と事後検証の二段構えが、どちらもこの経路では機能していなかったことになります。
 読み替えにより、どのセッションから書いても同じ Rule が同じ意味で効きます。worktree の中から
@@ -306,76 +334,119 @@ sequenceDiagram
 （Claude Code の外で行われた人間の編集を破壊しないため）。静的検知（未然防止）と
 事後検証（確実な検知）の二段構えです。
 
-**Edit/Write/MultiEdit/NotebookEdit** に加え、**Rule 1・2・3・5・6 は `Bash` 経由の間接書き込み**（`sed -i` / `cp` / `mv` / `tee` / リダイレクト等）**もブロック**します（v1。`shlex` によるクォート考慮トークン化で判定するため、クォート内の文字列（`echo "a >> b"` の `>>` 等）を演算子と誤認識しない。トークン化前にクォート・行継続・ヒアドキュメント本体を考慮して改行をコマンド区切りへ正規化するため、複数行の Bash コマンドで `cp`/`mv`/`tee`/`sed -i` が先頭行以外にある場合も検知する。変数展開されたパス等の検知漏れは残るが許容する。**バイパス用の環境変数は意図的に用意しない**——AIがブロックされた際に自ら解除できてしまうと決定論的強制が崩れるため。Rule 7・9・10 は書き込み前後の内容比較が必要なため Bash 経由では判定対象外）。Rule 8 は例外的に `Stop`/`SubagentStop` イベントで動作し、ツール呼び出しではなく応答終了そのものをブロックします。Rule 9 は `BLOCKED` から復帰するとき、`state_history[]` を時刻順に遡って直前の非 `BLOCKED` 状態を復元し、そこからの遷移として判定します（`BLOCKED` を経由した飛び越しはできません）。
+**Edit/Write/MultiEdit/NotebookEdit** に加え、**Rule 1・2・3・5・6 は `Bash` 経由の間接書き込み**（`sed -i` / `cp` / `mv` / `tee` / リダイレクト等）**もブロック**します（v1。`shlex` によるクォート考慮トークン化で判定するため、クォート内の文字列（`echo "a >> b"` の `>>` 等）を演算子と誤認識しない。トークン化前にクォート・行継続・ヒアドキュメント本体を考慮して改行をコマンド区切りへ正規化するため、複数行の Bash コマンドで `cp`/`mv`/`tee`/`sed -i` が先頭行以外にある場合も検知する。変数展開されたパス等の検知漏れは残るが許容する。**この Bash 検知に解除用の環境変数は意図的に用意しない**——AIがブロックされた際に自ら解除できてしまうと決定論的強制が崩れるため。解除路があるのは Rule 1 の `HARNESS_UNLOCK=1` だけです（8節））。
+
+**Rule 3・7・9・10・11 は「書き込み前後の内容比較」で判定するため、`Bash`・`NotebookEdit` のように書き込み後の内容を再現できない手段による `status.yaml`・`requirements.machine.yaml`・`architecture.machine.yaml`・`integration.machine.yaml` への書き込みは、手段そのものを拒否します**（`check_requires_simulatable_tool`）。「Bash では判定できないから素通りさせる」のではありません——`sed -i` で `state: TESTED` にすればゲートが一度も走らないまま通ってしまったのが実地の失敗（`docs/maintenance/DOGFOODING-LOG.md` F-021）で、その穴を塞いだものです。判定基準は「どのツールか」ではなく「`path_utils.simulate_write_result` が結果を再現できるか」なので、将来ツールが増えても既定で拒否側に入ります。
+
+**Rule 8** は例外的に `Stop`/`SubagentStop` イベントで動作し、ツール呼び出しではなく応答終了そのものをブロックします。**Rule 9** は `BLOCKED` から復帰するとき、`state_history[]` を時刻順に遡って直前の非 `BLOCKED` 状態を復元し、そこからの遷移として判定します（`BLOCKED` を経由した飛び越しはできません）。
 
 ---
 
 ## 6. コンテキスト消費マップ
 
-各エージェント・スキルが「常時（起動時に必ず）」読むファイルと「条件付き」で読むファイルを分けています。`harness/CONVENTIONS.md` は全 subagent が起動時に読むため、これが実質的な「共通の最低コンテキストコスト」になります。**この量は設計制約として扱い、CI が機械的に上限を強制します**（後述「コンテキスト予算」）。
+各エージェント・スキルが「常時（起動時に必ず）」読むファイルと「条件付き」で読むファイルを分けています。**この量は設計制約として扱い、CI が機械的に上限を強制します**（後述「コンテキスト予算」）。
+
+**`harness/CONVENTIONS.md` を全文読む subagent はいません。** 各 agent は自分のフェーズに要る節だけを
+プロンプト冒頭のマーカーで宣言し、`print_conventions.py` で読み込みます。実際に宣言している
+agent は `solution-architect` の 1 つだけで（6,9,10,11,12,13,14 節）、残りの 4 つは `none` です
+——担当範囲に必要な規約はプロンプト本文に書き切ってあるためです。宣言が `none` の agent でも、
+本文中に「7節 Rule 7」のような**出典の注記**は書きます。
 
 ```mermaid
 graph LR
-    subgraph ALWAYS["常時読み込み（全 subagent 共通）"]
-        C1["CONVENTIONS.md<br/>約230行"]
-    end
-    subgraph RA_CTX["requirements-analyst"]
+    subgraph RA_CTX["requirements-analyst（節: none）"]
         R1["requirements.md/.machine.yaml"]
+        R2["AUTONOMY.yaml"]
     end
-    subgraph SA_CTX["solution-architect"]
+    subgraph SA_CTX["solution-architect（節: 6,9,10,11,12,13,14）"]
+        S0["print_conventions.py で該当節のみ"]
         S1["AUTONOMY.yaml"]
         S2["requirements.machine.yaml"]
         S3["security-baseline.md"]
         S4["shared-kernel.yaml / architecture.machine.yaml"]
     end
-    subgraph FB_CTX["feature-builder（機能ごとに独立セッション）"]
+    subgraph FB_CTX["feature-builder（節: none / 機能ごとに独立セッション）"]
+        F0["procedures/feature-build.md<br/>（always-reads 宣言。予算に計上される）"]
         F1["SPEC.md / contract.yaml / status.yaml"]
         F2["AUTONOMY.yaml"]
         F3["security-baseline.md"]
         F4["design-baseline.md（UIありのみ・条件付き）"]
         F5["shared-kernel.yaml（required_skills確認用）"]
     end
-    subgraph INT_CTX["integrator"]
+    subgraph INT_CTX["integrator（節: none）"]
         I1["STATE.machine.yaml"]
         I2["architecture.machine.yaml"]
         I3["security-baseline.md / design-baseline.md"]
         I4["shared-kernel.yaml"]
     end
-
-    ALWAYS --> RA_CTX
-    ALWAYS --> SA_CTX
-    ALWAYS --> FB_CTX
-    ALWAYS --> INT_CTX
+    subgraph GR_CTX["gate-reviewer（節: none）"]
+        G1["quality/review-rubric.md"]
+        G2["contract.yaml / SPEC.md / 実装とテスト"]
+    end
 ```
 
-| Subagent / Skill | 常時読むファイル | 条件付きで読むファイル |
-|---|---|---|
-| `requirements-analyst` | `CONVENTIONS.md`, `requirements.md`, `requirements.machine.yaml` | なし |
-| `solution-architect` | `CONVENTIONS.md`, `AUTONOMY.yaml`, `requirements.machine.yaml`, `security-baseline.md` | WebSearch結果（ライブラリ調査時） |
-| `feature-builder` | `CONVENTIONS.md`, `SPEC.md`, `contract.yaml`, `status.yaml`, `AUTONOMY.yaml`, `security-baseline.md`, `shared-kernel.yaml` | `design-baseline.md`（UIを持つ機能のみ） |
-| `integrator` | `CONVENTIONS.md`, `STATE.machine.yaml`, `architecture.machine.yaml`, `security-baseline.md`, `shared-kernel.yaml` | `design-baseline.md`（UIありのみ） |
-| `init-app` skill | `CONVENTIONS.md` 9節相当 | なし |
-| `new-feature-worktree` skill | `architecture.machine.yaml`（features[]確認のみ） | なし |
-| `diff-design` skill | `CONVENTIONS.md` 11節相当 | 旧バージョンのrequirements/architecture（history/） |
+| Subagent / Skill | 読む `CONVENTIONS.md` の節 | 常時読むその他のファイル | 条件付きで読むファイル |
+|---|---|---|---|
+| `requirements-analyst` | なし | `requirements.md`, `requirements.machine.yaml`, `AUTONOMY.yaml` | なし |
+| `solution-architect` | 6,9,10,11,12,13,14 | `AUTONOMY.yaml`, `requirements.machine.yaml`, `security-baseline.md` | WebSearch結果（ライブラリ調査時） |
+| `feature-builder` | なし | `harness/procedures/feature-build.md`（always-reads）, `SPEC.md`, `contract.yaml`, `status.yaml`, `AUTONOMY.yaml`, `security-baseline.md`, `shared-kernel.yaml` | `design-baseline.md`（UIを持つ機能のみ） |
+| `integrator` | なし | `STATE.machine.yaml`, `architecture.machine.yaml`, `security-baseline.md`, `shared-kernel.yaml` | `design-baseline.md`（UIありのみ） |
+| `gate-reviewer` | なし | `harness/quality/review-rubric.md`, `contract.yaml`, `SPEC.md`, 実装とテスト | なし |
+| `init-app` skill | なし（9節の内容を要約して保持） | `AUTONOMY.yaml` | なし |
+| `new-feature-worktree` skill | なし | `architecture.machine.yaml`（features[]確認のみ） | なし |
+| `diff-design` skill | 11（必要なときだけ `print_conventions.py --sections 11`） | 旧新の `requirements`/`architecture` | 旧バージョン（`history/`） |
 
-**設計上の意図**: `harness/quality/*.md`（品質ベースライン）・`harness/STACK_PACK.md` は `CONVENTIONS.md` に内容を埋め込まず、該当フェーズでのみ `Read` される別ファイルにしています。これにより、品質基準を使わないフェーズ（例: `requirements-analyst`）では一切コンテキストを消費しません。
+**設計上の意図**: `harness/quality/*.md`（品質ベースライン）・`harness/STACK_PACK.md`・`harness/CLAIMS.md` は `CONVENTIONS.md` に内容を埋め込まず、該当フェーズ・該当条件でのみ `Read` される別ファイルにしています。これにより、品質基準を使わないフェーズ（例: `requirements-analyst`）では一切コンテキストを消費しません。
 
 ### コンテキスト予算（CI 項目 L）
 
 「常時読み込み量を意識する」は、意識だけでは守れません。`ci_check.py` の項目 L が
 機械的に上限を強制します（単一の情報源は `CONVENTIONS.md` 15節）。
 
-| 対象 | 上限 |
-|---|---|
-| `harness/CONVENTIONS.md` | 36,000 バイト |
-| `.claude/agents/*.md` 各ファイル | 12,000 バイト |
-| `CONVENTIONS.md` ＋ 最大の agent プロンプト（1 セッションの常時コスト） | 46,000 バイト |
+| 対象 | 上限 | 実測（2026-08-24） |
+|---|---|---|
+| `harness/CONVENTIONS.md` | 36,000 バイト | 31,975（残り 4,025） |
+| `.claude/agents/*.md` 各ファイル | 12,000 バイト | 最大は `solution-architect.md` の 11,352（残り **648**） |
+| 1 セッションの常時コスト＝ agent プロンプト ＋ **読むと宣言した `CONVENTIONS.md` の節** ＋ **起動直後に読むと宣言した手順書** | 46,000 バイト | 最大は `solution-architect` の 24,999（残り 21,001） |
+
+3 行目が `CONVENTIONS.md` 全文ではなく「**読むと宣言した節**」なのは、全文を読む agent がいないためです
+（`attributed_conventions_bytes`）。
 
 上限は「ここまで使ってよい」という許可ではなく、**超えるときに意識的な判断を強制する**ための線です。
-上限に当たったら、まず説明・背景・設計意図をこの `HARNESS_GUIDE.md` へ移します
+上限に当たったら、まず説明・背景・設計意図をこの `docs/HARNESS_GUIDE.md` へ移します
 （`CONVENTIONS.md` に残すのは「機械と保守者が従うべき規約そのもの」だけでよい）。
-該当フェーズで初めて読まれる文書（`harness/quality/*.md`・`harness/STACK_PACK.md`）は
-常時コストではないため、予算の対象外です。
+
+**予算の対象外になるのは「条件が揃ったときにだけ読まれる文書」だけです**
+（`harness/quality/*.md`・`harness/STACK_PACK.md`・`harness/CLAIMS.md`）。
+**`harness/procedures/*.md` は対象外ではありません。** ここは「その agent が起動直後に読む手順」の
+置き場所で、読まれるコストは常時コストと同じです。プロンプト本文を別ファイルへ移して
+「これを読め」と書いても、セッションに載るバイト数は減りません（導入文のぶん増えます）。
+測定値だけが良くなって実態が悪化することを防ぐため、次のマーカーでの宣言を義務づけ、
+項目 L がその実サイズを合計に計上します。宣言せずに `harness/procedures/*.md` を読ませていたら不合格です。
+
+```
+<!-- context-budget: conventions-sections=6,9,13 -->
+<!-- context-budget: always-reads=harness/procedures/feature-build.md -->
+```
+
+### `docs/` が予算に出てこない理由 — 読まれないから
+
+この `docs/` は**人間専用**です。アプリ作成中の subagent は 1 バイトも読みません
+（`CONVENTIONS.md` 15節が規範として定めています）。
+
+`harness/quality/*.md` や `harness/STACK_PACK.md` が予算の対象外なのは「条件が揃ったときだけ
+読まれる」からで、読まれる可能性自体はあります。`docs/` はそれとは違い、**そもそも読ませない**
+と決めた場所です。だから厚くなってもセッションの常時コストは増えません。
+
+この分担が要るのは、**「説明を書く場所が無い」と「規約が太る」がトレードオフになるから**です。
+規約に経緯まで書くと項目 L に当たり、かといって説明を消すと、なぜその規則があるのかを
+後から誰も再構成できなくなります（実際 T-001 では `CONVENTIONS.md` から約 6,000 バイトの
+設計意図をこちらへ移しました）。`docs/` はその逃がし先であり、逆方向——規範や手順を
+`docs/` へ出すこと——は禁じています。機械が参照できなくなるためです。
+
+ハーネス内部から `docs/` を指している箇所（`CONVENTIONS.md` の各節や `ci_check.py` の
+エラーメッセージ）は、**出典の注記**であって読めという指示ではありません。`CONVENTIONS.md`
+本文では「人間向け」と添えて、その区別が読み手にも AI にも分かるようにしています。
 
 ---
 
@@ -413,7 +484,12 @@ graph LR
 | フェーズ節目（status.yaml等）のコミット実行 | ✅ Rule 8（Stop/SubagentStop） | — |
 | コミット内容の妥当性（メッセージ・粒度） | ❌ | ⚠️ プロンプトの指示に依存（コミットが行われること自体はRule 8が強制） |
 | Bash経由の間接的な書き込み（Rule1/2/3/5/6相当） | ✅ 静的検知でブロック ＋ 事後検証（`git status` 比較）で巻き戻し（バイパス用環境変数なし） | — |
+| 内容比較で判定するファイルを、結果を再現できない手段（Bash / NotebookEdit）で書くこと | ✅ 手段そのものを拒否（`check_requires_simulatable_tool`。5節） | — |
+| 全機能を結線した結合テストを実際に実行して通したか | ✅ Rule 11 ＋ 統合受領書の `commit` 一致と `interface_coverage[]` の全エッジ充足（15節） | — |
+| 危険操作（リポジトリ外への再帰削除・秘密ファイルの読み取り・履歴の破壊・検証のスキップ・外部送信・`sudo`） | ✅ Rule 12（他 Rule と独立に deny。確認ではなく拒否） | ⚠️ 変数展開・エイリアス・自作スクリプト経由の間接実行は静的検知の原理的限界 |
 | 常時読み込みコンテキストの肥大化 | ✅ CI 項目 L（コンテキスト予算。6節） | — |
+| 強制レイヤ自体が壊れていないか | ✅ SessionStart の自己診断＋`PROGRESS.md` 表示。ガードは判定できないとき通過ではなく拒否（fail-closed） | ⚠️ Hook の**起動**自体が失敗した場合はハーネスから止められない（11節 A-1） |
+| git 情報が取れない環境での判定の劣化 | ⚠️ 止めずに**警告する**（SessionStart。影響を受ける Rule と倒れる向きを名指しする） | — |
 
 **読み方**: ✅ は「Claudeが指示に従わなくても、システムが機械的に阻止/実行する」層。⚠️ は「プロンプトに明記されているが、最終的にはAIの遵守に依存する」層です。⚠️ の項目は `PROGRESS.md` の `autonomy_mode` 表示や、人間によるレビューで補完することを前提としています。
 
@@ -556,73 +632,157 @@ graph TD
 
 ## 11. 既知の制約・v1以降の拡張候補
 
-- CI（12節）はアプリの技術スタックに依存しない範囲の再検証に留まる。**ただし「テストを実際に
-  走らせて通したこと」は 14 節の宣言 → 実行 → 受領書の仕組みで非依存のまま強制している。**
-  CI 上でアプリのテストを実際に走らせる（実行環境をアプリごとに用意する）ところまでは行っていない。
-  受領書の終了コードそのものの偽造は、Claude Code のセッション内では Rule 10 が防ぐが、
-  セッション外の編集に対しては検知できない（14節「既知の限界」）
-- Rule 9 の `BLOCKED` 経由の抜け穴は塞いだ（`state_history[]` を遡って直前の実質的な状態を
-  復元して判定する）。ただし判定は `state_history[]` が正しく追記されていることを前提にする。
-  履歴に非 `BLOCKED` のエントリが 1 つも無い場合は判定不能として通す
-- Bash 経由の間接書き込みの**静的**検知（`path_utils.extract_bash_candidate_paths`）は、
-  変数展開されたパス（例: `>> "$VAR"`）等を原理的に検知できない。これは
-  `post_tool_use_guard.py` による**事後検証**（実行後の `git status` との比較。5節）で
-  塞いだ。静的検知は未然防止として残してある（AI にとって学習可能なフィードバックになるため）。
-  事後検証は「既に書かれたものを巻き戻す」ため、書き込み自体を阻止はできない
+**記録の形式**: 既知の制約は次の 4 点セットで書きます。とくに **「再検討の条件」を全項目に必ず
+書く**——書けないものは、なぜ書けないかを書きます。条件が書かれていない制約は、
+「仕方がないもの」として永久に固定されてしまい、状況が変わっても誰も見直さないためです。
 
-- **アプリ非依存性は現時点で「主張」であって検証結果ではない**（`apps/` が存在しない）。
-  意図的に遠い 2 スタック（例: Python の CLI ツールと TypeScript の Web アプリ）を通しで生成して
-  初めて、14〜15節の宣言インターフェースが本当にスタック非依存かが実証される。
-  **1 本だけでは検証にならない**（そのスタックに暗黙に依存した設計になっていても露見しないため）。
-  未実施。`ROADMAP.md` 参照
-- `gate-reviewer` の審査結果（`status.yaml` の `review`）は記録であって証明ではない。
-  検証受領書（14節）と違い実行の裏付けを持たないため、Rule 10 のような機械的ゲートにはしていない
-- 「機能分割の粒度・独立性の妥当性」と「要件定義の最終承認を人間が行ったか」は意図的に
-  AI 判断のまま据え置いている（7節「据え置いた項目」）
+| 項目 | 何を書くか |
+|---|---|
+| 症状 | 利用者から見て何が起きるか（内部実装ではなく観測できる事象） |
+| 根本原因 | なぜそうなるか。「難しいから」ではなく構造的な理由 |
+| 適用中の緩和策 | いま何で埋めているか。埋めていないなら「なし」と書く |
+| 再検討の条件 | **何が起きたら見直すか。** 期限ではなく観測可能な事象で書く |
 
-これらは実際にアプリを作ってみながら、必要に応じて拡張する方針です。
+制約は 2 つに分けます。**A（ハーネスの制御外に根本原因がある）** はハーネス側の努力では
+消せないもの、**B（apparness 側で直せる）** は本来なら直せるもので、**B は改修計画の
+`tasks[]` に昇格させます**（`docs/plans/IMPROVEMENT-PLAN.machine.yaml`）。
 
-**v1 で対応済み**:
-- 各フェーズでのコミット実行（`status.yaml`/`requirements.machine.yaml`/
-  `architecture.machine.yaml` の未コミット変更を残したまま応答を終えることを `Stop`/`SubagentStop`
-  フック（`stop_commit_guard.py`、5節 Rule 8）でブロックする仕組み）
-- `status.yaml` の状態遷移の妥当性チェック（`NOT_STARTED` からいきなり `INTEGRATED` にする、
-  `CONTRACT_APPROVED` から `NOT_STARTED` に後退させる、といった書き込みを `PreToolUse` フック
-  （5節 Rule 9、`path_utils.validate_status_transition`）でブロックする仕組み。
-  `BLOCKED` 経由の抜け穴も `state_history[]` を遡ることで塞いだ）
-- Bash 経由の間接的な書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト等）の実ブロック化。
-  Rule 1・2・3・5・6 相当の違反を検知した場合、警告ではなく `exit 2` で Bash コマンドの実行自体を
-  拒否するようにした。当初は誤検知時の回避策として専用の環境変数を用意していたが、
-  「AIがブロックされた際に自ら解除して実行できてしまい、決定論的強制の意味が失われる」という
-  指摘を受けて撤回し、代わりに検知ロジック自体を `shlex` によるクォート考慮トークン化に置き換えて
-  誤検知の原因（クォート内の `>` を演算子と誤認識すること）を解消した。バイパス用の環境変数は
-  存在しない（`HARNESS_UNLOCK=1` は Rule 1 専用のまま）
-  - **同一セッション内で発見・修正した検知漏れ**: 上記の対応後、Rule 2（担当外ガード）の検証中に
-    `mkdir -p apps/.../src\ncp a b apps/.../src/` のような**複数行の Bash コマンドで `cp` が
-    先頭行以外にある場合、検知をすり抜ける**ことを実地で発見した。原因は `shlex` が改行を単なる
-    空白として読み捨てるため、改行だけで区切られた複数コマンド（Claude Code の Bash ツールが
-    渡す典型的な形）が1つの巨大なセグメントに融合し、`_extract_write_targets_from_segment` が
-    セグメント先頭トークンだけを `cp`/`mv`/`tee`/`sed -i` と比較する仕組みが先頭行以外のコマンドを
-    見落としていたこと。トークン化前に、クォート・行継続（末尾 `\`）・ヒアドキュメント本体を
-    考慮しながら「コマンドの区切りとして扱ってよい改行」だけを `;` に正規化する処理
-    （`path_utils._normalize_bash_newlines`/`_classify_bash_lines`）を追加して根本的に修正した。
-    ヒアドキュメント本体・終端子直前の改行は区切りに変換しないため、本体中に `cp ...` のような
-    文字列が含まれていても新たな誤検知（false positive）は生まれない。10件の真陽性・4件の
-    真陰性シナリオで検証済み。ブランチ: `harness/fix-bash-guard-newline-segments`。
-- CI連携（GitHub Actions）。詳細は12節
-- 依存ライブラリの脆弱性スキャン（OSV-Scanner、CI連携）。詳細は13節
-- Bash 経由の書き込みの**事後検証**（`post_tool_use_guard.py`）。静的解析では原理的に検知
-  できない書き込み（変数展開されたパス等）を、実行前後の `git status` 比較で検出して巻き戻す。詳細は5節
-- **ハーネス自身の pytest**（`harness/tests/`、CI の `harness-selftest` ジョブ）。詳細は12節
-- **検証コマンドの宣言 → 実行 → 受領書 → Rule 10**。「テストを書いて通した」を AI の自己申告に
-  委ねず、アプリ非依存のまま実行ベースで強制する。JUnit XML による空振り・スキップ率の検出も含む。詳細は14節
-- **`interfaces[]` の JSON Schema 突合**（CI 項目 J）。並行実装した機能同士の食い違いを統合前に検出。詳細は15節
-- **要件 → 機能 → テストのトレーサビリティ**（CI 項目 K ＋ 受領書の `traceability`）。詳細は15節
-- **独立レビューア `gate-reviewer`**。実装者とは別コンテキストで契約準拠・テスト十分性を審査し、
-  verdict は深刻度の集計から機械的に決まる。詳細は16節
-- **スタックパック規約**（`harness/STACK_PACK.md`）。スタック固有の標準をハーネス本体に持ち込まず
-  外部プラグインとして接続する。詳細は17節
-- **コンテキスト予算の CI 化**（CI 項目 L）。詳細は6節
+### A. ハーネスの制御外に根本原因があるもの
+
+#### A-1. Hook の起動そのものが失敗したとき、ハーネスからは止められない
+
+- **症状**: `python3` が見つからない・タイムアウトする等で Hook が `exit != 2` で終わると、
+  Claude Code はそれを「判断なし＝通過」として扱い、Rule 1〜12 が黙って無効化された状態で
+  作業が続く。
+- **根本原因**: Hook を起動するのは Claude Code であり、ハーネスはその失敗を検知する側に
+  立てない（失敗したら自分も動いていない）。
+- **適用中の緩和策**: (1) ブロックする hook（`pre_tool_use_guard.py` / `stop_commit_guard.py`）を
+  fail-closed 化し、判定に到達できたのに例外で落ちた場合**および入力そのものを解釈できない場合**
+  （内容があるのに JSON として読めない／構造化編集なのに書き込み先が無い）は通さず `exit 2` に
+  する。空の stdin だけは通す（payload 無しでイベントを呼ぶ正当な経路があるため）。
+  (2) `SessionStart` フック（`session_start_healthcheck.py`）が起動時に自己診断し、警告と
+  `additionalContext` で知らせる。(3) `PROGRESS.md` の先頭に強制レイヤの状態を出す。
+- **再検討の条件**: Claude Code が「Hook が起動に失敗したらツール呼び出しを拒否する」という
+  設定（fail-closed の既定化）を提供したとき。そのときは自己診断を軽量化できる。
+
+#### A-2. Claude Code のセッション外で行われた編集は Hook が見られない
+
+- **症状**: 人間が直接 `git commit` する、Claude Code を経由しない別ツールで編集する、といった
+  経路では Rule 1〜12 が一切効かない。受領書の終了コードの偽造もこの経路なら可能。
+- **根本原因**: Hook は Claude Code のツール呼び出しにしか介入できない。
+- **適用中の緩和策**: `ci_check.py`（項目 A〜Q）がサーバーサイドで同じ条件を再検証する。
+  Hook が「未然に止める」のに対し、CI は「入り込んだものを弾く」。
+- **再検討の条件**: CI を通さずに main へ入る経路（直接 push・ローカル運用のみ）が実際に
+  使われ始めたとき。そのときは git の pre-commit フックの同梱を検討する
+  （現状は導入者の環境を汚さない方針で見送っている）。
+
+#### A-3. 「本当に人間が承認したか」は機械的に判定できない
+
+- **症状**: `approved_by` に何を書いても、それが人間かどうかを Hook は判定できない。
+  `AUTONOMOUS` モードでは AI が自分の役割名で設計を承認できる。
+- **根本原因**: Hook が見られるのはファイルパスと内容だけで、対話の意味までは判定できない。
+- **適用中の緩和策**: 承認記録の**同時性**を強制する（Rule 3・Rule 7 が、`status: APPROVED` と
+  同じ書き込みで `approved_by`/`approved_at` を要求する）。要件定義の承認だけはモードに
+  関わらず人間必須という固定ポリシーを置き、`PROGRESS.md` に `autonomy_mode` を常時表示する。
+- **再検討の条件**: 承認を外部の署名（GPG 署名付きコミット、外部の承認システムの ID など）に
+  紐づける手段が、導入コストに見合う形で使えるようになったとき。
+
+#### A-4. マルチホスト（Codex CLI / Cursor 等）には対応しない
+
+- **症状**: Claude Code 以外のホストでは Rule 3・7・9・10・11 が成立しない。
+- **根本原因**: これらは**書き込み前後の内容比較**に依存する。構造化ツールの `PreToolUse` に
+  相当する介入点を持たない（Bash-only の）ホストでは原理的に実装できない。
+- **適用中の緩和策**: 対応しないと明記する（`docs/plans/IMPROVEMENT-PLAN.machine.yaml` の NG-1）。
+  「ホストごとに強制の強さが違う」ことを隠して同じ看板を掲げる（false parity）ほうが危険。
+- **再検討の条件**: 他ホストが構造化ツールの書き込みに介入できる仕組みを提供したとき。
+  そのときも、**ホストごとに何が効いて何が効かないかの対応表を先に書く**こと。
+
+#### A-5. 既存リポジトリでの日常開発（brownfield）には対応しない
+
+- **症状**: 既にあるリポジトリにこのハーネスを入れても、`apps/<app-id>/` の構造と状態機械が
+  前提になっているため機能しない。
+- **根本原因**: ディレクトリ構造・状態機械・受領書のすべてが「新規アプリを 0 から作る」工程に
+  結びついている。対応は事実上の作り直しになる。
+- **適用中の緩和策**: スコープ外と明記する（NG-4）。その用途には汎用のハーネスを併用するほうが
+  合理的。
+- **再検討の条件**: ユーザーから明示の要望があり、かつ作り直しのコストを払う判断が出たとき。
+
+### B. apparness 側で直せるもの（改修計画の `tasks[]` に昇格させる）
+
+#### A-6. git 情報が取れない場所では、一部の Rule が判定不能になる
+
+- **症状**: git リポジトリの外や、コミットが 1 件も無いリポジトリでセッションを開始すると、
+  Rule 2・6（担当範囲・上位文書）と Rule 10・11（受領書と HEAD の照合）が判定不能になって
+  **通過**し、Rule 1 は逆に「`harness/` ブランチか判定できない」ため一律**拒否**に倒れる。
+- **根本原因**: 判定はすべて git（作業ツリーのルート・ブランチ・HEAD）に依存している。
+  取れないときに拒否側へ倒すと、git を使わない正当な作業をハーネスが壊す。
+- **適用中の緩和策**: 倒し方は変えず、**見えるようにする**。`SessionStart` の診断が、
+  取得できなかった情報と、影響を受ける Rule 番号、どちら側に倒れるかを名指しして stderr に
+  警告する（セッションは止めない。exit 0 のまま）。過去の F-029/F-030 は「強制が丸ごと
+  空振りしていたのに気付く手段が無かった」失敗であり、その再発を防ぐのがこの警告の目的。
+- **再検討の条件**: 警告を出しても気付かれずに事故が起きたとき。そのときは
+  「git 情報が取れないなら書き込み系ツールを一律拒否する」モードの導入を検討する。
+
+#### B-1. Rule 12 の「読み取り」「外部送信」は事後検知ができない
+
+- **症状**: 静的検知（コマンド文字列の解析）をすり抜けた秘密ファイルの読み取り・外部送信は、
+  実行後に検出する手段が無い。書き込みと違い、起きたことの痕跡がファイルに残らない。
+- **根本原因**: 事後検証（`post_tool_use_guard.py`）は作業ツリーの**内容ハッシュの差分**を
+  見る仕組みで、読み取りと送信は作業ツリーを変えない。
+- **適用中の緩和策**: 静的検知のパターンを広めに取る（読み出しコマンドの集合＋秘密パスの
+  パターン）。誤検知は検知ロジックを直して対応する。
+- **再検討の条件**: 実地で 1 件でもすり抜けが観測されたとき。**そのときは記録で済ませず
+  `tasks[]` に昇格させる**（改修計画 T-040）。
+
+#### B-2. ドッグフーディング成果物が保全されていない
+
+- **症状**: 3 アプリ完走という最重要の実績を、第三者も将来の自分も追検証できない。
+  成果物はこのリポジトリにも、ローカルの `apparness` クローンにも、その origin にも無い。
+- **根本原因**: 完走時に成果物を保全する手順が工程に無かった（worktree の削除は手順にあったが、
+  受領書とダッシュボードの退避が無かった）。
+- **適用中の緩和策**: `docs/maintenance/DOGFOODING-LOG.md` の冒頭に、何を探して無かったか・見つかったときに
+  何を保全すべきか・未処理の摩擦点（F-059/F-060/F-064）を記録した。
+- **再検討の条件**: 成果物の所在が判明したとき。**判明し次第、即座に保全する**
+  （改修計画 T-022。保全先は `docs/dogfooding-artifacts/<app-id>/`）。
+
+#### B-3. CI がアプリのテストを実際には走らせない
+
+- **症状**: CI は受領書の再検証までで、アプリのテストそのものは CI 上で走らない。
+- **根本原因**: 実行環境をアプリごとに用意する必要があり、「ハーネスは技術スタックを規定しない」
+  という原則と正面から衝突する。
+- **適用中の緩和策**: 受領書の `commit` が HEAD の祖先であること＋そのコミット以降に機能
+  ディレクトリが未変更であることを検証し（項目 I）、「検証したあとに実装を書き換えていない」
+  という等価条件で埋める。
+- **再検討の条件**: `shared-kernel.yaml` に実行環境の宣言（コンテナイメージ等）を足す価値が
+  出たとき——具体的には、受領書が通っているのに CI で壊れる事象が実地で観測されたとき。
+
+#### B-4. `gate-reviewer` の審査結果は記録であって証明ではない
+
+- **症状**: `status.yaml` の `review` は機械的ゲートにできない（Rule 10 のようには使えない）。
+- **根本原因**: 受領書と違い、実行の裏付けを持たない。LLM が書いた文字列でしかない。
+- **適用中の緩和策**: verdict を深刻度の**機械的な集計**で決める（`Blocker` ≥ 1 → `NO-GO`）、
+  レビューアに `Write`/`Edit` を与えない、判断基準を `review-rubric.md` だけに固定する、の 3 点で
+  「助言への退化」を防ぐ。
+- **再検討の条件**: レビュー指摘を機械検証できる形（rubric の項目 ID と `test_ids` の対応など）に
+  落とせたとき。落とせない指摘は、ゲートにせず記録のままにする。
+
+#### B-5. 静的 Bash 検知は変数展開されたパスを検知できない
+
+- **症状**: `>> "$VAR"` のように展開後に決まるパスは、実行前には判定できない。
+- **根本原因**: コマンド文字列だけからは展開後の値が分からない。
+- **適用中の緩和策**: 事後検証（`post_tool_use_guard.py`）が実行前後のスナップショットを
+  内容ハッシュで比較して検出し、実行直前の内容へ巻き戻す。静的検知は「止められるものは
+  実行前に止める」ために残す。
+- **再検討の条件**: 事後検証でも捕まえられない書き込み経路が実地で観測されたとき。
+  現時点では、書き込みに関しては 2 段構えで塞げていると判断している。
+
+### v1 で対応済みの項目
+
+かつてこの節に並んでいた「未対応」の多くは v1 で実装済みです（Rule 8・Rule 9・Bash 経由の
+実ブロック化と事後検証・CI 連携・脆弱性スキャン・ハーネス自身の pytest・検証受領書と Rule 10・
+`interfaces[]` の JSON Schema 突合・トレーサビリティ・`gate-reviewer`・スタックパック規約・
+コンテキスト予算の CI 化）。**個々の内訳は `CHANGELOG.md` にあります**——「何が済んだか」の
+一覧を 2 箇所で持つと必ず drift するため、この節は**残っている制約だけ**を扱います。
 
 ---
 
@@ -662,7 +822,7 @@ flowchart LR
 
 ### チェック内容
 
-`harness/scripts/ci_check.py` が行うチェックと、対応する Hook Rule（7節）:
+`harness/scripts/ci_check.py` が行う **16 項目**（A〜G, I〜Q。H は欠番）と、対応する Hook Rule（7節）:
 
 | # | チェック内容 | 対応する Hook Rule | 判定方法 |
 |---|---|---|---|
@@ -676,11 +836,23 @@ flowchart LR
 | I | `state` が `TESTED`/`INTEGRATED` の機能に妥当な `verification_receipt` があり、検証を実行したコミット以降に実装が変更されていない | Rule 10 | 受領書の `commit` が HEAD の祖先か + `git diff <commit> HEAD -- <機能ディレクトリ>` が空か + 終了コード・JUnit集計値 |
 | J | `interfaces[]` の両端の JSON Schema が構造的に整合している | （Hookでは未実施。並行実装中の食い違いを統合前に検出する。15節） | `check_interfaces.py` による型・必須項目・enum の包含関係の比較 |
 | K | 要件 → 機能 → テストのトレーサビリティ | （Hookでは未実施。15節） | `check_traceability.py`。MUST 要件の取りこぼし・存在しない FR ID・覆う要件にテストが対応づいていないケース |
-| L | コンテキスト予算 | （Hookでは未実施。6節） | `CONVENTIONS.md` と `.claude/agents/*.md` のバイト数を上限と比較 |
+| L | コンテキスト予算 | （Hookでは未実施。6節） | `CONVENTIONS.md` と `.claude/agents/*.md` 各ファイルのバイト数、および「agent プロンプト ＋ 読むと宣言した節 ＋ `always-reads` の手順書」の合計を上限と比較。`procedures/` を無宣言で読ませていても不合格 |
+| M | 規範と手順の二重管理 | （Hookでは未実施。`CONVENTIONS.md` 15節） | `CONVENTIONS.md` と `.claude/agents/*.md`・`.claude/skills/*/SKILL.md` の段落をほぼ同一かどうかで比較（言い換えを伴う重複は検出しない） |
+| N | `interfaces[]` の全エッジが結合テストに対応づけられているか | Rule 11（宣言レベル） | `check_integration_traceability.py`。実行結果の真偽は `run_integration_verification.py` が JUnit XML と突合する |
+| O | `CONVENTIONS.md` への節の新設拒否 | （Hookでは未実施） | `## <数字>.` の見出し数が 15 のままかを検証（節の削除・既存節の変更は対象外） |
+| P | `CLAIMS.md` と実体の drift | （Hookでは未実施） | 表に書かれた `<file>.py::<test>` が `harness/tests/` に実在するか。実証テストが `—` の行に「未実証の残余」が書かれているか |
+| Q | `VERSION` / `CHANGELOG.md` の追随 | （Hookでは未実施） | `harness/`・`.claude/`・`.github/` に差分のあるコミットで、`CHANGELOG.md` が変更ファイルに含まれ `## [Unreleased]` に `- ` 始まりの項目が 1 件以上あるか（内容の妥当性は見ない） |
+
+**H は欠番です。** `ci_check.py` にも `CLAIMS.md` にも H の項目は存在しません
+（経緯は記録に残っていません）。記号は `CLAIMS.md`・CI の出力・過去の記録が参照する
+安定した識別子なので、繰り上げずに欠番のまま維持します。
 
 Rule 5（必須Skillの充足）は CI 実行環境に Skill 有効化状態という概念が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既に全てコミット済みのため、
 それぞれ再検証の対象外（再検証しても意味がない）。
+
+なお `vuln-scan` job（依存ライブラリの脆弱性スキャン）はこの 16 項目には含まれません。
+Hook 規約の遵守ではなく別の関心事なので、独立した job として動きます（13節）。
 
 **B は `main`/`master` ブランチでは判定しない。** このハーネスは `harness/<topic>` で作業して
 `main` へ **fast-forwardマージ**する運用が前提（8節）。fast-forward マージは履歴が線形になるため、
@@ -757,7 +929,8 @@ npm・pip というエコシステム固有の CLI であり、対応エコシ�
 出し分けロジックが増える。OSV-Scanner はディレクトリを再帰的に走査して見つかった lockfile
 （`package-lock.json`・`requirements.txt`・`poetry.lock`・`Cargo.lock`・`go.sum` 等）の
 種類を自動判別し、OSV データベースに一括照会する単一のツールであり、ハーネス側がエコシステムを
-列挙する必要がない。ROADMAP.md では「npm audit/pip-audit/OSV等」を候補として挙げていたが、
+列挙する必要がない。初期のロードマップ（このリポジトリには残っていない）では
+「npm audit/pip-audit/OSV等」を候補として挙げていたが、
 検討の結果 v1 では OSV-Scanner 一本を採用した。
 
 ### なぜ Hook ではなく CI に置くか
@@ -789,12 +962,46 @@ CI ワークフロー側では `vuln-scan` job が毎回バージョン固定（
   （6節の「入出力さえわかれば内部を知らなくてよい」独立性の原則と整合的）。
 - 脆弱性が1件でも見つかれば `vuln-scan` job は失敗（exit 1）するが、12節と同様に
   ブランチ保護は設定していないため、現時点ではマージを機械的にブロックはしない
-  （可視化のみ）。深刻度（CVSS）によるしきい値判定や、対応不能な既知の脆弱性を
-  個別に無視するアローリスト機構は v1 では持たない。必要になれば
-  `osv-scanner` 自体の `--config`（`osv-scanner.toml` によるignore設定）を
-  `vuln_scan.py` から渡せるようにする拡張が考えられる（未着手）。
+  （可視化のみ）。深刻度（CVSS）によるしきい値判定は v1 では持たない。
+  対応不能な検出の受容は次の「抑制」で扱う。
 - Rule 5・8 と同様、CI 実行環境に閉じた話であり、Hook との二重化は行わない
   （そもそも Hook 側にこのチェックは存在しない）。
+
+### 抑制 — `apps/<app-id>/.vuln-ignore`（期限と理由が必須）
+
+上流に修正が出ていない脆弱性は、こちらが何をしても消せません。逃げ道が 1 つも無いと、
+その 1 件でアプリは CI を永久に通せなくなり、運用側は最終的に `vuln-scan` job 自体を外すか、
+赤いまま無視する運用に倒れます。**検査が形骸化する形で壊れる**のがいちばん悪いので、
+受容を記録できる経路を用意します。ただし「とりあえず無視」が恒久化すると、それはそれで
+検査の意味が消えるため、**期限と理由を必須**にします。
+
+書式（`apps/<app-id>/.vuln-ignore`、1 行 1 件）:
+
+```
+# 行頭 # はコメント。空行は無視される
+GHSA-xxxx-yyyy-zzzz  expires=2026-12-31  reason=上流に fix 未提供。追跡: https://github.com/…/issues/123
+CVE-2026-0001        expires=2026-10-01  reason=当該コードパスを使っていない。撤去 PR: #45
+```
+
+- `<ID>` は OSV の ID（`GHSA-…` / `CVE-…` など）。`vuln_scan.py` は単なる文字列として
+  突き合わせるだけで、エコシステムごとの分岐は持ちません（単一ツールに寄せた判断と同じ理由）。
+  OSV-Scanner の出力の `ids` と `aliases` のどちらに現れても一致します。
+- `expires` と `reason` は**両方必須**、この順序で書きます。`reason` は行末まで読むため、
+  URL に `#` が含まれていて構いません（その代わり行内コメントには対応しません）。
+- 抑制はそれを置いたアプリの配下にしか効きません。別アプリの検出は消えません。
+
+判定の順序と失敗の仕方:
+
+1. **抑制ファイルの検証が先**。`expires` か `reason` の欠落、日付の書式違反、実行日より
+   過去の `expires` が 1 件でもあれば、**走査結果に関わらず** exit 1 になり、
+   ファイル名・行番号・理由が stderr に出ます。検出が 0 件でも落ちます
+   （「たまたま検出が無かった」ために期限切れの抑制が生き残ることを防ぐため）。
+2. 検証を通った抑制だけが走査結果に適用されます。除外した検出は**黙って消さず**、
+   ID・`expires`・`reason`・出典行を標準出力に列挙します。
+
+`.vuln-ignore` が無い場合の挙動は従来と完全に同一です。置き場所をハーネス本体ではなく
+`apps/<app-id>/` にしているのは、これがハーネスの規範ではなく**アプリ側の受容判断**であり、
+その寿命がアプリと一致するからです（`CONVENTIONS.md` には節を足していません）。
 
 ---
 
@@ -1066,3 +1273,163 @@ verdict の材料にすると、指摘が無限に増え、何ラウンドで終
 
 `required_skills[]` が空でも、`harness/quality/*.md`（Layer 1）と Rule 10 の検証受領書は
 そのまま効きます。**スタックパックは品質の上積みであって、下限を担保するものではありません。**
+
+---
+
+## 18. CONVENTIONS.md から移設した設計意図・背景
+
+`harness/CONVENTIONS.md` は**規範の単一情報源**であり、コンテキスト予算（15節・CI 項目 L）の
+対象でもあります。規範そのものではない「なぜそうなっているか」の説明はここに置きます。
+見出しは移設元の CONVENTIONS.md の節番号に対応します。
+
+### 18-1. 5節（状態機械）— 前進のみを許す理由
+
+状態遷移は基本的に前進のみを許可します。`NOT_STARTED` からいきなり `INTEGRATED` にする、
+`CONTRACT_APPROVED` から `NOT_STARTED` に後退させる、といった書き込みは Rule 9 が拒否します。
+後退を許すと「一度戻してからやり直す」という形で契約凍結（Rule 3）と受領書ゲート（Rule 10）を
+両方すり抜けられるためです。
+
+`BLOCKED` からの復帰時に `state_history[]` を遡るのは、**「一度 `BLOCKED` にしてから好きな状態へ
+飛ぶ」という抜け穴を塞ぐ**ためです。`BLOCKED` はどの非終端状態からでも入れる「一時停止」なので、
+これが無ければ `IN_PROGRESS → BLOCKED → INTEGRATED` が通ってしまいます。
+`SUPERSEDED` への遷移をどこからでも許すのは、`diff-design` による置き換えがいつでも起こりうるためです。
+
+`validate_status_transition.py` は `--status-file` に `status.yaml` を渡すと履歴も踏まえて
+判定します（人間/CI 向けの手動確認 CLI）。
+
+### 18-2. 6節（独立機能）— `$ref` を使わない理由
+
+`check_interfaces.py` は JSON Schema の `$ref` を解決しません。参照で書くと端点の突合が効かなく
+なり、**共通型に集約したつもりが機械検証を失う**という最悪の結果になります。だから共通型は
+各 `contract.yaml` にインライン展開して書き、`shared-kernel.yaml` の `common_types` は
+「何を共通とみなすか」の単一の情報源として人間が参照するために使います。
+
+`interfaces[]` の突合が見るのは、端点の実在・型の一致・必須項目の包含関係（producer が出さない／
+出すとは限らない項目を consumer が `required` にしていないか）・`enum` の包含関係です。
+JSON Schema の構造比較はスタック非依存なので、**並行実装中の機能間の食い違いを統合前に検出できます**。
+`features[]` が互いへの `depends_on` を持たないのは、「入出力さえわかれば内部を知らなくてよい」
+という独立性を構造的に強制するためです。
+
+### 18-3. 7節（Hook ルール）— 各ルールの補足
+
+- **Rule 1**: `.github/workflows/` は CI 設定であり、これも「ハーネス本体」の一部として保護します。
+  `.claude/settings.local.json` を対象外にするのは、gitignore 対象でチームに共有されないためです。
+  Skill を自分の環境でだけ使うなら `/plugin install <name> --scope local`。`--scope project` は
+  `.claude/settings.json` を書き換え、CONVENTIONS.md 10節 Layer 2 の前提を壊します。
+- **Rule 3**: `CONTRACT_APPROVED` への遷移時に `approved_by`/`approved_at` を要求するのは、
+  **凍結の根拠を機械的に確かめる**ためです。凍結後の `open_issues[]` 追記のみを許すのは、
+  契約の同一性を保ったまま申し送りを機械検証の対象に残せるようにするためです。
+- **Rule 5**: 設計で使うと決めた Skill を欠いたまま実装が進むことを防ぎます。
+- **Rule 6**: 実装中に変更が必要だと気づいたら、実装を止めて `diff-design` skill での再設計に
+  回してください。メインの worktree からの `solution-architect`/`diff-design` の書き込みには
+  適用されません。
+- **Rule 7**: 要件が変更されたのに設計が追従していない状態で承認させないための規則です。
+  `status` だけ先に APPROVED にした中間状態を塞ぐために、同じ書き込みで
+  `approved_by`/`approved_at` を要求します。
+- **Rule 8**: 新規追加ファイルもコミット漏れの対象に含めます（`--untracked-files=all`）。
+- **Rule 10**: `verification_receipt` の手書きを拒否するのは、受領書が `run_verification.py` の
+  **実行の記録**だからです。手書きできてしまえば「実行した」という主張の裏付けになりません。
+- **Rule 11**: CI 項目 J（契約同士の静的比較）をすり抜ける実装差異を、実行結果で塞ぎます。
+- **Rule 12（危険操作フロア）**: Rule 1〜11 はすべて**工程の整合性**を守るもので、危険操作を
+  止める規則は 1 件もありませんでした。AUTONOMOUS モードで長時間走らせる前提のハーネスとして、
+  これが実運用上いちばん重い穴でした。設計上の要点は 3 つです。
+  1. **確認（ask）ではなく拒否（deny）にする。** AUTONOMOUS では AI 自身が確認に答えて
+     しまうため、確認は歯止めになりません。人間の判断を挟みたい操作は、拒否したうえで
+     「人間が別途手で実行する」という運用に倒します。
+  2. **他の Rule と独立に判定し、deny が勝つ。** Rule 12 は「このパスに書いてよいか」ではなく
+     「この操作自体をやらせない」という別軸なので、書き込み先ごとのループではなく
+     ツール呼び出しごとに 1 回だけ判定します。
+  3. **バイパス用の環境変数を用意しない。** 誤検知は検知ロジック自体を直します。
+  検知は既存の Bash トークナイザ（`iter_bash_segments`）を再利用します。パース系を 2 つ持つと、
+  片方だけ直して検知が食い違うためです。D-1（再帰削除）は「リポジトリ配下に留まると確認できない」
+  ものを綴りだけで拒否します——`..`・未展開の変数・`/`・`.`・先頭ワイルドカードは、解決を
+  試みるまでもなく安全とは言えません。残余（変数展開・エイリアス・自作スクリプト経由の間接実行）は
+  `harness/CLAIMS.md` に明記してあります。
+
+**強制レイヤ自身が壊れたとき何が起きるか（fail-open の可視化）**
+
+Hook は `exit 2` で拒否、それ以外は「判断なし＝通過」として扱われます。つまり `python3` が
+見つからない・`import` に失敗する・タイムアウトする・例外が出る、のいずれでも Hook は
+exit != 2 で終わり、**全ルールが黙って無効化された状態で作業が続きます**。決定論的強制を
+掲げるハーネスにとって、これは「効いていないのに効いているつもり」という最悪の失敗の形です。
+
+Hook を起動するのは Claude Code なので、ハーネス側からその失敗を止めることはできません。
+できるのは 2 つです。
+
+1. **判定できたのに例外で落ちた場合は、通さずに止める**（fail-closed）。
+   `pre_tool_use_guard.py` の入口は `_fail_closed_main` で包み、想定外の例外を握りつぶさず
+   exit 2 ＋ 理由で返します。
+2. **壊れていることを人間に見せる**。`SessionStart` フック
+   （`session_start_healthcheck.py`）が起動時に hooks の import 可否・`path_utils` の主要関数・
+   `.claude/settings.json` の Hook 登録を検査し、異常があれば stderr の警告と
+   `additionalContext` の注入で知らせます。同じ診断結果が `PROGRESS.md` の先頭にも出ます
+   （9節が言う「人間が随時状況を確認できることを最終的な担保とする」の実体）。
+
+`PROGRESS.md` に出す診断からは **Python のバージョンなど実行環境に依存する判定を外して**
+あります。`PROGRESS.md` はコミットされる成果物で、CI の項目 G が「再生成した結果と一致するか」を
+見るため、環境ごとに差分が出る値を混ぜると構造的に不合格になるからです。
+
+**worktree の読み替えが要る理由**: 読み替えないと `^apps/.../03-features/...` にアンカーされた
+Rule 1・2・3・5・9・10 がまとめて素通りします（経緯と実証は 5節）。書き込み先をその所属リポジトリの
+ルート基準で相対化するのは、worktree が隔離機構ではなく、**隔離しているのは Hook だから**です（8節）。
+
+**Bash 検知が 2 段構えである理由**: 静的検知（`extract_bash_candidate_paths`）は未然に止めますが、
+変数展開されたパス等の検知漏れが原理的に残ります。事後検証（`post_tool_use_guard.py`）が実行前後の
+スナップショットを内容のハッシュで比較して確実に捕まえ、違反は実行直前の内容へ巻き戻します。
+静的検知は「止められるものは実行前に止める」ために削除しません。ハーネス自身のスクリプト経由の
+書き込み（`run_verification.py` 等）は、コマンド文字列にパスが現れないため静的検知には掛かりません。
+
+**バイパス用の環境変数を用意しない理由**: ブロックされた際に AI 自身が環境変数を設定して解除
+できてしまうと、決定論的強制という目的そのものが崩れるためです。
+
+### 18-4. 9節（自動化の度合い）— 機械強制の限界
+
+要件定義の承認だけは常に人間必須なのは、**アプリの目的そのものを AI だけで確定させない**ための
+ハーネス全体の固定ポリシーです。
+
+「本当に人間が承認したか」という意味論的な判定を Hook が完全に決定論的に強制することはできません
+（Hook が見られるのはファイルパスと内容だけで、対話の意味までは判定できないため）。だから機械的に
+強制できる範囲を 2 点に限定しています。過信せず、`PROGRESS.md` の `autonomy_mode` 表示で人間が
+随時状況を確認できることを最終的な担保としてください。
+
+承認の書き込みを親セッションが行うのは、**subagent にはユーザーの承認が親エージェントからの伝聞と
+してしか届かず、人間が承認したことを確かめようがない**ためです。
+
+### 18-5. 10節（品質保証）— Layer 2 に「完全オプション」を置かない理由
+
+技術スタックは設計フェーズで確定させ、それに反した実装を許さない、という原則をプラグイン系 Skill
+にも適用します。「あれば使う、無ければ黙ってスキップ」という完全オプションの層を置くと、
+**その Skill があるかどうかで品質が変わり、しかもそれが記録に残りません**。
+Layer 1（`harness/quality/*.md`）を CONVENTIONS.md 本体に埋め込まないのは、該当フェーズで初めて
+Read されるようにして、コンテキストを必要なときだけ消費するためです。
+`required_skills[]` の選定手順は `solution-architect` が持ちます。
+`gate-reviewer` の軸がすべてスタック非依存なのは、スタック固有の標準が外部スタックパック（17節）の
+領分だからです。
+
+### 18-6. 11節（上位文書優先）
+
+`shared-kernel.yaml` と `architecture.machine.yaml` を反復作業として扱うのは、機能一覧が固まって
+初めて共通部分が見えてくることが多いためです（手順は `solution-architect` のプロンプト）。
+Rule 7 の版一致条件は「要件は変わったのに設計が追従していない」状態のまま先に進むことを構造的に防ぎます。
+
+### 18-7. 12節（検証コマンド）
+
+ハーネスは**規定 prescribe をしない。要求 require と実行 execute だけを行う**。これによりアプリ
+非依存性を保ったまま実行ベースの検証が成立します。`test_command` を宣言するのは
+`solution-architect` の責務です（技術スタックを決めるのと同じ場所で検証手順も決める）。
+
+`run_verification.py` は検証コマンドの生成物を検出したら警告します（何が生成物かはスタックごとに
+違うため、ハーネスは判定せず報告だけする）。検証が失敗した受領書もコミットして構いません
+（`TESTED` への昇格は Rule 10 が別途止めます）。JUnit XML を出力できない技術なら宣言しなければよく、
+終了コードによるゲートはそのまま効き続けます。
+
+### 18-8. 15節（コンテキスト予算）
+
+上限は「ここまでなら使ってよい」という許可ではなく、**超えるときに意識的な判断を強制する**ための
+線です。上限の数値を上げるのは、移せるものを移し切ってからにしてください。
+
+agent プロンプト本文中の「7節 Rule 7」のような出典の注記は、読みに行けという指示ではなく、
+**規約を保守する人間がたどるための手がかり**です。だからマーカーが `none` の agent でも書けます。
+
+規範を `CONVENTIONS.md` だけに置くのは、違反すれば Hook が止め、そのエラーメッセージが直し方を
+示すからです。二重管理の実例は F-048（`docs/maintenance/DOGFOODING-LOG.md`）。

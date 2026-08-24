@@ -13,6 +13,8 @@ import pytest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts"))
 import render_progress  # noqa: E402
 
+HARNESS_ROOT = pathlib.Path(__file__).resolve().parent.parent
+
 
 def receipt(**slots) -> dict:
     return {"verification_receipt": {"commit": "a1b2c3d4e5f6" + "0" * 28, **slots}}
@@ -114,3 +116,145 @@ def test_main_wins_when_main_is_newer_after_integration(tmp_path) -> None:
     paths = render_progress._collect_status_paths(app_dir)
     assert len(paths) == 1
     assert render_progress._common.load_yaml(paths[0])["state"] == "INTEGRATED"
+
+
+# --------------------------------------------------------------------------------------
+# 非エンジニア向け HTML 面（T-030 / F-A8）
+#
+# 新しい skill は増やさず、既にある決定論的レンダラの出力形式を 1 つ足す（NG-3）。
+# **AI に作文させない**ことが要点なので、入力が status.yaml / contract.yaml / VERSION /
+# 強制レイヤの診断だけであることと、同じ入力から同じ出力が出ることを固定する。
+# --------------------------------------------------------------------------------------
+
+HTML_STATUS_A = """feature_id: "feat-a"
+app_id: "demo"
+state: INTEGRATED
+blockers: []
+last_updated_at: "2026-08-24T00:00:00Z"
+review:
+  verdict: GO
+  rounds: 2
+  blockers: 0
+verification_receipt:
+  commit: "0123456789abcdef0123456789abcdef01234567"
+  test:
+    exit_code: 0
+    tests: 42
+    skipped: 1
+"""
+
+HTML_STATUS_B = """feature_id: "feat-b"
+app_id: "demo"
+state: BLOCKED
+blockers: ["依存する外部 API の仕様が未確定"]
+last_updated_at: "2026-08-24T01:00:00Z"
+"""
+
+HTML_CONTRACT_A = """feature_id: "feat-a"
+open_issues:
+- id: "OI-1"
+  summary: "エラー時の終了コードが契約に書かれていない"
+  found_at: "2026-08-24T00:00:00Z"
+  found_by: "feature-builder"
+"""
+
+
+def _html_app(tmp_path):
+    """テンプレートを読ませるため、本物の harness を指す一時リポジトリを作る。"""
+    import os
+
+    root = tmp_path / "repo"
+    app_dir = root / "apps" / "demo"
+    (app_dir / "03-features" / "feat-a").mkdir(parents=True)
+    (app_dir / "03-features" / "feat-b").mkdir(parents=True)
+    (app_dir / "03-features" / "feat-a" / "status.yaml").write_text(HTML_STATUS_A, encoding="utf-8")
+    (app_dir / "03-features" / "feat-a" / "contract.yaml").write_text(HTML_CONTRACT_A, encoding="utf-8")
+    (app_dir / "03-features" / "feat-b" / "status.yaml").write_text(HTML_STATUS_B, encoding="utf-8")
+    os.symlink(HARNESS_ROOT, root / "harness")
+    return app_dir
+
+
+def _render_html(tmp_path) -> str:
+    app_dir = _html_app(tmp_path)
+    render_progress.render_app(app_dir, as_html=True)
+    return (app_dir / "PROGRESS.html").read_text(encoding="utf-8")
+
+
+def test_html_is_generated_as_a_single_self_contained_file(tmp_path) -> None:
+    page = _render_html(tmp_path)
+    assert page.startswith("<!doctype html>")
+    assert 'src="http' not in page and 'href="http' not in page  # 外部リソースに依存しない
+    assert "<style>" in page  # CSS はインライン
+
+
+def test_html_shows_each_feature_with_its_state(tmp_path) -> None:
+    page = _render_html(tmp_path)
+    assert "feat-a" in page and "統合済み" in page
+    assert "feat-b" in page and "ブロック中" in page
+    assert "依存する外部 API の仕様が未確定" in page
+
+
+def test_html_shows_the_verification_receipt_result(tmp_path) -> None:
+    """受領書の有無と結果は、非エンジニアが見るべき最重要の情報。"""
+    page = _render_html(tmp_path)
+    assert "OK 42件" in page and "0123456" in page
+
+
+def test_html_shows_the_gate_reviewer_verdict(tmp_path) -> None:
+    assert "GO（2R）" in _render_html(tmp_path)
+
+
+def test_html_shows_unresolved_open_issues(tmp_path) -> None:
+    page = _render_html(tmp_path)
+    assert "OI-1" in page and "エラー時の終了コードが契約に書かれていない" in page
+
+
+def test_html_shows_the_enforcement_layer_state(tmp_path) -> None:
+    assert "強制レイヤ" in _render_html(tmp_path)
+
+
+def test_html_has_no_markdown_bold_left_over(tmp_path) -> None:
+    assert "**" not in _render_html(tmp_path)
+
+
+def test_html_escapes_values_from_yaml(tmp_path) -> None:
+    """`status.yaml` の内容がそのまま HTML に埋まると、壊れた表示や注入になる。"""
+    app_dir = _html_app(tmp_path)
+    (app_dir / "03-features" / "feat-b" / "status.yaml").write_text(
+        'feature_id: "feat-b"\napp_id: "demo"\nstate: BLOCKED\n'
+        'blockers: ["<script>alert(1)</script>"]\n',
+        encoding="utf-8",
+    )
+    render_progress.render_app(app_dir, as_html=True)
+    page = (app_dir / "PROGRESS.html").read_text(encoding="utf-8")
+    assert "<script>alert(1)</script>" not in page
+    assert "&lt;script&gt;" in page
+
+
+def test_html_is_deterministic_for_the_same_input(tmp_path) -> None:
+    """同じ入力からは同じ出力（タイムスタンプ以外）。AI が作文していないことの担保。"""
+    app_dir = _html_app(tmp_path)
+    render_progress.render_app(app_dir, as_html=True)
+    first = (app_dir / "PROGRESS.html").read_text(encoding="utf-8")
+    render_progress.render_app(app_dir, as_html=True)
+    second = (app_dir / "PROGRESS.html").read_text(encoding="utf-8")
+    assert first == second
+
+
+def test_html_is_not_generated_without_the_flag(tmp_path) -> None:
+    app_dir = _html_app(tmp_path)
+    render_progress.render_app(app_dir)
+    assert not (app_dir / "PROGRESS.html").exists()
+
+
+def test_the_html_output_is_gitignored() -> None:
+    """派生物は判断の根拠にしない（生成物をコミットさせない）。"""
+    gitignore = (HARNESS_ROOT.parent / ".gitignore").read_text(encoding="utf-8")
+    assert "apps/*/PROGRESS.html" in gitignore
+
+
+def test_no_new_skill_or_subagent_was_added() -> None:
+    """NG-3。HTML 面のために skill / subagent を増やしていないこと。"""
+    root = HARNESS_ROOT.parent
+    assert len(list((root / ".claude" / "agents").glob("*.md"))) == 5
+    assert len(list((root / ".claude" / "skills").glob("*/SKILL.md"))) == 4

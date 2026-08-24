@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10 を強制する（Rule 4/8 は別 hook）。
+"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10〜12 を強制する（Rule 4/8 は別 hook）。
+Rule 3・7・9・10・11 は書き込み前後の内容比較に依存するため、書き込み後の内容を再現できない手段
+（Bash・NotebookEdit 等）による該当ファイルへの書き込みは `check_requires_simulatable_tool` が一律拒否する。
 **依存ゼロ**（標準ライブラリのみ）。Edit/Write/MultiEdit/NotebookEdit は確実にブロックする。
 Bash 経由の間接書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト等、`path_utils.extract_bash_candidate_paths`
 で検知できる範囲）も同様にブロックする。検知は shlex によるクォート考慮トークン化に基づくため、
@@ -8,8 +10,14 @@ Bash 経由の間接書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト�
 Bash コマンド（Claude Code が渡す典型的な形）でも `cp`/`mv`/`tee`/`sed -i` が先頭行以外にある場合を
 検知できる（`path_utils._normalize_bash_newlines`）。ただし変数展開されたパス等の検知漏れ
 （false negative）は起こりうる。これは「完全な防御ではなく、意図しない/不注意な間接書き込みを
-止める」という目的上許容する。**バイパス用の環境変数は意図的に用意しない**
-（AIがブロックされた際に自ら解除して実行できてしまい、決定論的強制が意味を失うため）。
+止める」という目的上許容する。**この Bash 間接書き込み検知には、解除用の環境変数を意図的に
+用意しない**（AIがブロックされた際に自ら解除して実行できてしまい、決定論的強制が意味を失うため）。
+
+解除路があるのは Rule 1 だけである（`HARNESS_UNLOCK=1`。ハーネス本体を `harness/` ブランチ以外
+から直す必要がある場合の緊急避難路で、使うと警告を stderr に出す。`CONVENTIONS.md` 8節・
+`CLAIMS.md` の Rule 1 行にも明記してある）。Rule 2〜12 には解除路が無く、とりわけ Rule 12
+（危険操作フロア）に環境変数を足さないことは INV-4 であり、
+`test_dangerous_ops.py::test_rule12_has_no_bypass_environment_variable` が固定している。
 
 exit 0 = 許可, exit 2 = 拒否（stderr に理由）。
 """
@@ -19,6 +27,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import path_utils  # noqa: E402
@@ -60,7 +69,7 @@ def check_rule2_feature_scope(rel_path: str, cwd: str) -> str | None:
     m = FEATURE_SCOPE_RE.match(rel_path)
     if not m:
         return None
-    _app_id, feature_id, rest = m.groups()
+    feature_id, rest = m.group(2), m.group(3)
     if rest == "status.yaml":
         return None  # 状態遷移は担当者・integrator 双方が正当に更新するため対象外
     toplevel = path_utils.get_worktree_toplevel(cwd)
@@ -129,7 +138,7 @@ def check_rule5_required_skills(rel_path: str, toplevel: str) -> str | None:
     return "\n".join(lines)
 
 
-def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     m = ARCHITECTURE_RE.match(rel_path)
     if not m:
         return None
@@ -165,7 +174,7 @@ def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_inp
     return None
 
 
-def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     """Rule 7（承認ゲート）の要件側・同時性の強制（CONVENTIONS.md 9節）。
 
     `requirements.machine.yaml` / `architecture.machine.yaml` を `status: APPROVED` にする
@@ -187,7 +196,7 @@ def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict,
 
 
 def check_rule3_contract_approval_record(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 3（契約凍結）の前提を機械的に確かめる（CONVENTIONS.md 9節・F-039）。
 
@@ -232,7 +241,7 @@ def check_rule3_contract_approval_record(
     )
 
 
-def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     m = STATUS_YAML_RE.match(rel_path)
     if not m:
         return None
@@ -253,7 +262,7 @@ def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dic
 
 
 def check_rule10_verification_receipt(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 10: 検証受領書ゲート（CONVENTIONS.md 12節）。
 
@@ -323,7 +332,7 @@ def check_rule10_verification_receipt(
 
 
 def check_rule11_integration_receipt_immutable(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 11(a): `integration.machine.yaml` の `verification_receipt` は手書きできない
     （Rule 10(a) の統合版。`run_integration_verification.py` だけが書き込める）。
@@ -353,7 +362,7 @@ def check_rule11_integration_receipt_immutable(
 
 
 def check_rule11_integration_receipt(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 11: 統合の受領書ゲート（CONVENTIONS.md 12/13節。Rule 10 の統合版）。
 
@@ -369,7 +378,7 @@ def check_rule11_integration_receipt(
     m = STATUS_YAML_RE.match(rel_path)
     if not m:
         return None
-    app_id, _feature_id = m.groups()
+    app_id = m.group(1)
     status_path = os.path.join(toplevel, rel_path)
     try:
         with open(status_path, "r", encoding="utf-8") as f:
@@ -460,7 +469,7 @@ def is_open_issue_append(current_content: str, new_content: str) -> bool:
 
 
 def check_rule3_contract_freeze(
-    rel_path: str, toplevel: str, tool_name: str = "", tool_input: dict | None = None
+    rel_path: str, toplevel: str, tool_name: str = "", tool_input: dict[str, Any] | None = None
 ) -> str | None:
     m = FEATURE_CONTRACT_RE.match(rel_path)
     if m:
@@ -486,7 +495,7 @@ def check_rule3_contract_freeze(
 
     m = DESIGN_CONTRACT_RE.match(rel_path)
     if m:
-        app_id, _feature_id = m.groups()
+        app_id = m.group(1)
         architecture_path = os.path.join(toplevel, f"apps/{app_id}/02-design/architecture.machine.yaml")
         status = path_utils.read_state_field(architecture_path)
         if status is None or status == "DRAFT":
@@ -498,34 +507,74 @@ def check_rule3_contract_freeze(
     return None
 
 
-# Rule 7・9・10 が「書き込み前後の内容比較」で判定するファイル。Bash はコマンド文字列からしか
-# 判定できず、書き込み後の内容を予測できないため、これらへの Bash 経由の書き込みは一律拒否する。
-CONTENT_JUDGED_RES = (STATUS_YAML_RE, REQUIREMENTS_RE, ARCHITECTURE_RE)
+# Rule 3・7・9・10・11 が「書き込み前後の内容比較」で判定するファイル。
+# 書き込み後の内容を予測できない手段では、これらのゲートが一度も走らないまま素通りする。
+CONTENT_JUDGED_RES = (STATUS_YAML_RE, REQUIREMENTS_RE, ARCHITECTURE_RE, INTEGRATION_RECORD_RE)
+
+# `path_utils.simulate_write_result()` が書き込み後の内容を再現できるツール。
+# ここに無いツールは「判定できない手段」であり、CONTENT_JUDGED_RES への書き込みを拒否する。
+CONTENT_SIMULATABLE_TOOLS = ("Edit", "Write", "MultiEdit")
 
 
-def check_bash_requires_structured_tool(rel_path: str) -> str | None:
-    """Bash 経由で Rule 7・9・10 を迂回できる穴を塞ぐ（CONVENTIONS.md 7節・F-021）。
+def check_requires_simulatable_tool(rel_path: str, tool_name: str) -> str | None:
+    """内容比較で判定するファイルを、結果を予測できない手段で書くことを拒否する（F-021）。
 
     `sed -i` で `status: APPROVED` や `state: TESTED` にすれば、内容比較に依存する
-    Rule 7・9・10 は一度も走らなかった。決定論的強制を掲げる以上、書き込み手段しだいで
-    ゲートが消えるのは設計上の穴なので、判定できない手段そのものを拒否する。
+    Rule 3・7・9・10・11 は一度も走らなかった。決定論的強制を掲げる以上、**書き込み手段しだいで
+    ゲートが消えるのは設計上の穴**なので、判定できない手段そのものを拒否する。
 
-    ハーネス自身のスクリプト（`run_verification.py` 等）による書き込みは、コマンド文字列に
-    対象ファイルのパスが現れないためここには掛からない（それらは受領書のように、
-    実行の裏付けを伴う正規の書き込み経路である）。
+    当初は Bash だけを対象にしていたが、それでは不十分だった（実測で確認）:
+
+    - `NotebookEdit` は `simulate_write_result()` が扱えず、書き込み後の内容として
+      **変更前の内容がそのまま返る**。Rule 9・10 から見れば「何も変わっていない」ので
+      受領書なしの `state: TESTED` が素通りした。
+    - `integration.machine.yaml` は対象に入っておらず、Bash / NotebookEdit から
+      **統合受領書を手書きできた**（INV-2 違反）。
+
+    そこで判定を「Bash かどうか」ではなく「**書き込み後の内容を再現できる手段かどうか**」に
+    変えた。将来ツールが増えても、`CONTENT_SIMULATABLE_TOOLS` に追加しない限り自動的に拒否側に入る。
+
+    `tool_name` が空のときは判定しない。事後検証（`post_tool_use_guard.py`）は
+    「実際に何が変わったか」を見る経路であり、そこにはハーネス自身のスクリプト
+    （`run_verification.py` 等。受領書という実行の裏付けを伴う正規の書き込み経路）による
+    変更も含まれるため、ここで拒否すると受領書そのものが巻き戻される。
     """
+    if not tool_name or tool_name in CONTENT_SIMULATABLE_TOOLS:
+        return None
     if not any(pattern.match(rel_path) for pattern in CONTENT_JUDGED_RES):
         return None
     return (
-        f"拒否: {rel_path} への Bash 経由の書き込みは受け付けません。\n"
-        "Edit/Write/MultiEdit を使ってください（承認・状態遷移・検証受領書のゲート"
-        "（Rule 7・9・10）は書き込み前後の内容を比較して判定するため、"
-        "Bash では検証できないまま素通りしてしまいます）。"
+        f"拒否: {rel_path} への {tool_name} 経由の書き込みは受け付けません。\n"
+        "Edit/Write/MultiEdit を使ってください（承認・状態遷移・検証受領書・統合受領書のゲート"
+        "（Rule 3・7・9・10・11）は書き込み前後の内容を比較して判定するため、"
+        f"{tool_name} では書き込み後の内容を再現できず、検証できないまま素通りしてしまいます）。"
     )
 
 
+def check_rule12_dangerous_operation(
+    tool_name: str, tool_input: dict[str, Any], cwd: str, toplevel: str
+) -> str | None:
+    """Rule 12: 危険操作フロア（CONVENTIONS.md 7節）。
+
+    他の Rule と独立に判定し、**他 Rule が allow でも Rule 12 が deny なら deny が勝つ**。
+    パスに紐づく工程の整合性ではなく「この操作自体をやらせない」という別軸の判定なので、
+    `run_checks`（書き込み先ごとのループ）ではなく `main` から 1 回だけ呼ぶ。
+
+    確認を求める（ask）のではなく拒否する（deny）。AUTONOMOUS モードでは AI 自身が確認に
+    答えてしまうため、確認は歯止めにならない（NG-6）。
+    """
+    if tool_name == "Bash":
+        return path_utils.detect_dangerous_bash_operation(
+            tool_input.get("command", "") or "", cwd, toplevel
+        )
+    if tool_name in ("Read", "NotebookRead"):
+        path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        return path_utils.detect_dangerous_read(path) if path else None
+    return None
+
+
 def run_checks(
-    rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict | None = None
+    rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict[str, Any] | None = None
 ) -> str | None:
     tool_input = tool_input or {}
     for check in (check_rule1_harness_immutability, check_rule2_feature_scope):
@@ -541,11 +590,10 @@ def run_checks(
     reason = check_rule3_contract_freeze(rel_path, toplevel, tool_name, tool_input)
     if reason:
         return reason
-    if tool_name == "Bash":
-        reason = check_bash_requires_structured_tool(rel_path)
-        if reason:
-            return reason
-    if tool_name in ("Edit", "Write", "MultiEdit"):
+    reason = check_requires_simulatable_tool(rel_path, tool_name)
+    if reason:
+        return reason
+    if tool_name in CONTENT_SIMULATABLE_TOOLS:
         reason = check_rule11_integration_receipt_immutable(rel_path, tool_name, tool_input, toplevel)
         if reason:
             return reason
@@ -605,17 +653,40 @@ def save_bash_snapshot(cwd: str, toplevel: str, session_id: str | None) -> None:
 
 
 def main() -> int:
-    payload = path_utils.read_hook_input()
+    # 寛容版（read_hook_input）だと壊れた入力が `{}` に潰れ、「ツール名なし＝判定対象外」として
+    # 通過してしまう。ブロックする hook では判定できない入力は止める（F-R1）。
+    payload = path_utils.read_hook_input_strict()
     tool_name = payload.get("tool_name", "")
-    tool_input = payload.get("tool_input", {}) or {}
+    tool_input_raw = payload.get("tool_input", {})
+    if tool_input_raw is None:
+        tool_input_raw = {}
+    if not isinstance(tool_input_raw, dict):
+        raise path_utils.HookInputError(
+            f"tool_input がオブジェクトではありません（{type(tool_input_raw).__name__}）"
+        )
+    tool_input: dict[str, Any] = tool_input_raw
     cwd = payload.get("cwd") or os.getcwd()
 
+    # 構造化編集ツールなのに書き込み先が入っていない payload は、何に対する操作かを特定できない。
+    # 「対象パスなし＝判定対象なし」として通すと、Rule 1〜11 がまとめて空振りする。
+    field = path_utils.STRUCTURED_EDIT_PATH_FIELDS.get(tool_name)
+    if field is not None and not path_utils.extract_structured_edit_paths(tool_name, tool_input):
+        raise path_utils.HookInputError(
+            f"{tool_name} の tool_input に書き込み先（{field}）が入っていません"
+        )
+
     toplevel = path_utils.get_worktree_toplevel(cwd) or cwd
+
+    # Rule 12 は他の Rule と独立に、書き込み先に関係なく判定する（deny が勝つ）
+    reason = check_rule12_dangerous_operation(tool_name, tool_input, cwd, toplevel)
+    if reason:
+        print(reason, file=sys.stderr)
+        return 2
 
     if tool_name == "Bash":
         command = tool_input.get("command", "")
         candidates = path_utils.extract_bash_candidate_paths(command)
-        violations = []
+        violations: list[str] = []
         for candidate in candidates:
             target_rel, target_top = path_utils.resolve_write_target(candidate, cwd, toplevel)
             rel_path, scope_top = path_utils.resolve_worktree_scope(target_rel, target_top)
@@ -648,5 +719,36 @@ def main() -> int:
     return 0
 
 
+def _fail_closed_main() -> int:
+    """想定外の例外で **通過** させない（fail-closed）。
+
+    Hook が exit != 2 で終わると Claude Code はそれを「判断なし＝通過」として扱う。
+    例外を握りつぶすと、全ルールが黙って無効化された状態で作業が続いてしまう（F-A2）。
+    判定できなかったのなら、通すのではなく止めて人間に見せるほうが安全側である。
+    """
+    try:
+        return main()
+    except path_utils.HookInputError as exc:
+        print(
+            "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が hook の入力を解釈できませんでした。\n"
+            f"  {exc}\n"
+            "何に対する操作かが分からない状態では Rule 1〜12 のどれも判定できません。"
+            "通すのではなく止めます。\n"
+            "PreToolUse に渡される payload（JSON）が壊れています。"
+            "Hook の起動方法（`.claude/settings.json` の command）を確認してください。",
+            file=sys.stderr,
+        )
+        return 2
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が想定外の例外で判定できませんでした。\n"
+            f"  {type(exc).__name__}: {exc}\n"
+            "判定できない状態で書き込みを通すと、全ルールが黙って無効化された状態で作業が続きます。\n"
+            "`python3 harness/hooks/session_start_healthcheck.py` で強制レイヤの状態を確認してください。",
+            file=sys.stderr,
+        )
+        return 2
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_fail_closed_main())

@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ハーネス実行フロー精査書（技術版）</title>
+<style>
+:root{
+  color-scheme: light dark;
+  --bg:#f6f6f8; --panel:#fff; --ink:#1b1b1f; --muted:#5d5d68; --line:#e3e3ea;
+  --accent:#2f5fd0; --accent-bg:#e8eefb;
+  --ok:#1f7a4d; --ok-bg:#e6f4ec; --warn:#8a5a00; --warn-bg:#fdf1dc;
+  --bad:#a32b2b; --bad-bg:#fbe9e9; --idle:#5d5d68; --idle-bg:#ececef;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#151519; --panel:#1e1e24; --ink:#ececf1; --muted:#a2a2ae; --line:#32323c;
+    --accent:#7ea6ff; --accent-bg:#1d2740;
+    --ok:#6cd3a0; --ok-bg:#16332a; --warn:#e3b45f; --warn-bg:#352c17;
+    --bad:#f08a8a; --bad-bg:#3a1f1f; --idle:#a2a2ae; --idle-bg:#2a2a31;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:2.5rem 1.25rem 5rem;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+  line-height:1.8;font-size:15.5px}
+.wrap{max-width:72rem;margin:0 auto}
+h1{font-size:1.7rem;margin:0 0 .4rem;line-height:1.4}
+h2{font-size:1.25rem;margin:3.5rem 0 .9rem;padding-bottom:.4rem;border-bottom:2px solid var(--line)}
+h3{font-size:1.02rem;margin:2rem 0 .6rem}
+h4{font-size:.92rem;margin:1.3rem 0 .4rem;color:var(--muted);letter-spacing:.02em}
+p{margin:.75rem 0}
+.lead{color:var(--muted);margin:0 0 2rem}
+.toc{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.4rem;margin:0 0 2.5rem}
+.toc ol{margin:.4rem 0;padding-left:1.4rem;columns:2;column-gap:2rem}
+@media(max-width:40rem){.toc ol{columns:1}}
+.toc a{color:var(--accent);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem 1.3rem;margin:1.2rem 0}
+.box.inv{border-left:4px solid var(--bad);background:var(--bad-bg)}
+.box.note{border-left:4px solid var(--accent);background:var(--accent-bg)}
+.box.warn{border-left:4px solid var(--warn);background:var(--warn-bg)}
+.box h4{margin-top:0;color:inherit;font-size:.95rem;font-weight:700}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:.6rem;margin:1.2rem 0}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;color:var(--muted);font-weight:600;white-space:nowrap;background:var(--bg);position:sticky;top:0}
+tr:last-child td{border-bottom:none}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.id{white-space:nowrap;font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em;
+  background:var(--idle-bg);padding:.1rem .35rem;border-radius:.25rem}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:1rem;
+  overflow-x:auto;font-size:.82rem;line-height:1.55}
+pre code{background:none;padding:0}
+.tag{display:inline-block;padding:.06rem .45rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+.t-det{color:var(--ok);background:var(--ok-bg)}
+.t-ai{color:var(--warn);background:var(--warn-bg)}
+.t-mix{color:var(--accent);background:var(--accent-bg)}
+.t-deny{color:var(--bad);background:var(--bad-bg)}
+.t-none{color:var(--idle);background:var(--idle-bg)}
+ul,ol{padding-left:1.4rem}
+li{margin:.3rem 0}
+.flow svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:.5rem 1.2rem;font-size:.8rem;color:var(--muted);margin:.6rem 0 0}
+.legend span{display:flex;align-items:center;gap:.35rem}
+.swatch{width:.8rem;height:.8rem;border-radius:.2rem;display:inline-block}
+footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>ハーネス実行フロー精査書（技術版）</h1>
+<p class="lead">
+apparness ハーネスの実行時アーキテクチャ。介入点・参照文書・コンテキスト予算・ブランチ保護・
+ゲート判定の書式と決定性を、実装に対応づけて記述する。<br>
+対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 685 件緑<br>
+平易版: <code>docs/flow/harness-flow-plain.html</code>
+</p>
+
+<div class="toc">
+<strong>目次</strong>
+<ol>
+<li><a href="#arch">設計原理と不変条件</a></li>
+<li><a href="#flow">実行フロー全体図</a></li>
+<li><a href="#hooks">Hook — 介入点と exit code 契約</a></li>
+<li><a href="#rules">Rule 1–12 の判定仕様</a></li>
+<li><a href="#agents">subagent と skill の起動関係</a></li>
+<li><a href="#budget">コンテキスト予算 — 実測と計上規則</a></li>
+<li><a href="#docs">文書の責務分割と追記先の決定表</a></li>
+<li><a href="#git">ブランチ規約・worktree・書き込み保護</a></li>
+<li><a href="#gate">ゲート判定の書式と決定性</a></li>
+<li><a href="#ci">CI 項目 A–Q（サーバーサイド再検証）</a></li>
+<li><a href="#claims">主張と証跡の対応（CLAIMS.md）</a></li>
+<li><a href="#limits">既知の限界と残余</a></li>
+<li><a href="#source">この文書の出典と再検証手順</a></li>
+</ol>
+</div>
+
+<h2 id="arch">1. 設計原理と不変条件</h2>
+
+<p>
+apparness の差別化は<strong>「実行結果の内容そのものを機械が検証する」</strong>点にある。
+AI の自己申告（self-review / 自己宣言）をゲートの根拠に採らない。この原理から次の不変条件が導かれる。
+改修時にこれらを壊す変更は、どれだけ有益に見えても却下する。
+</p>
+
+<div class="box inv">
+<h4>INV — 壊してはならない性質</h4>
+<div class="scroll" style="margin:.6rem 0 0;background:transparent;border:none">
+<table>
+<tbody>
+<tr><td class="id">INV-1</td><td>AI の自己申告を根拠にしたゲートを新設しない</td></tr>
+<tr><td class="id">INV-2</td><td>受領書（<code>verification_receipt</code> / 統合受領書）を人間・AI が手書きできるようにしない</td></tr>
+<tr><td class="id">INV-3</td><td>受領書の <code>commit</code> と HEAD の一致条件（CI では祖先＋未変更の等価条件）を緩めない</td></tr>
+<tr><td class="id">INV-4</td><td>Bash 経由の間接書き込み検知・危険操作検知に、解除用の環境変数を追加しない</td></tr>
+<tr><td class="id">INV-5</td><td><code>harness/hooks/**</code> は Python 標準ライブラリのみで動く状態を維持する</td></tr>
+<tr><td class="id">INV-6</td><td><code>gate-reviewer</code> の verdict は深刻度の機械的集計のみで決める。<code>Write</code>/<code>Edit</code> を与えない</td></tr>
+<tr><td class="id">INV-7</td><td>スタック固有の標準をハーネス本体に規定しない</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+<p>
+INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配下の全 <code>*.py</code> の
+<code>import</code> は AST 解析で標準ライブラリのみであることを確認済み（唯一の例外は
+<code>post_tool_use_guard.py</code> → <code>pre_tool_use_guard.py</code> の兄弟 import）。
+</p>
+
+<h2 id="flow">2. 実行フロー全体図</h2>
+
+<div class="flow">
+<svg viewBox="0 0 940 620" role="img" aria-label="実行フローと介入点">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <g font-family="ui-monospace, monospace" font-size="11.5" color="currentColor">
+
+    <text x="8" y="20" font-size="11" font-weight="700" fill="var(--muted)" font-family="system-ui">フェーズ / 状態</text>
+    <text x="270" y="20" font-size="11" font-weight="700" fill="var(--muted)" font-family="system-ui">実行主体</text>
+    <text x="560" y="20" font-size="11" font-weight="700" fill="var(--muted)" font-family="system-ui">介入する Rule / CI 項目</text>
+    <line x1="0" y1="28" x2="940" y2="28" stroke="var(--line)"/>
+
+    <!-- P1 -->
+    <rect x="8" y="42" width="240" height="56" rx="6" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="20" y="62" font-family="system-ui" font-weight="700" fill="var(--ink)">00-requirements</text>
+    <text x="20" y="80" fill="var(--muted)">requirements.machine.yaml</text>
+    <text x="20" y="94" fill="var(--muted)">status: DRAFT → APPROVED</text>
+    <rect x="270" y="42" width="270" height="56" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="282" y="62" fill="var(--ink)">skill: init-app</text>
+    <text x="282" y="78" fill="var(--ink)">→ new_app_scaffold.py</text>
+    <text x="282" y="94" fill="var(--ink)">→ agent: requirements-analyst</text>
+    <rect x="560" y="42" width="372" height="56" rx="6" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="572" y="62" fill="var(--ink)">Rule 7: APPROVED に approved_by/at 必須</text>
+    <text x="572" y="78" fill="var(--ink)">Rule 8: 未コミットで停止不可</text>
+    <text x="572" y="94" fill="var(--ink)">CI: A（schema）</text>
+
+    <!-- P2 -->
+    <rect x="8" y="112" width="240" height="70" rx="6" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="20" y="132" font-family="system-ui" font-weight="700" fill="var(--ink)">01-foundation / 02-design</text>
+    <text x="20" y="150" fill="var(--muted)">shared-kernel.yaml</text>
+    <text x="20" y="164" fill="var(--muted)">architecture.machine.yaml</text>
+    <text x="20" y="178" fill="var(--muted)">features/*.contract.yaml</text>
+    <rect x="270" y="112" width="270" height="70" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="282" y="132" fill="var(--ink)">agent: solution-architect</text>
+    <text x="282" y="150" fill="var(--ink)">check_interfaces.py</text>
+    <text x="282" y="166" fill="var(--ink)">check_traceability.py</text>
+    <text x="282" y="180" fill="var(--muted)">verification: を宣言（必須）</text>
+    <rect x="560" y="112" width="372" height="70" rx="6" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="572" y="132" fill="var(--ink)">Rule 7: based_on_requirements_version 一致</text>
+    <text x="572" y="148" fill="var(--ink)">Rule 3: architecture が DRAFT の間だけ契約可変</text>
+    <text x="572" y="164" fill="var(--ink)">CI: A / D / E / J / K</text>
+    <text x="572" y="180" fill="var(--muted)">test_command 未宣言は実装フェーズで回復不能</text>
+
+    <!-- P3 -->
+    <rect x="8" y="196" width="240" height="150" rx="6" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="20" y="216" font-family="system-ui" font-weight="700" fill="var(--ink)">03-features/&lt;feature-id&gt;</text>
+    <text x="20" y="236" fill="var(--muted)">NOT_STARTED</text>
+    <text x="20" y="252" fill="var(--muted)">→ CONTRACT_DRAFTED</text>
+    <text x="20" y="268" fill="var(--muted)">→ CONTRACT_APPROVED</text>
+    <text x="20" y="284" fill="var(--muted)">→ IN_PROGRESS</text>
+    <text x="20" y="300" fill="var(--muted)">→ IMPLEMENTED</text>
+    <text x="20" y="316" fill="var(--muted)">→ TESTED</text>
+    <text x="20" y="336" fill="var(--muted)">worktree: .worktrees/&lt;id&gt;/</text>
+    <rect x="270" y="196" width="270" height="150" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="282" y="216" fill="var(--ink)">skill: new-feature-worktree</text>
+    <text x="282" y="232" fill="var(--ink)">→ new_feature_scaffold.py</text>
+    <text x="282" y="252" fill="var(--ink)">agent: feature-builder</text>
+    <text x="282" y="268" fill="var(--muted)">  reads procedures/feature-build.md</text>
+    <text x="282" y="288" fill="var(--ink)">skill: code-review（自己）</text>
+    <text x="282" y="304" fill="var(--ink)">agent: gate-reviewer（独立）</text>
+    <text x="282" y="324" fill="var(--ink)">run_verification.py</text>
+    <text x="282" y="340" fill="var(--muted)">  → verification_receipt</text>
+    <rect x="560" y="196" width="372" height="150" rx="6" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="572" y="216" fill="var(--ink)">Rule 2: worktree basename == feature-id</text>
+    <text x="572" y="232" fill="var(--ink)">Rule 3: CONTRACT_APPROVED 以降は凍結</text>
+    <text x="572" y="248" fill="var(--ink)">Rule 5: required_skills[] の有効化を検査</text>
+    <text x="572" y="264" fill="var(--ink)">Rule 6: 上位文書への書き込みを常に拒否</text>
+    <text x="572" y="280" fill="var(--ink)">Rule 9: 1 段階前進のみ（履歴も参照）</text>
+    <text x="572" y="300" font-weight="700" fill="var(--ink)">Rule 10: receipt.commit == HEAD</text>
+    <text x="572" y="316" fill="var(--ink)">Rule 12: 危険操作を無条件 deny</text>
+    <text x="572" y="336" fill="var(--ink)">CI: C / D / F / I / K</text>
+
+    <!-- P4 -->
+    <rect x="8" y="360" width="240" height="56" rx="6" fill="var(--accent-bg)" stroke="var(--accent)"/>
+    <text x="20" y="380" font-family="system-ui" font-weight="700" fill="var(--ink)">04-integration</text>
+    <text x="20" y="398" fill="var(--muted)">integration.machine.yaml</text>
+    <text x="20" y="412" fill="var(--muted)">→ INTEGRATED</text>
+    <rect x="270" y="360" width="270" height="56" rx="6" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="282" y="380" fill="var(--ink)">agent: integrator</text>
+    <text x="282" y="396" fill="var(--ink)">run_integration_verification.py</text>
+    <text x="282" y="412" fill="var(--muted)">skills: security-review, code-review</text>
+    <rect x="560" y="360" width="372" height="56" rx="6" fill="var(--bad-bg)" stroke="var(--bad)"/>
+    <text x="572" y="380" fill="var(--ink)">Rule 11: interfaces[] 全エッジのカバレッジ</text>
+    <text x="572" y="396" fill="var(--ink)">        ＋統合受領書</text>
+    <text x="572" y="412" fill="var(--ink)">CI: N / J</text>
+
+    <!-- 常時 -->
+    <line x1="0" y1="436" x2="940" y2="436" stroke="var(--line)"/>
+    <text x="8" y="458" font-size="11" font-weight="700" fill="var(--muted)" font-family="system-ui">介入点（Claude Code の Hook イベント）</text>
+
+    <rect x="8" y="470" width="222" height="52" rx="6" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="18" y="488" font-weight="700" fill="var(--ink)">SessionStart</text>
+    <text x="18" y="504" fill="var(--ink)">healthcheck / exit 0 固定</text>
+    <text x="18" y="518" fill="var(--muted)">additionalContext 注入</text>
+
+    <rect x="240" y="470" width="222" height="52" rx="6" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="250" y="488" font-weight="700" fill="var(--ink)">PreToolUse</text>
+    <text x="250" y="504" fill="var(--ink)">Rule 1,2,3,5,6,7,9,10,11,12</text>
+    <text x="250" y="518" fill="var(--muted)">exit 2 = deny / fail-closed</text>
+
+    <rect x="472" y="470" width="222" height="52" rx="6" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="482" y="488" font-weight="700" fill="var(--ink)">PostToolUse</text>
+    <text x="482" y="504" fill="var(--ink)">Rule 4（sync・非ブロッキング）</text>
+    <text x="482" y="518" fill="var(--ink)">事後検証（guard・巻き戻し）</text>
+
+    <rect x="704" y="470" width="228" height="52" rx="6" fill="var(--ok-bg)" stroke="var(--ok)"/>
+    <text x="714" y="488" font-weight="700" fill="var(--ink)">Stop / SubagentStop</text>
+    <text x="714" y="504" fill="var(--ink)">Rule 8（未コミットで停止拒否）</text>
+    <text x="714" y="518" fill="var(--muted)">stop_hook_active で無限ループ回避</text>
+
+    <rect x="8" y="536" width="924" height="52" rx="6" fill="var(--warn-bg)" stroke="var(--warn)"/>
+    <text x="18" y="556" font-weight="700" fill="var(--ink)">CI（GitHub Actions / .github/workflows/harness-checks.yml）</text>
+    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 685 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
+
+    <line x1="128" y1="98" x2="128" y2="110" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+    <line x1="128" y1="182" x2="128" y2="194" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+    <line x1="128" y1="346" x2="128" y2="358" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
+  </g>
+</svg>
+<div class="legend">
+  <span><i class="swatch" style="background:var(--accent-bg);border:1px solid var(--accent)"></i>フェーズ／状態</span>
+  <span><i class="swatch" style="background:var(--panel);border:1px solid var(--line)"></i>実行主体</span>
+  <span><i class="swatch" style="background:var(--bad-bg);border:1px solid var(--bad)"></i>決定論的な拒否</span>
+  <span><i class="swatch" style="background:var(--ok-bg);border:1px solid var(--ok)"></i>Hook 介入点</span>
+  <span><i class="swatch" style="background:var(--warn-bg);border:1px solid var(--warn)"></i>サーバーサイド</span>
+</div>
+</div>
+
+<h2 id="hooks">3. Hook — 介入点と exit code 契約</h2>
+
+<p>
+登録は <code>.claude/settings.json</code>。Hook は <strong>exit 2 = 拒否、それ以外 = 「判断なし＝通過」</strong>
+として扱われる。この非対称性が後述の fail-open 問題を生む。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>イベント</th><th>matcher</th><th>実装</th><th>timeout</th><th>exit 契約</th><th>担当</th></tr></thead>
+<tbody>
+<tr>
+<td class="id">SessionStart</td><td>―</td>
+<td><code>session_start_healthcheck.py</code>（強制レイヤの自己診断＋git 情報が取れないことによる判定劣化の警告）</td><td>5s</td>
+<td><span class="tag t-none">常に 0</span></td>
+<td>強制レイヤの自己診断。異常時は stderr 警告＋<code>hookSpecificOutput.additionalContext</code> 注入</td>
+</tr>
+<tr>
+<td class="id">PreToolUse</td>
+<td><code>Edit|Write|MultiEdit|NotebookEdit|Bash|Read|NotebookRead</code></td>
+<td><code>pre_tool_use_guard.py</code></td><td>5s</td>
+<td><span class="tag t-deny">2 = deny</span></td>
+<td>Rule 1・2・3・5・6・7・9・10・11・12。<strong>fail-closed</strong>（<code>_fail_closed_main</code> が、想定外の例外だけでなく<strong>入力そのものを解釈できない場合</strong>も握りつぶさず exit 2。空の stdin のみ通す）</td>
+</tr>
+<tr>
+<td class="id">PostToolUse</td><td><code>Edit|Write|MultiEdit|Bash</code></td>
+<td><code>post_tool_use_sync.py</code></td><td>15s</td>
+<td><span class="tag t-none">常に 0</span></td>
+<td>Rule 4。<code>render_progress.py</code> を起動して <code>PROGRESS.md</code> / <code>STATE.machine.yaml</code> を再生成</td>
+</tr>
+<tr>
+<td class="id">PostToolUse</td><td><code>Bash</code></td>
+<td><code>post_tool_use_guard.py</code></td><td>10s</td>
+<td><span class="tag t-deny">2 = 巻き戻し報告</span></td>
+<td>静的検知をすり抜けた書き込みを<strong>内容ハッシュ差分</strong>で検出し、Bash 実行直前の内容へ復元</td>
+</tr>
+<tr>
+<td class="id">Stop / SubagentStop</td><td>―</td>
+<td><code>stop_commit_guard.py</code></td><td>5s</td>
+<td><span class="tag t-deny">2 = 停止拒否</span></td>
+<td>Rule 8。<code>status.yaml</code> / <code>requirements.machine.yaml</code> / <code>architecture.machine.yaml</code> の未コミット検出（<code>--untracked-files=all</code>）</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3>パス解決の 2 段階</h3>
+<p>Rule 適用前に、書き込み先を必ず次の順で正規化する。どちらか一方でも欠けると Rule 群がまとめて素通りする。</p>
+<ol>
+<li><code>path_utils.resolve_write_target(target, cwd, toplevel)</code> —
+<strong>そのパスが属するリポジトリのルート</strong>を基準に相対化。相対パスは <code>cwd</code> 基準で解決する
+（セッションの cwd は worktree ルートとは限らない）。リポジトリ外（<code>/tmp</code> 等）は対象外。</li>
+<li><code>path_utils.resolve_worktree_scope(rel_path, toplevel)</code> —
+<code>^apps/[^/]+/\.worktrees/[^/]+/</code> の接頭辞を再帰的に剥がし、<strong>基準ルートも同時に読み替える</strong>。
+剥がすだけでは各 Rule が <code>os.path.join(toplevel, rel_path)</code> で参照する
+<code>status.yaml</code> / <code>contract.yaml</code> / <code>shared-kernel.yaml</code> が別ファイルを指す。</li>
+</ol>
+
+<div class="box warn">
+<h4>fail-open — 構造的に残る穴（docs/HARNESS_GUIDE.md 11節 A-1）</h4>
+<p>
+Hook を起動するのは Claude Code である。<code>python3</code> 不在・import 失敗・タイムアウトの
+いずれでも Hook は exit != 2 で終わり、<strong>Rule 1–12 が黙って無効化された状態で作業が継続する</strong>。
+ハーネス側からこの失敗を止める手段はない（失敗しているのは自分自身）。
+</p>
+<p style="margin-bottom:0">
+緩和は 3 点のみ: ①<strong>fail-closed</strong>（判定に到達したうえでの例外に加え、hook の入力を解釈できない場合も通さず exit 2。<code>stop_commit_guard.py</code> にも適用）
+②<strong>SessionStart 自己診断</strong>（hooks の import 可否・<code>path_utils</code> の必須関数 8 つ・
+settings.json の 5 登録を検査。正常時 53ms・無出力）
+③<strong><code>PROGRESS.md</code> 先頭への状態表示</strong>。
+<em>再検討の条件</em>: Claude Code が Hook 起動失敗時の fail-closed を既定提供したとき。
+</p>
+</div>
+
+<h2 id="rules">4. Rule 1–12 の判定仕様</h2>
+
+<p>規範の単一情報源は <code>harness/CONVENTIONS.md</code> 7節（9,034 バイト）。実装は <code>harness/hooks/</code>。</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Rule</th><th>判定対象</th><th>条件</th><th>判定材料</th><th>Bash 経由</th></tr></thead>
+<tbody>
+<tr><td class="id">1</td><td><code>^(harness/|\.claude/|\.github/)</code></td>
+<td>ブランチが <code>harness/</code> 接頭辞でなければ deny</td><td><code>git branch --show-current</code></td><td>検知対象</td></tr>
+<tr><td class="id">2</td><td><code>^apps/(app)/03-features/(fid)/(rest)</code></td>
+<td>worktree ルートの basename ≠ <code>fid</code> なら deny（<code>status.yaml</code> は除外）</td>
+<td><code>git rev-parse --show-toplevel</code> の basename</td><td>検知対象</td></tr>
+<tr><td class="id">3</td><td><code>contract.yaml</code></td>
+<td><code>state</code> が <code>NOT_STARTED</code>/<code>CONTRACT_DRAFTED</code> 以外なら deny。
+<code>open_issues[]</code> への<strong>末尾追記のみ</strong>許可。<code>CONTRACT_APPROVED</code> 遷移には
+<code>approved_by</code>/<code>approved_at</code> 必須</td>
+<td>対応する <code>status.yaml</code>、書き込み後内容の差分</td><td>検知対象（追記も不可）</td></tr>
+<tr><td class="id">4</td><td><code>status.yaml</code> 等の更新</td>
+<td>deny しない。<code>render_progress.py</code> を起動</td><td>―</td><td>検知対象</td></tr>
+<tr><td class="id">5</td><td><code>03-features/(fid)/src/</code></td>
+<td><code>required_skills[]</code>（<code>applies_to</code> 省略時は全機能）の <code>plugin_ref</code> が
+<code>enabledPlugins</code> に無ければ deny</td>
+<td><code>shared-kernel.yaml</code>、<code>settings.json</code>＋<code>settings.local.json</code></td><td>検知対象</td></tr>
+<tr><td class="id">6</td><td><code>apps/(app)/(00-requirements|01-foundation|02-design)/</code></td>
+<td><strong>セッションの</strong> worktree に <code>/.worktrees/</code> が含まれるなら常に deny</td>
+<td>書き込み先ではなく<strong>セッション位置</strong>で判定（F-055）</td><td>検知対象</td></tr>
+<tr><td class="id">7</td><td><code>architecture.machine.yaml</code> / <code>requirements.machine.yaml</code></td>
+<td><code>status: APPROVED</code> にする書き込みは、
+①<code>based_on_requirements_version</code> == 要件の現 <code>version</code>
+②同一書き込みで <code>approved_by</code>/<code>approved_at</code> が非空</td>
+<td><code>simulate_write_result()</code> で書き込み後内容を再現して判定</td>
+<td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
+<tr><td class="id">8</td><td>Stop / SubagentStop</td>
+<td>フェーズ節目 3 ファイルに未コミット変更があれば停止を deny</td>
+<td><code>git status --porcelain --untracked-files=all</code></td><td>―</td></tr>
+<tr><td class="id">9</td><td><code>status.yaml</code> の <code>state</code></td>
+<td>直線状態は 1 段階前進のみ。終端（<code>INTEGRATED</code>/<code>SUPERSEDED</code>）から変更不可。
+<code>BLOCKED</code> 復帰は <code>state_history[]</code> を時刻順に遡って直前の非 BLOCKED 状態から判定</td>
+<td><code>validate_status_transition()</code></td><td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
+<tr><td class="id">10</td><td><code>status.yaml</code> → <code>TESTED</code></td>
+<td>①受領書が存在 ②宣言された全コマンドが <code>exit_code: 0</code>
+③<code>receipt.commit</code> == 現在の HEAD ④JUnit 集計（空振り・失敗・skip 率）
+⑤<code>traceability.missing/failed</code> が空。<br>
+加えて <code>verification_receipt</code> の Edit/Write による変更を<strong>常に deny</strong></td>
+<td><code>merge_verification_declaration()</code> ＋ <code>validate_verification_receipt()</code></td>
+<td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
+<tr><td class="id">11</td><td><code>status.yaml</code> → <code>INTEGRATED</code></td>
+<td><code>integration.machine.yaml</code> に統合受領書があり、<code>architecture.machine.yaml</code> の
+<code>interfaces[]</code> 全エッジが <code>interface_coverage[]</code> に <code>test_ids</code> 付きで存在</td>
+<td><code>interface_coverage_gaps()</code></td><td><strong>Bash・NotebookEdit とも一律 deny</strong></td></tr>
+<tr><td class="id">12</td><td>Bash コマンド全体 / Read の <code>file_path</code></td>
+<td>D-1〜D-6 を無条件 deny。<strong>他 Rule と独立に判定し deny が勝つ</strong></td>
+<td><code>detect_dangerous_bash_operation()</code> / <code>detect_dangerous_read()</code></td>
+<td>本体が Bash 対象</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Rule 12 の分類（D-1〜D-6）</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>ID</th><th>対象</th><th>deny 条件</th><th>allow 例</th></tr></thead>
+<tbody>
+<tr><td class="id">D-1</td><td><code>rm -r</code> / <code>find … -delete|-exec</code></td>
+<td>解決後のパスがリポジトリ外。加えて <code>..</code>・未展開の <code>$</code>・<code>/</code>・<code>.</code>・先頭 <code>*</code> は<strong>綴りだけで deny</strong></td>
+<td><code>rm -rf ./build</code>、<code>find apps -name '*.pyc' -delete</code></td></tr>
+<tr><td class="id">D-2</td><td>読み出しコマンド集合 ＋ <code>Read</code> ツール</td>
+<td><code>.env</code> / <code>.env.*</code> / <code>*.pem</code> / <code>*.key</code> / <code>*id_rsa*</code> / <code>*id_ed25519*</code> /
+<code>.ssh/</code> / <code>.aws/</code> / <code>.npmrc</code> / <code>.netrc</code> / <code>credentials.json</code></td>
+<td><code>.env.example|sample|template|dist</code>、非読み出し文脈（<code>echo ".env" &gt;&gt; .gitignore</code>）</td></tr>
+<tr><td class="id">D-3</td><td><code>git</code></td>
+<td><code>push --force|-f|--force-with-lease</code>、<code>reset --hard</code>、<code>clean -fdx</code>、<code>filter-branch</code></td>
+<td><code>git push</code>、<code>git reset HEAD~1</code>、<code>git clean -n</code>、<code>git revert</code></td></tr>
+<tr><td class="id">D-4</td><td><code>git commit</code></td><td><code>--no-verify</code> / <code>-n</code> / <code>--no-gpg-sign</code></td><td>通常の commit</td></tr>
+<tr><td class="id">D-5</td><td><code>curl</code>/<code>wget</code>/<code>nc</code>/<code>socat</code></td>
+<td>アップロード系フラグ（<code>-d</code>/<code>--data*</code>/<code>-F</code>/<code>-T</code>/<code>--post-*</code>）、
+<code>-X POST|PUT|PATCH|DELETE</code>、paste 系ホストへの到達</td>
+<td>GET 取得（<code>curl -s https://…</code>、<code>wget https://…</code>）</td></tr>
+<tr><td class="id">D-6</td><td><code>sudo</code>/<code>doas</code>/<code>su</code></td><td>無条件</td><td>―</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<h4>ask ではなく deny を採る理由（NG-6）</h4>
+<p style="margin-bottom:0">
+<code>AUTONOMOUS</code> モードでは AI 自身が確認プロンプトに答えてしまうため、ask は歯止めにならない。
+人間の判断を挟みたい操作は <strong>deny にしたうえで「人間が別途手で実行する」運用に倒す</strong>。
+また INV-4 によりバイパス用環境変数を持たないため、誤検知は検知ロジック側を修正して解消する。
+</p>
+</div>
+
+<h3>判定不能時の挙動 — undecidable → allow（fail-closed と対になる方針）</h3>
+
+<p>
+<strong>「例外」と「判定不能」は挙動が逆である。</strong>これは監査上いちばん誤解されやすい点なので明示する。
+分かれ目は<strong>判定の入口か、判定の材料か</strong>である。入口（hook の入力そのもの）が壊れている場合は
+判定に着手すらできないので <span class="tag t-deny">deny</span>、入口は正常だが材料（対応する
+<code>status.yaml</code>・<code>shared-kernel.yaml</code>・git 情報など）が存在しない場合は
+<span class="tag t-none">allow</span> に倒れる。
+</p>
+<ul>
+<li><strong>例外</strong>（判定に到達したが壊れた）→ <span class="tag t-deny">deny</span>。
+<code>_fail_closed_main()</code> が exit 2 ＋ 理由を返す。</li>
+<li><strong>判定不能</strong>（判定に必要な材料が存在しない）→ <span class="tag t-none">allow</span>。
+各 check 関数が <code>None</code> を返す。<strong>Hook は「材料が無いから止める」ことをしない。</strong></li>
+</ul>
+
+<p>
+後者は <code>pre_tool_use_guard.py</code> 内に 8 条件、<code>path_utils.py</code> 内にさらに数条件ある。
+<strong>これらは Rule が意図的に空振りする経路であり、監査時に最初に確認すべき点である。</strong>
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Rule</th><th>allow に倒れる条件</th><th>実装</th><th>成立しうる状況</th></tr></thead>
+<tbody>
+<tr><td class="id">2</td><td><code>get_worktree_toplevel(cwd)</code> が <code>None</code></td>
+<td><code>check_rule2_feature_scope()</code></td><td>git リポジトリ外、<code>git</code> 不在、3 秒 timeout</td></tr>
+<tr><td class="id">3</td><td>対応する <code>status.yaml</code> の state が読めない</td>
+<td><code>check_rule3_contract_freeze</code></td><td>status.yaml 未作成</td></tr>
+<tr><td class="id">3</td><td><code>contract.yaml</code> が存在しない／パースできない</td>
+<td><code>check_rule3_contract_approval_record()</code></td><td>契約作成前の <code>CONTRACT_APPROVED</code> 遷移</td></tr>
+<tr><td class="id">5</td><td><code>shared-kernel.yaml</code> が読めない</td>
+<td><code>check_rule5_required_skills()</code></td><td>worktree に上位文書が入っていない（F-014 の状況）</td></tr>
+<tr><td class="id">7</td><td>要件の <code>version</code> または <code>based_on_requirements_version</code> が <code>None</code></td>
+<td><code>check_rule7_requirements_consistency()</code></td><td>どちらかのキーが未記載</td></tr>
+<tr><td class="id">9</td><td><code>status.yaml</code> が存在しない（新規作成）／新 state が読めない</td>
+<td><code>check_rule9_status_transition()</code></td><td>scaffold 直後</td></tr>
+<tr><td class="id">10</td><td><code>shared-kernel.yaml</code> と <code>contract.yaml</code> が<strong>両方</strong>読めない</td>
+<td><code>check_rule10_verification_receipt()</code></td><td>宣言元が丸ごと欠落</td></tr>
+<tr><td class="id">10 / 11</td><td><code>get_head_commit()</code> が <code>None</code></td>
+<td><code>check_rule10_verification_receipt()</code> / <code>check_rule11_integration_receipt()</code></td><td>コミットが 1 つも無い、git 不在</td></tr>
+<tr><td class="id">1–6（Bash）</td><td><code>shlex</code> のトークン化に失敗（クォート不整合等）</td>
+<td><code>_tokenize_bash_command()</code> が <code>None</code> → 候補 0 件</td><td>閉じていない引用符を含むコマンド</td></tr>
+<tr><td class="id">7（承認記録）</td><td>書き込み後内容が <code>parse_simple_yaml</code> でパースできない</td>
+<td><code>validate_approval_record()</code> の <code>except</code></td><td>編集途中の不完全な YAML</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>この方針の代償と、埋め合わせ</h4>
+<p style="margin-bottom:0">
+「材料が無ければ通す」は、<strong>材料を消せばゲートを外せる</strong>ことを意味する
+（例: <code>shared-kernel.yaml</code> を消せば Rule 5 は発火しない）。
+Hook 単体ではこれを塞げないため、<strong>CI 側は逆に「無ければ違反」で判定する</strong>——
+項目 I は <code>test_command</code> が<strong>どこにも宣言されていない</strong>のに
+<code>TESTED</code>/<code>INTEGRATED</code> なら不合格にし、項目 A はスキーマ必須キーの欠落を弾く。
+Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的である。
+</p>
+</div>
+
+<h3>Rule ごとのツール適用範囲</h3>
+
+<p>
+<code>PreToolUse</code> の matcher は 7 ツールだが、<strong>全 Rule が全ツールに適用されるわけではない</strong>。
+内容比較に依存する Rule 3・7・9・10・11 は <code>run_checks()</code> 内で
+<code>tool_name in CONTENT_SIMULATABLE_TOOLS</code>（＝ <code>Edit</code>/<code>Write</code>/<code>MultiEdit</code>）に
+限定されている。
+</p>
+<p>
+この限定は<strong>そのままでは穴になる</strong>。実測で 3 件の素通りを確認した:
+①<code>NotebookEdit</code> で受領書なしの <code>state: TESTED</code> が書けた
+（<code>simulate_write_result()</code> が NotebookEdit を扱えず、書き込み後の内容として変更前の内容が
+そのまま返るため、Rule 9・10 から見れば「何も変わっていない」）
+②<code>Bash</code> で <code>integration.machine.yaml</code> を書けた（統合受領書の手書き ＝ INV-2 違反）
+③<code>NotebookEdit</code> でも同じ。
+</p>
+<p>
+対処として、判定を「Bash かどうか」ではなく<strong>「書き込み後の内容を再現できる手段かどうか」</strong>に
+一般化した（<code>check_requires_simulatable_tool()</code>）。
+<code>CONTENT_JUDGED_RES</code> に <code>integration.machine.yaml</code> を追加し、
+<code>CONTENT_SIMULATABLE_TOOLS</code> に無いツールは自動的に拒否側へ入る
+（将来ツールが増えても既定で安全側）。
+</p>
+<div class="box warn">
+<h4>この制限を事後検証には掛けない（掛けると受領書が消える）</h4>
+<p style="margin-bottom:0">
+<code>check_requires_simulatable_tool()</code> は <code>tool_name</code> が空のとき判定しない。
+事後検証（<code>post_tool_use_guard.py</code>）は <code>run_checks()</code> を <code>tool_name</code> なしで呼び、
+<strong>「実際に何が変わったか」</strong>を見る経路だからである。そこには <code>run_verification.py</code> が
+書き込んだ受領書——実行の裏付けを伴う正規の書き込み——も含まれる。ここで拒否側に倒すと
+<strong>受領書そのものが巻き戻され、<code>TESTED</code> へ永久に進めなくなる</strong>。
+この逃がしは <code>test_post_tool_use_guard.py::test_a_harness_script_writing_the_receipt_is_not_reverted</code> が固定している。
+</p>
+</div>
+
+<div class="scroll">
+<table>
+<thead><tr><th>ツール</th><th>適用される Rule</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>Edit</code> / <code>Write</code> / <code>MultiEdit</code></td><td>1・2・3・5・6・7・9・10・11・12</td><td>全 Rule が効く</td></tr>
+<tr><td><code>NotebookEdit</code></td><td>1・2・3・5・6 ＋ 手段の制限</td>
+<td>7・9・10・11 は適用されない（<code>simulate_write_result()</code> が結果を再現できない）。
+そのため<strong>内容比較で判定する 4 ファイルへの書き込みを一律 deny</strong> して代替する</td></tr>
+<tr><td><code>Bash</code></td><td>1・2・3・5・6・12 ＋ 手段の制限</td>
+<td>同上。コマンド文字列からは書き込み後の内容を予測できないため</td></tr>
+<tr><td><code>Read</code> / <code>NotebookRead</code></td><td>12 のみ（D-2）</td><td>読み取りなので書き込み系 Rule は無関係</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Bash 経由書き込みの 2 段検知</h3>
+<ul>
+<li><strong>静的検知</strong>: <code>extract_bash_candidate_paths()</code>。<code>shlex</code>（posix / punctuation_chars）で
+トークン化し、<code>&gt;</code>/<code>&gt;&gt;</code> のリダイレクト先と <code>cp</code>/<code>mv</code>/<code>tee</code>/<code>sed -i</code> の対象を抽出。
+トークン化前に <code>_classify_bash_lines()</code> がクォート・行継続・ヒアドキュメントを考慮して改行を <code>;</code> に正規化する。
+<strong>ヒアドキュメント本体は「データ」として抽出対象から除外</strong>（本体の内容を空にし、行自体は残してコマンド境界を保つ）。
+除外は本体のみで、<code>cat &gt; path &lt;&lt;EOF</code> のリダイレクト先は従来どおり抽出する。</li>
+<li><strong>事後検証</strong>: <code>post_tool_use_guard.py</code>。Bash 実行直前に <code>capture_worktree_state()</code> で
+未コミットパスの <code>{code, sha, text}</code> を保存し、実行後に<strong>内容の SHA-1 で比較</strong>して差分を検出、
+<code>restore_from_snapshot()</code> で<strong>実行直前の内容</strong>へ復元する（HEAD ではない ＝ 人間の未コミット編集を巻き添えにしない）。
+状態コードではなく内容ハッシュで比較するのは、<code>git add</code> だけで <code>' M'</code> → <code>'M '</code> と変わり誤発火するため（F-050）。</li>
+</ul>
+
+<h2 id="agents">5. subagent と skill の起動関係</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>subagent</th><th>tools</th><th>宣言 skills</th><th>起動元</th><th>起動するもの</th></tr></thead>
+<tbody>
+<tr><td class="id">requirements-analyst</td><td>Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash</td><td>―</td>
+<td>skill <code>init-app</code> / <code>diff-design</code></td><td><code>validate_yaml.py</code></td></tr>
+<tr><td class="id">solution-architect</td><td>Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion</td><td>―</td>
+<td>skill <code>init-app</code> / <code>diff-design</code></td>
+<td><code>check_interfaces.py</code>, <code>check_traceability.py</code>, <code>print_conventions.py</code></td></tr>
+<tr><td class="id">feature-builder</td><td>Read, Write, Edit, MultiEdit, Bash, Glob, Grep, Skill, Task</td><td><code>code-review</code></td>
+<td>親セッション（worktree 内で起動）</td>
+<td>skill <code>code-review</code>、agent <code>gate-reviewer</code>、<code>run_verification.py</code></td></tr>
+<tr><td class="id">gate-reviewer</td><td><strong>Read, Grep, Glob, Bash のみ</strong></td><td>―</td>
+<td><code>feature-builder</code>（Task ツール）</td><td>―</td></tr>
+<tr><td class="id">integrator</td><td>Read, Write, Edit, Bash, Glob, Grep, Skill</td><td><code>security-review</code>, <code>code-review</code></td>
+<td>親セッション（メイン worktree）</td>
+<td><code>check_interfaces.py</code>, <code>run_integration_verification.py</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+<code>gate-reviewer</code> に <code>Write</code>/<code>Edit</code> を与えないのは INV-6 の要請。
+「レビューアが自分で直して自分で通す」経路を<strong>能力レベルで</strong>塞いでいる。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>skill</th><th class="num">サイズ</th><th>呼ぶスクリプト</th><th>引き継ぐ subagent</th></tr></thead>
+<tbody>
+<tr><td class="id">init-app</td><td class="num">3,865</td><td><code>new_app_scaffold.py</code></td><td>requirements-analyst → solution-architect</td></tr>
+<tr><td class="id">new-feature-worktree</td><td class="num">2,892</td><td><code>new_feature_scaffold.py</code></td><td>―（worktree 内で feature-builder を起動する導線を案内）</td></tr>
+<tr><td class="id">sync-progress</td><td class="num">1,148</td><td><code>render_progress.py</code>（<code>--html</code> 可）</td><td>―</td></tr>
+<tr><td class="id">diff-design</td><td class="num">4,025</td><td><code>diff_architecture.py</code>, <code>print_conventions.py</code></td><td>requirements-analyst → solution-architect</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="budget">6. コンテキスト予算 — 実測と計上規則</h2>
+
+<p>
+規範は <code>CONVENTIONS.md</code> 15節、強制は <code>ci_check.py</code> の項目 L。
+上限は <strong>CONVENTIONS.md 36,000 / agent 各 12,000 / 1 セッション合計 46,000 バイト</strong>。
+</p>
+
+<h3>計上式</h3>
+<pre><code>session_total(agent)
+  = sizeof(.claude/agents/&lt;agent&gt;.md)
+  + attributed_conventions_bytes()   # マーカー宣言された CONVENTIONS.md の節のみ
+  + always_read_bytes()              # マーカー宣言された harness/procedures/*.md</code></pre>
+
+<pre><code>&lt;!-- context-budget: conventions-sections=6,9,10,11,12,13,14 --&gt;
+&lt;!-- context-budget: always-reads=harness/procedures/feature-build.md --&gt;</code></pre>
+
+<p>
+<code>conventions-sections</code> マーカーが<strong>無い</strong> agent は「CONVENTIONS.md を全文読む」とみなし
+ファイル全体を安全側で計上する。<code>none</code> は 0 バイト。
+<strong><code>harness/procedures/*.md</code> への言及があるのに <code>always-reads</code> 宣言が無い場合は不合格</strong>
+（<code>check_undeclared_procedure_reads()</code>）。これが無いと、プロンプト本文を別ファイルへ移して
+「起動直後に読め」と書くだけで測定値だけが改善し、実コストは変わらない（＝空洞化する）。
+</p>
+
+<h3>実測値（2026-08-24）</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>subagent</th><th class="num">prompt</th><th>sections</th><th class="num">conventions</th>
+<th class="num">procedures</th><th class="num">項目 L 合計</th><th class="num">上限比</th></tr></thead>
+<tbody>
+<tr><td class="id">requirements-analyst</td><td class="num">4,164</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">4,164</td><td class="num">9%</td></tr>
+<tr><td class="id">solution-architect</td><td class="num">11,352</td><td><code>6,9,10,11,12,13,14</code></td><td class="num">13,647</td><td class="num">0</td><td class="num">24,999</td><td class="num">54%</td></tr>
+<tr><td class="id">feature-builder</td><td class="num">3,696</td><td><code>none</code></td><td class="num">0</td><td class="num">4,701</td><td class="num">8,397</td><td class="num">18%</td></tr>
+<tr><td class="id">gate-reviewer</td><td class="num">4,907</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">4,907</td><td class="num">11%</td></tr>
+<tr><td class="id">integrator</td><td class="num">8,224</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">8,224</td><td class="num">18%</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>CONVENTIONS.md の節別サイズ（ファイル全体 31,975 バイト / 15 節で凍結）</h3>
+<p class="note">各行は <code>print_conventions.parse_sections()</code> が返す本文のバイト数（CI 項目 L が <code>attributed_conventions_bytes()</code> で数えるのと同じ単位。合計 31,136 バイトで、差分 839 バイトは 1 節より前の前書きと見出し行）。<code>ci_check.py</code> の項目 L が上限を課すのは「ファイル全体 36,000 バイト」と「agent が読むと宣言した節の合計を含むセッション常時コスト 46,000 バイト」で、節ごとの上限は無い。</p>
+<div class="scroll">
+<table>
+<thead><tr><th>節</th><th class="num">bytes</th><th>内容</th><th>読む agent</th></tr></thead>
+<tbody>
+<tr><td class="id">1</td><td class="num">1,971</td><td>ディレクトリ構造</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">2</td><td class="num">265</td><td>ID・命名規則</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">3</td><td class="num">417</td><td>ブランチ命名規則</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">4</td><td class="num">582</td><td>worktree パス規則</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">5</td><td class="num">1,492</td><td>状態機械</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">6</td><td class="num">1,307</td><td>独立機能の設計原則</td><td>solution-architect</td></tr>
+<tr><td class="id">7</td><td class="num">9,034</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">8</td><td class="num">262</td><td>緊急避難（HARNESS_UNLOCK）</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">9</td><td class="num">1,966</td><td>自動化の度合い（AUTONOMY.yaml）</td><td>solution-architect</td></tr>
+<tr><td class="id">10</td><td class="num">2,958</td><td>品質保証の多層構造</td><td>solution-architect</td></tr>
+<tr><td class="id">11</td><td class="num">1,152</td><td>上位文書優先の原則</td><td>solution-architect</td></tr>
+<tr><td class="id">12</td><td class="num">2,720</td><td>検証コマンドの宣言・実行・受領書</td><td>solution-architect</td></tr>
+<tr><td class="id">13</td><td class="num">2,049</td><td>トレーサビリティ</td><td>solution-architect</td></tr>
+<tr><td class="id">14</td><td class="num">1,495</td><td>スタックパック</td><td>solution-architect</td></tr>
+<tr><td class="id">15</td><td class="num">3,466</td><td>コンテキスト予算</td><td class="tag t-none">なし</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+<strong>7節（12 ルール、9,034 バイト）を読む agent は 1 つも無い。</strong>
+規範の本文を読ませる代わりに、違反時に Hook が返すエラーメッセージが「なぜ止まったか」と
+「正しい進み方」を伝える設計（<code>CONVENTIONS.md</code> 15節の分担表）。
+agent プロンプト中の「7節 Rule 7」といった記載は<strong>出典の注記</strong>であり、読み込み指示ではない。
+</p>
+
+<h3>条件付き読み込み（項目 L の対象外）</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>文書</th><th class="num">bytes</th><th>読む主体</th><th>条件</th></tr></thead>
+<tbody>
+<tr><td><code>quality/security-baseline.md</code></td><td class="num">4,165</td>
+<td>feature-builder, solution-architect, integrator, gate-reviewer</td><td>実質無条件</td></tr>
+<tr><td><code>quality/design-baseline.md</code></td><td class="num">3,576</td>
+<td>feature-builder, integrator, gate-reviewer</td><td>UI を持つ機能のときのみ</td></tr>
+<tr><td><code>quality/review-rubric.md</code></td><td class="num">4,871</td><td>gate-reviewer</td><td>実質無条件（審査の唯一の基準）</td></tr>
+<tr><td><code>STACK_PACK.md</code></td><td class="num">7,011</td><td>solution-architect, feature-builder</td><td><code>kind: stack-pack</code> を採用したときのみ</td></tr>
+<tr><td><code>docs/maintenance/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネス保守セッション</td><td>摩擦点をテスト化するとき</td></tr>
+<tr><td><code>CLAIMS.md</code></td><td class="num">20,793</td><td><strong><code>ci_check.py</code> と人間のみ</strong></td>
+<td>アプリ作成セッションからは参照経路が存在しない（agent/skill プロンプトからの参照 0 件、
+CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>測定の既知の過小評価</h4>
+<p>
+項目 L は <code>quality/*.md</code> を計上しない。読むか否かが実行時の分岐（UI の有無・スタックパック採用）に
+依存し、静的には決まらないためである。しかし <code>security-baseline.md</code> と <code>review-rubric.md</code> は
+実質無条件に読まれるため、<strong>実効コストは項目 L の値を上回る</strong>。
+</p>
+<div class="scroll" style="margin:.7rem 0 0;background:transparent;border:none">
+<table>
+<thead><tr><th>subagent</th><th class="num">項目 L</th><th class="num">実効（非 UI）</th><th class="num">実効（UI あり）</th><th class="num">対 46,000</th></tr></thead>
+<tbody>
+<tr><td class="id">requirements-analyst</td><td class="num">4,164</td><td class="num">4,164</td><td class="num">4,164</td><td class="num">9%</td></tr>
+<tr><td class="id">solution-architect</td><td class="num">24,999</td><td class="num">29,164</td><td class="num">29,164</td><td class="num">63%</td></tr>
+<tr><td class="id">feature-builder</td><td class="num">8,397</td><td class="num">12,562</td><td class="num">16,138</td><td class="num">35%</td></tr>
+<tr><td class="id">gate-reviewer</td><td class="num">4,907</td><td class="num">13,943</td><td class="num">17,519</td><td class="num">38%</td></tr>
+<tr><td class="id">integrator</td><td class="num">8,224</td><td class="num">12,389</td><td class="num">15,965</td><td class="num">35%</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin-bottom:0">
+実効値でも全 agent が上限内。<code>quality/*.md</code> を <code>always-reads</code> に含める形で計上を厳密化することは可能で、
+その場合の最大値は solution-architect の 29,164（63%）となる。
+</p>
+</div>
+
+<h2 id="docs">7. 文書の責務分割と追記先の決定表</h2>
+
+<p>
+分担の規範は <code>CONVENTIONS.md</code> 15節。二重管理は <strong>CI 項目 M</strong> が
+文字 3-gram の Jaccard 類似度（閾値 0.28 / 正規化後 100 文字以上の段落）で検出する。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>追記したい内容</th><th>置き場所</th><th>予算</th><th>制約</th></tr></thead>
+<tbody>
+<tr><td>Hook/CI が機械的に強制する規範</td><td><code>harness/CONVENTIONS.md</code></td><td>36,000 上限</td>
+<td><strong>15 節で凍結。16 節以降は CI 項目 O が拒否</strong>。既存節への追記のみ。参照は節番号で</td></tr>
+<tr><td>機械では強制できない規範</td><td><code>CONVENTIONS.md</code> に宣言 ＋ agent プロンプトに指示</td><td>同上</td>
+<td>宣言と指示を分ける。両方に本文を書くと項目 M が落ちる</td></tr>
+<tr><td>設計意図・背景・経緯・既知の制約</td><td><code>docs/HARNESS_GUIDE.md</code></td><td>対象外</td>
+<td>18節が「CONVENTIONS.md から移設した説明」の受け皿。11節の制約は<strong>4 点セット</strong>
+（症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）で書く</td></tr>
+<tr><td>フェーズ固有の手順</td><td>該当 agent/skill プロンプト、または <code>harness/procedures/*.md</code></td>
+<td><strong>procedures は計上対象</strong></td><td><code>always-reads</code> 宣言が必須（項目 L）</td></tr>
+<tr><td>品質のベースライン</td><td><code>harness/quality/*.md</code></td><td>対象外（条件付き読込）</td>
+<td>外部依存ゼロで常に効くこと。<code>review-rubric.md</code> は gate-reviewer の唯一の判断軸</td></tr>
+<tr><td>主張と証跡の対応</td><td><code>harness/CLAIMS.md</code></td><td>対象外（agent は読まない）</td>
+<td>規則を追加したら行を追加。<strong>CI 項目 P</strong> がテスト名の実在と「未実証の残余」の非空を検証</td></tr>
+<tr><td>スタック固有の標準</td><td>外部プラグイン（形式は <code>harness/STACK_PACK.md</code>）</td><td>対象外</td>
+<td><strong>INV-7。ハーネス本体に書かない</strong>。<code>quality/*.md</code> が常に優先。gate-reviewer は読まない</td></tr>
+<tr><td>機械可読ファイルの形式</td><td><code>harness/schemas/*.schema.json</code></td><td>対象外</td>
+<td>CI 項目 A が 8 パターンを検証（autonomy / requirements / shared-kernel / architecture /
+feature-contract ×2 / status / integration）</td></tr>
+<tr><td>雛形</td><td><code>harness/templates/*.tmpl</code></td><td>対象外</td><td><code>progress.html.tmpl</code> を含む</td></tr>
+<tr><td>実地の摩擦点</td><td><code>docs/maintenance/DOGFOODING-LOG.md</code></td><td>対象外</td>
+<td>深刻度 最高/高 は<strong>再発防止テストなしでクローズ禁止</strong>。対応表は CLAIMS.md、手順は
+<code>docs/maintenance/friction-to-test.md</code></td></tr>
+<tr><td>ハーネスの変更履歴</td><td><code>CHANGELOG.md</code> / <code>VERSION</code></td><td>対象外</td>
+<td><strong>CI 項目 Q</strong>: <code>harness/</code>・<code>.claude/</code>・<code>.github/</code> に差分があるコミットは
+<code>## [Unreleased]</code> に項目が要る</td></tr>
+<tr><td>改修計画</td><td><code>docs/plans/IMPROVEMENT-PLAN.machine.yaml</code> / <code>.md</code></td><td>対象外</td>
+<td>機械可読の <code>tasks[]</code>。制約から昇格したタスクはここへ</td></tr>
+<tr><td>型チェッカ設定</td><td><code>pyrightconfig.json</code></td><td>対象外</td>
+<td><code>harness/hooks</code> は実行時に <code>sys.path</code> を操作して <code>path_utils</code> を読むため、
+<code>extraPaths</code> の宣言が無いと静的解析がインポートを解決できず、そこから「型が不明」の
+指摘が大量に派生する（実測 210 件）。<code>typeCheckingMode</code> は <code>standard</code>。
+実行時の挙動には一切影響しない</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="git">8. ブランチ規約・worktree・書き込み保護</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>用途</th><th>形式</th><th>書き込み可能範囲</th><th>強制</th></tr></thead>
+<tbody>
+<tr><td>アプリ雛形作成</td><td><code>app/&lt;app-id&gt;/bootstrap</code></td><td><code>apps/&lt;app-id&gt;/**</code></td><td>―</td></tr>
+<tr><td>機能実装</td><td><code>feature/&lt;app-id&gt;/&lt;feature-id&gt;</code></td>
+<td>自機能ディレクトリ＋任意機能の <code>status.yaml</code>＋再生成されたダッシュボード</td><td>Rule 2・6 / CI 項目 C</td></tr>
+<tr><td>ハーネス保守</td><td><code>harness/&lt;topic&gt;</code></td>
+<td><strong><code>harness/**</code>・<code>.claude/**</code>・<code>.github/**</code> を書ける唯一のブランチ</strong></td><td>Rule 1 / CI 項目 B</td></tr>
+<tr><td>統合作業（任意）</td><td><code>integration/&lt;app-id&gt;</code></td><td><code>04-integration/**</code></td><td>―</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>worktree 規約</h3>
+<pre><code>apps/&lt;app-id&gt;/.worktrees/&lt;feature-id&gt;/     ← worktree 実体（.gitignore 対象）
+  └ apps/&lt;app-id&gt;/03-features/&lt;feature-id&gt;/  ← 同じ相対パスが再帰的に現れる</code></pre>
+<p>
+Rule 2 が見るのは cwd ではなく<strong>worktree ルートの basename</strong>。この二重構造により、
+かつてメインセッションからの書き込みで Rule 1・2・3・5・9・10 が<strong>まとめて素通り</strong>していた
+（F-029 / F-030。受領書なしで <code>state: TESTED</code> を書き込めた）。
+現在は <code>resolve_worktree_scope()</code> による読み替えで塞がれており、
+<code>test_worktree_scope.py</code> と <code>test_rule_coverage.py</code> が worktree 内外の双方から回帰を固定している。
+</p>
+
+<h3>緊急避難路</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>対象</th><th>解除手段</th><th>挙動</th></tr></thead>
+<tbody>
+<tr><td>Rule 1 のみ</td><td><code>HARNESS_UNLOCK=1</code></td><td>stderr に警告を出して通す。恒常運用には使わない</td></tr>
+<tr><td>Rule 2–12・Bash 検知・Rule 12</td><td><strong>存在しない（INV-4）</strong></td>
+<td>AI が自ら解除できると決定論的強制の目的が崩れるため。誤検知は検知ロジックを修正して対応する。
+<code>test_rule_coverage.py::test_only_rule1_has_an_escape_hatch</code> が
+<code>os.environ</code> 参照を <code>HARNESS_UNLOCK</code> のみに固定している</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+CI 項目 B は <code>main</code>/<code>master</code> では判定しない。fast-forward マージ運用では
+「このコミットが元々どのブランチで作られたか」が git 上に残らず、正当な ff マージと
+main への直接コミットが diff 上で区別できないため。項目 B は <code>feature/**</code> 等の
+非デフォルトブランチからの push / PR でのみ意味を持つ。
+</p>
+
+<h2 id="gate">9. ゲート判定の書式と決定性</h2>
+
+<h3>状態機械（<code>status.yaml.state</code>）</h3>
+<pre><code>NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLEMENTED → TESTED → INTEGRATED
+                                  ＋ BLOCKED（一時停止 / どの非終端からでも可）
+                                  ＋ SUPERSEDED（終端 / どの非終端からでも可）</code></pre>
+<p>
+直線状態は 1 段階前進のみ。<code>BLOCKED</code> からの復帰は <code>resolve_effective_previous_state()</code> が
+<code>state_history[]</code> を <code>at</code> の昇順（安定ソート）で遡り、直前の非 <code>BLOCKED</code> 状態から
+判定し直す。これが無いと <code>IN_PROGRESS → BLOCKED → INTEGRATED</code> が通る。
+</p>
+
+<h3>検証受領書（Rule 10 の根拠・<strong>手書き不可</strong>）</h3>
+<p>
+生成は <code>run_verification.py</code> のみ。宣言は <code>shared-kernel.yaml</code>（全機能共通）を
+<code>contract.yaml</code>（機能個別）がキー単位で上書きする（<code>merge_verification_declaration()</code>）。
+</p>
+<pre><code># 宣言（設計フェーズ）
+verification:
+  working_dir:       "src"
+  test_command:      "pytest -q --junitxml=../.verify/junit.xml"   # 必須
+  build_command:     "python -m build"                             # 以下は任意
+  typecheck_command: "mypy src"
+  lint_command:      "ruff check --select E,F,I ."
+  junit_xml:         "../.verify/junit.xml"
+  max_skip_ratio:    0.2
+
+# 受領書（status.yaml へ機械が書き込む。schema: additionalProperties: false）
+verification_receipt:
+  commit: "&lt;40 桁 SHA&gt;"                    # required / minLength 7
+  test:      { exit_code: 0, at: "…Z", tests: 42, failures: 0, errors: 0, skipped: 1 }
+  build:     { exit_code: 0, at: "…Z" }
+  typecheck: { exit_code: 0, at: "…Z" }
+  lint:      { exit_code: 0, at: "…Z" }
+  traceability: { declared: 5, matched: 5, missing: [], failed: [] }</code></pre>
+
+<div class="box note">
+<h4><code>commit</code> 一致条件が本質（INV-3）</h4>
+<p style="margin-bottom:0">
+受領書は「そのコミットの状態で通った」という主張であり、実装が進めば無効になる。
+この条件が無ければ<strong>実装を書き換えた後も過去の成功記録を使い回せる</strong>。
+CI（項目 I）は HEAD が先に進んでいるため等価条件に置換する:
+①<code>receipt.commit</code> が HEAD の祖先（<code>git merge-base --is-ancestor</code>）
+②<code>commit</code>〜HEAD の間に機能ディレクトリ（<code>status.yaml</code> を除く）が未変更
+③宣言コマンドの <code>exit_code</code> と JUnit 集計。
+</p>
+</div>
+
+<h3>独立レビュー記録（<strong>記録であって証明ではない</strong>）</h3>
+<pre><code>review:
+  verdict:  GO           # enum: GO | NO-GO | ESCALATED   ← 3R 収束せず人間へ委ねた状態
+  at:       "2026-08-24T10:00:00Z"
+  rounds:   2            # required
+  blockers: 0            # integer（Blocker ≥ 1 → 自動的に NO-GO）
+  majors:   1            # integer
+  minors:   3            # integer
+  notes:    "Major: …"   # 指摘本文は文字列 1 本にまとめる</code></pre>
+<p>
+<code>blockers</code>/<code>majors</code>/<code>minors</code> は<strong>件数（integer）</strong>であり、
+指摘の本文を文字列配列として書くと schema 違反になる（F-062）。
+verdict は深刻度集計から機械的に決まる（INV-6）が、<strong>受領書と違い実行の裏付けを持たないため
+機械的ゲートにはしない</strong>。
+</p>
+
+<h3>統合受領書と結線カバレッジ（Rule 11）</h3>
+<pre><code>interface_coverage:
+  - producer_feature: "todo-store"
+    producer_output:  "TodoList"
+    consumer_feature: "todo-cli"
+    consumer_input:   "TodoList"
+    test_ids: ["tests/test_integration.py::test_list_roundtrip"]
+verification_receipt: { … }   # run_integration_verification.py のみが生成</code></pre>
+<p>
+<code>architecture.machine.yaml</code> の <code>interfaces[]</code> の 4 つ組
+（producer_feature, producer_output, consumer_feature, consumer_input）を集合として突き合わせ、
+<code>test_ids</code> 付きで覆われていないエッジがあれば deny（<code>interface_coverage_gaps()</code>）。
+</p>
+
+<h3>決定性の一覧</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>判定</th><th>決定性</th><th>判定材料</th><th>強制点</th></tr></thead>
+<tbody>
+<tr><td>書き込み先スコープ</td><td><span class="tag t-det">決定論</span></td><td>正規表現 ＋ git のブランチ・toplevel</td><td>Rule 1・2・6 / 項目 B・C</td></tr>
+<tr><td>状態遷移</td><td><span class="tag t-det">決定論</span></td><td>状態機械定義 ＋ <code>state_history[]</code></td><td>Rule 9 / 項目 F</td></tr>
+<tr><td>契約の凍結</td><td><span class="tag t-det">決定論</span></td><td>書き込み前後の構造比較（<code>is_open_issue_append()</code>）</td><td>Rule 3 / 項目 D</td></tr>
+<tr><td>承認記録の同時性</td><td><span class="tag t-det">決定論</span></td><td><code>simulate_write_result()</code> の結果に対する検査</td><td>Rule 3・7 / 項目 E</td></tr>
+<tr><td>テストの実行と成否</td><td><span class="tag t-det">決定論</span></td><td>実行した終了コード ＋ JUnit XML の集計値</td><td>Rule 10 / 項目 I</td></tr>
+<tr><td>契約端点の整合</td><td><span class="tag t-det">決定論</span></td><td>JSON Schema の構造比較（型・required 包含・enum 包含）</td><td>項目 J</td></tr>
+<tr><td>要件↔テストの対応</td><td><span class="tag t-det">決定論</span></td><td>FR-ID（<code>^FR-[0-9]+$</code>）と JUnit の testcase 識別子</td><td>Rule 10 / 項目 K</td></tr>
+<tr><td>結線の実地検証</td><td><span class="tag t-det">決定論</span></td><td>統合受領書 ＋ エッジ集合の被覆</td><td>Rule 11 / 項目 N</td></tr>
+<tr><td>危険操作</td><td><span class="tag t-det">決定論</span></td><td>Bash トークン列の解析 ＋ パス解決</td><td>Rule 12</td></tr>
+<tr><td>コンテキスト量</td><td><span class="tag t-det">決定論</span></td><td>ファイルサイズ ＋ マーカー宣言</td><td>項目 L</td></tr>
+<tr><td>二重管理</td><td><span class="tag t-det">決定論</span></td><td>文字 3-gram の Jaccard 類似度</td><td>項目 M</td></tr>
+<tr><td>レビューの通過</td><td><span class="tag t-mix">AI 判断 ＋ 機械的集計</span></td>
+<td>rubric に基づく LLM の指摘 → <code>Blocker ≥ 1 → NO-GO</code></td><td>ゲートにはしない（記録のみ）</td></tr>
+<tr><td>機能分割の粒度・独立性</td><td><span class="tag t-ai">AI 判断</span></td><td>―</td><td>意図的に据え置き</td></tr>
+<tr><td>要件の内容の妥当性</td><td><span class="tag t-ai">人間 ＋ AI</span></td><td>―</td><td><strong>要件承認は常に人間必須（固定ポリシー）</strong></td></tr>
+<tr><td>承認者の「人間性」</td><td><span class="tag t-none">判定不能</span></td>
+<td>Hook が見られるのはパスと内容のみ</td><td>「<code>approved_by</code>/<code>approved_at</code> が非空」までしか機械化できない</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="ci">10. CI 項目 A–Q（サーバーサイド再検証）</h2>
+
+<p>
+<code>harness/scripts/ci_check.py</code>。Hook は Claude Code のセッション内でしか効かないため、
+人間の直接コミットや別ツールでの編集に対する二重チェックとして、
+<strong>アプリの技術スタックに依存しない範囲</strong>を再検証する。exit 0/1/2。
+<em>（H は欠番。連番ではない）</em>
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>項目</th><th>対応 Rule</th><th>検証内容</th><th>実証テスト</th></tr></thead>
+<tbody>
+<tr><td class="id">A</td><td>―</td><td>machine-readable YAML の JSON Schema 検証（8 パターン）</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">B</td><td>Rule 1</td><td>ハーネス本体の変更は <code>harness/&lt;topic&gt;</code> のみ（main/master ではスキップ）</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">C</td><td>Rule 2/6</td><td>feature ブランチの担当範囲外変更</td><td><code>test_dogfooding_fixes.py</code></td></tr>
+<tr><td class="id">D</td><td>Rule 3</td><td>凍結ライン以降の <code>contract.yaml</code> 変更（設計契約は<strong>ベース時点</strong>の status で判定）</td><td><code>test_dogfooding_fixes.py</code></td></tr>
+<tr><td class="id">E</td><td>Rule 7</td><td>APPROVED な設計の <code>based_on_requirements_version</code> 一致</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">F</td><td>Rule 9</td><td>コミット間の state 遷移の妥当性（新規追加は判定不能として除外）</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">G</td><td>Rule 4</td><td><code>PROGRESS.md</code> / <code>STATE.machine.yaml</code> の鮮度（feature ブランチではスキップ）</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">I</td><td>Rule 10</td><td>受領書の祖先性 ＋ 検証後の機能ディレクトリ未変更 ＋ 終了コード ＋ JUnit 集計</td><td><code>test_ci_items.py</code></td></tr>
+<tr><td class="id">J</td><td>―</td><td><code>interfaces[]</code> 両端の JSON Schema 突合</td><td><code>test_interface_check.py</code></td></tr>
+<tr><td class="id">K</td><td>―</td><td>要件→機能→テストのトレーサビリティ（設計時ドラフトも読む）</td><td><code>test_traceability.py</code></td></tr>
+<tr><td class="id">L</td><td>―</td><td>コンテキスト予算 ＋ <code>always-reads</code> 未宣言の検出</td><td><code>test_context_budget.py</code></td></tr>
+<tr><td class="id">M</td><td>―</td><td>CONVENTIONS.md と agent/skill プロンプトの二重管理</td><td><code>test_context_budget.py</code></td></tr>
+<tr><td class="id">N</td><td>Rule 11</td><td><code>interfaces[]</code> の全エッジが <code>interface_coverage[]</code> に対応</td><td><code>test_check_integration_traceability.py</code></td></tr>
+<tr><td class="id">O</td><td>―</td><td>CONVENTIONS.md の節新設拒否（15 節固定）</td><td><code>test_conventions_frozen.py</code></td></tr>
+<tr><td class="id">P</td><td>―</td><td>CLAIMS.md のテスト名の実在 ＋ 未実証行の理由の非空</td><td><code>test_claims.py</code></td></tr>
+<tr><td class="id">Q</td><td>―</td><td>VERSION の書式 ＋ ハーネス差分時の CHANGELOG Unreleased 更新</td><td><code>test_versioning.py</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>
+Rule 5（必須 Skill）は CI に Skill 有効化状態が存在しないため、Rule 8（コミット強制）は
+push 時点で既にコミット済みのため、それぞれ対象外。
+</p>
+
+<h3>CI ジョブ構成（<code>.github/workflows/harness-checks.yml</code>）</h3>
+<ul>
+<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 685 件）</li>
+<li><code>ci-check</code> — <code>ci_check.py --branch … [--base …]</code>（<code>fetch-depth: 0</code>）</li>
+<li><code>vuln-scan</code> — OSV-Scanner（バージョン固定＋SHA256 検証）→ <code>vuln_scan.py</code>。検出の受容は <code>apps/&lt;app-id&gt;/.vuln-ignore</code> に <code>&lt;ID&gt;  expires=YYYY-MM-DD  reason=…</code> で記録する。期限・理由の欠落と期限切れは<strong>走査結果に関わらず exit 1</strong>。抑制した検出は標準出力に列挙される</li>
+</ul>
+
+<h2 id="claims">11. 主張と証跡の対応（CLAIMS.md）</h2>
+
+<p>
+<code>harness/CLAIMS.md</code> は「何をブロックすると主張するか」と「それを実証するテスト」の対応表。
+F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかかわらず、
+17 ファイル 3,800 行のテストがありながら誰も気付けなかった。この表はその索引である。
+</p>
+
+<pre><code>| 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |</code></pre>
+
+<p>
+テスト参照は <code>&lt;ファイル名&gt;.py::&lt;テスト関数名&gt;</code>。<strong>CI 項目 P</strong> が
+①参照されたテストの実在（<code>^def &lt;name&gt;\s*\(</code>）②実証テストが空の行に「未実証の残余」が
+書かれていること、を検証する。収録範囲は Rule 1–12 / Bash 静的検知・事後検証 / CI 項目 A–Q /
+強制レイヤ自体の健全性 / <strong>深刻度 最高・高 の摩擦点 21 件</strong>。
+</p>
+<p>
+摩擦点の変換手順は <code>docs/maintenance/friction-to-test.md</code>。
+<strong>深刻度 最高・高 の摩擦点は、再発防止テストが無い状態でクローズしない</strong>のがルール。
+テストが書けない場合は「未実証の残余」に理由を記す（ハーネスの制御外 / 意味論的に判定不能 /
+手順の問題でコードの状態として表現できない、の 3 類型のみ）。
+</p>
+
+<h2 id="limits">12. 既知の限界と残余</h2>
+
+<p>
+記録形式は <strong>4 点セット</strong>（症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）に統一。
+全文は <code>docs/HARNESS_GUIDE.md</code> 11節。<strong>A = ハーネスの制御外</strong>、<strong>B = apparness 側で直せる</strong>。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>ID</th><th>症状</th><th>緩和策</th><th>再検討の条件</th></tr></thead>
+<tbody>
+<tr><td class="id">A-1</td><td>Hook 起動失敗時の fail-open</td><td>fail-closed 化 ＋ SessionStart 自己診断 ＋ ダッシュボード表示</td>
+<td>Claude Code が Hook 起動失敗時の fail-closed を既定提供したとき</td></tr>
+<tr><td class="id">A-2</td><td>セッション外の編集は Hook が見られない</td><td>CI 項目 A–Q による再検証</td>
+<td>CI を通さず main へ入る経路が実際に使われ始めたとき（pre-commit 同梱を検討）</td></tr>
+<tr><td class="id">A-3</td><td>承認者の「人間性」が判定不能</td><td>承認記録の同時性強制 ＋ 要件承認は人間必須 ＋ autonomy_mode の常時表示</td>
+<td>承認を外部署名に紐づける手段が導入コストに見合うようになったとき</td></tr>
+<tr><td class="id">A-4</td><td>マルチホスト非対応（Rule 3・7・9・10・11 が成立しない）</td><td>対応しないと明記（NG-1・false parity の回避）</td>
+<td>他ホストが構造化ツールの書き込みに介入できる仕組みを提供したとき</td></tr>
+<tr><td class="id">A-5</td><td>brownfield 非対応</td><td>スコープ外と明記（NG-4）</td><td>明示の要望＋作り直しコストを払う判断が出たとき</td></tr>
+<tr><td class="id">B-1</td><td>Rule 12 の読み取り・外部送信は事後検知できない</td><td>静的検知パターンを広めに取る</td>
+<td><strong>実地で 1 件でもすり抜けが観測されたとき → 条件付きタスク T-040 に昇格</strong></td></tr>
+<tr><td class="id">B-2</td><td>ドッグフーディング成果物が保全されていない</td><td>探索結果と保全すべき対象を docs/maintenance/DOGFOODING-LOG.md 冒頭に記録</td>
+<td><strong>所在が判明し次第、即座に保全（T-022 未完了）</strong></td></tr>
+<tr><td class="id">B-3</td><td>CI がアプリのテストを実行しない</td><td>受領書の祖先性＋機能ディレクトリ未変更で等価条件を検証</td>
+<td>受領書が通っているのに CI で壊れる事象が観測されたとき</td></tr>
+<tr><td class="id">B-4</td><td>gate-reviewer の結果は証明ではない</td><td>機械的集計 ＋ rubric 固定 ＋ Write/Edit 不付与</td>
+<td>レビュー指摘を機械検証できる形に落とせたとき</td></tr>
+<tr><td class="id">B-5</td><td>静的 Bash 検知は変数展開を検知できない</td><td>事後検証（内容ハッシュ比較 ＋ 巻き戻し）</td>
+<td>事後検証でも捕まえられない書き込み経路が観測されたとき</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>監査時の着眼点</h3>
+<ol>
+<li><strong>ダッシュボード先頭の「強制レイヤ」行が OK か</strong> ― 異常なら、そのセッションの
+すべての Rule が無効化されていた可能性がある</li>
+<li><strong>受領書の <code>commit</code> が HEAD の祖先か、以降に機能ディレクトリが変更されていないか</strong>
+― INV-3 の実効性はここに集約される</li>
+<li><strong>CI 項目 P が緑か</strong> ― 表と実体が drift していれば、CLAIMS.md の主張は根拠を失っている</li>
+<li><strong>項目 L の値と実効コストの差</strong> ― <code>quality/*.md</code> は現状カウント外（§6 の警告）</li>
+<li><strong><code>os.environ</code> の参照が <code>HARNESS_UNLOCK</code> のみか</strong> ― INV-4 の機械的な検査点</li>
+</ol>
+
+<h2 id="source">13. この文書の出典と再検証手順</h2>
+
+<p>
+記載した事実は<strong>実行物（コード・設定・スキーマ・agent/skill プロンプト）から機械的に抽出した</strong>。
+人間向け文書（<code>CONVENTIONS.md</code>・<code>docs/HARNESS_GUIDE.md</code>・<code>README.md</code>）は、
+実装より古い可能性があるため<strong>一次情報として採用していない</strong>。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>記載事項</th><th>一次情報（実行物）</th><th>再検証コマンド</th></tr></thead>
+<tbody>
+<tr><td>Hook のイベント・matcher・timeout</td><td><code>.claude/settings.json</code>（Claude Code が実際に読む実効設定）</td>
+<td><code>python3 -c "import json;print(json.load(open('.claude/settings.json'))['hooks'])"</code></td></tr>
+<tr><td>CI 項目 A–Q の実体と個数</td><td><code>ci_check.py</code> の <code>main()</code> が呼ぶ関数（AST 抽出。docstring ではない）</td>
+<td>AST で <code>violations +=</code> の呼び出しを列挙（16 件 ＝ 文字数 16 と一致）</td></tr>
+<tr><td>Rule ごとのツール適用範囲</td><td><code>pre_tool_use_guard.run_checks()</code> / <code>main()</code> の分岐（AST 抽出）</td>
+<td>同上</td></tr>
+<tr><td>判定不能時の allow 条件</td><td><code>pre_tool_use_guard.py</code> の <code>return None</code> 箇所</td>
+<td><code>grep -n "return None  #" harness/hooks/pre_tool_use_guard.py</code></td></tr>
+<tr><td>Rule 12 の対象（秘密パス・egress・git）</td><td><code>path_utils</code> の定数を <code>import</code> して実値を取得</td>
+<td><code>python3 -c "import path_utils as p;print(p.SECRET_READ_COMMANDS)"</code></td></tr>
+<tr><td>状態機械・enum</td><td><code>path_utils.STATUS_LINEAR_ORDER</code> と <code>schemas/status.schema.json</code>（両者の一致も確認）</td>
+<td><code>set(schema.enum) == path_utils.STATUS_ALL_STATES</code> → True</td></tr>
+<tr><td>受領書・review の書式</td><td><code>schemas/status.schema.json</code>（<code>additionalProperties: false</code>）＋ <code>run_verification.py</code> の実書き込み</td>
+<td>スキーマの <code>required</code> と <code>properties</code> を直接参照</td></tr>
+<tr><td>ディレクトリ構造</td><td><code>new_app_scaffold.py</code> が実際に <code>mkdir</code>/生成するパス</td>
+<td><code>grep -n "mkdir\|write_from_template" harness/scripts/new_app_scaffold.py</code></td></tr>
+<tr><td>ブランチ名・worktree パス</td><td><code>new_feature_scaffold.py</code> の <code>branch = f"feature/{app_id}/{feature_id}"</code> と <code>git worktree add</code></td>
+<td><code>grep -n "branch =\|worktree_path" harness/scripts/new_feature_scaffold.py</code></td></tr>
+<tr><td>agent の tools / skills / 読む節</td><td><code>.claude/agents/*.md</code> の frontmatter と <code>context-budget</code> マーカー</td>
+<td>frontmatter を直接パース</td></tr>
+<tr><td>コンテキスト量</td><td><code>ci_check.attributed_conventions_bytes()</code> / <code>always_read_bytes()</code> を<strong>実際に呼んで</strong>算出</td>
+<td><code>ci_check.check_context_budget(root)</code></td></tr>
+<tr><td>節ごとのバイト数</td><td><code>print_conventions.parse_sections()</code>（agent が実際に使う抽出関数）</td>
+<td>同関数の戻り値を集計</td></tr>
+<tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
+<td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
+<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（685 passed）</td></tr>
+<tr><td>エディタ診断の件数</td><td>VS Code の言語サーバ（Pylance）から取得した実診断</td>
+<td>修正前 210 Error ＋ 3 Hint → 修正後 0 件</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<h4>人間向け文書との差分監査の結果</h4>
+<p style="margin-bottom:0">
+<code>ci_check.py</code> の docstring が列挙する項目文字（16 個）と <code>main()</code> が実際に呼ぶ検査（16 件）は
+<strong>個数・対応とも一致</strong>していた。<code>status.schema.json</code> の <code>state</code> enum と
+<code>path_utils.STATUS_ALL_STATES</code> も一致。<code>CONVENTIONS.md</code> 7節の Rule 記述と実装の間にも、
+今回の照合で意味的な齟齬は見つからなかった。<br>
+ただし<strong>「判定不能なら通す」の 10 条件と、Rule ごとのツール適用範囲の差</strong>は、
+<code>CONVENTIONS.md</code> にも旧版のこの文書にも書かれていなかった（実装にしか存在しなかった）。
+本版 §3 に追記済み。
+</p>
+</div>
+
+<footer>
+docs/flow/harness-flow-technical.html ― apparness ハーネス <code>VERSION</code> 1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
+平易版: <code>docs/flow/harness-flow-plain.html</code>　規範: <code>harness/CONVENTIONS.md</code>（15 節・凍結中）
+設計意図: <code>docs/HARNESS_GUIDE.md</code>　主張と証跡: <code>harness/CLAIMS.md</code>
+</footer>
+
+</div>
+</body>
+</html>

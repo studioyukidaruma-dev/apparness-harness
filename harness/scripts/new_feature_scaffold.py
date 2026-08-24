@@ -31,6 +31,33 @@ REQUIRED_IN_TREE = (
 )
 
 
+GIT_IDENTITY_HINT = (
+    "  git の user.name / user.email が未設定の可能性があります。設定してから再実行してください:\n"
+    "    git config user.name  \"<名前>\"\n"
+    "    git config user.email \"<メールアドレス>\""
+)
+
+
+def run_git(args: list[str], cwd: pathlib.Path, what: str, hint: str | None = None) -> str | None:
+    """git を実行し、失敗したら**理由と次の一手**を返す（成功なら None）。
+
+    `check=True` に任せると `CalledProcessError` の traceback がそのまま出て、失敗が
+    「ハーネスのバグ」に見える。実際の原因（環境側の git 設定など）に到達できないので、
+    このリポジトリの他スクリプトと同じ `エラー: …` の様式に合わせる（F-R4）。
+    """
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    if result.returncode == 0:
+        return None
+    detail = (result.stderr or result.stdout).strip()
+    lines = [f"エラー: {what}に失敗しました（git {' '.join(args)} が exit={result.returncode}）。"]
+    if detail:
+        # git の案内文は空行を挟むので、そのまま並べると読みづらい。中身のある行だけ出す。
+        lines += [f"  git: {line.strip()}" for line in detail.splitlines() if line.strip()]
+    if hint:
+        lines.append(hint)
+    return "\n".join(lines)
+
+
 def tracked_in_head(root: pathlib.Path, rel_path: str) -> bool:
     """`rel_path` が現在の HEAD のツリーに含まれているかを git に問い合わせる。"""
     result = subprocess.run(
@@ -137,11 +164,15 @@ def main(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 2
-        subprocess.run(
-            ["git", "worktree", "add", str(worktree_path), "-b", branch, "HEAD"],
-            cwd=root,
-            check=True,
+        error = run_git(
+            ["worktree", "add", str(worktree_path), "-b", branch, "HEAD"],
+            root,
+            f"worktree の作成（{worktree_path}）",
+            hint=f"  ブランチ {branch!r} が既に存在する場合は、削除するか別名にしてください。",
         )
+        if error:
+            print(error, file=sys.stderr)
+            return 2
 
     feature_dir = worktree_path / "apps" / app_id / "03-features" / feature_id
     tmpl_dir = _common.harness_root(root) / "templates"
@@ -217,12 +248,21 @@ def main(argv: list[str]) -> int:
     (feature_dir / ".claude").mkdir(parents=True, exist_ok=True)
     (feature_dir / ".claude" / ".gitkeep").touch()
 
-    subprocess.run(["git", "add", "-A"], cwd=worktree_path, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"scaffold: {feature_id} の機能雛形を作成"],
-        cwd=worktree_path,
-        check=True,
-    )
+    # 雛形を作っただけでコミットせずに抜けると、`new_feature_scaffold.py` の再実行が
+    # 冪等スキップに入って未コミットの雛形が残り続ける。握り潰さず、非 0 で止める。
+    for args, what in (
+        (["add", "-A"], "雛形のステージング"),
+        (["commit", "-m", f"scaffold: {feature_id} の機能雛形を作成"], "雛形のコミット"),
+    ):
+        error = run_git(args, worktree_path, what, hint=GIT_IDENTITY_HINT)
+        if error:
+            print(error, file=sys.stderr)
+            print(
+                f"  雛形は {worktree_path} に作成済みです。上記を解消したうえで、"
+                f"同じディレクトリで `git add -A && git commit` するか、本スクリプトを再実行してください。",
+                file=sys.stderr,
+            )
+            return 2
 
     # Rule 4（進捗自動再生成）は Edit/Write でしか発火しないため、スクリプトからの
     # status.yaml 生成では PROGRESS.md が更新されない。new_app_scaffold.py と同じく明示的に呼ぶ。

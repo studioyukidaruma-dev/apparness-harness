@@ -26,12 +26,17 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
      構造的に整合している（型・必須項目の包含・enum の包含）
   K. 要件 → 機能 → テストのトレーサビリティ（MUST 要件の取りこぼし、存在しない FR ID の参照、
      覆うと宣言した要件に対応するテストが test_strategy.coverage[] にあるか）
-  L. コンテキスト予算（CONVENTIONS.md と各 agent プロンプトの常時読み込みサイズの上限）
+  L. コンテキスト予算（agent プロンプト ＋ 読み込む CONVENTIONS.md の節 ＋ 起動直後に読むと
+     宣言した手順書、の合計に上限を課す。別ファイルへ移して測定を逃れることはできない）
   M. 規範と手順の二重管理（CONVENTIONS.md と agent/skill プロンプトのほぼ同一な段落）
   N. Rule 11 相当: interfaces[] の全エッジが 04-integration/integration.machine.yaml の
      interface_coverage[] に結合テストとして対応づけられているか（宣言レベル。実行結果の
      真偽は run_integration_verification.py が JUnit XML と突合する）
-  O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。凍結の経緯は DOGFOODING-LOG.md 参照）
+  O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。経緯は check_conventions_frozen_section_count の docstring）
+  P. harness/CLAIMS.md（主張と証跡の対応表）に書かれた実証テストが harness/tests/ に実在し、
+     実証テストが無い行には「なぜ実証できないか」が書かれている（表と実体の drift 防止）
+  Q. VERSION / CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは CHANGELOG.md の
+     Unreleased セクションが更新されている（導入された版を機械的に特定できるようにする）
 
 Rule 5（必須Skillの充足）は CI に実行環境の Skill 有効化状態が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既にコミット済みであるため、
@@ -461,9 +466,9 @@ CONVENTIONS_FROZEN_SECTION_COUNT = 15
 def check_conventions_frozen_section_count(root: pathlib.Path) -> list[str]:
     """項目 O: `CONVENTIONS.md` は凍結中（15節で固定）。新しい節（16節以降）の追加を拒否する。
 
-    凍結の経緯は `DOGFOODING-LOG.md`・memory `conventions-md-governance` を参照。「新しい節を
-    立てるべきか」という最も主観の入る判断そのものを機械的に消すための強制（節を削る／既存の
-    節の中身を直すことは妨げない。凍結が禁じるのは節の新設のみ）。
+    実地でのアプリ作成 3 本を完走した時点（2026-08-23）で、ユーザーの明示的な許可を得て凍結した。
+    「新しい節を立てるべきか」という最も主観の入る判断そのものを機械的に消すための強制である
+    （節を削る／既存の節の中身を直すことは妨げない。凍結が禁じるのは節の新設のみ）。
     """
     conventions_path = _common.harness_root(root) / "CONVENTIONS.md"
     if not conventions_path.exists():
@@ -487,6 +492,54 @@ CONTEXT_BUDGET_SESSION = 46_000
 CONTEXT_BUDGET_MARKER_RE = re.compile(
     r"<!--\s*context-budget:\s*conventions-sections=([^\s>]*)\s*-->"
 )
+# 「起動直後に無条件で読む」と宣言された文書。プロンプト本体と同じく常時コストとして計上する。
+CONTEXT_BUDGET_ALWAYS_READS_RE = re.compile(
+    r"<!--\s*context-budget:\s*always-reads=([^>]*?)\s*-->"
+)
+# `harness/procedures/` は「その agent が着手時に読む手順」専用の置き場所（CONVENTIONS.md 15節）。
+# ここへの言及は事実上すべて読み込み指示なので、宣言漏れを機械的に検出できる。
+PROCEDURE_PATH_RE = re.compile(r"harness/procedures/[A-Za-z0-9_.\-]+\.md")
+
+
+def always_read_paths(agent_text: str) -> list[str]:
+    """`<!-- context-budget: always-reads=a.md,b.md -->` で宣言されたパス。"""
+    declared: list[str] = []
+    for m in CONTEXT_BUDGET_ALWAYS_READS_RE.finditer(agent_text):
+        for token in m.group(1).split(","):
+            token = token.strip()
+            if token and token.lower() != "none" and token not in declared:
+                declared.append(token)
+    return declared
+
+
+def always_read_bytes(agent_text: str, root: pathlib.Path) -> int:
+    """宣言された「起動直後に読む文書」の合計バイト数。存在しないパスは 0 として扱う。"""
+    total = 0
+    for rel in always_read_paths(agent_text):
+        path = root / rel
+        if path.is_file():
+            total += path.stat().st_size
+    return total
+
+
+def check_undeclared_procedure_reads(agent_path: pathlib.Path, agent_text: str) -> list[str]:
+    """宣言せずに `harness/procedures/*.md` を読ませていないか。
+
+    **これが無いと予算は簡単に空洞化する。** プロンプトの本文を別ファイルへ移して
+    「起動直後にこれを読め」と書けば、ファイルサイズは減るのに実際にセッションへ載る
+    バイト数は変わらない（むしろ導入文のぶん増える）。測定値だけが良くなって実態が
+    悪くなる、という最悪の形なので、宣言を機械的に要求する。
+    """
+    declared = set(always_read_paths(agent_text))
+    mentioned = set(PROCEDURE_PATH_RE.findall(agent_text))
+    undeclared = sorted(mentioned - declared)
+    if not undeclared:
+        return []
+    return [
+        f".claude/agents/{agent_path.name}: {', '.join(undeclared)} を読ませていますが "
+        f"`<!-- context-budget: always-reads=... -->` で宣言されていません"
+        f"（別ファイルへ移しただけでは常時コストは減りません。CONVENTIONS.md 15節）"
+    ]
 
 
 def attributed_conventions_bytes(agent_text: str, root: pathlib.Path) -> int:
@@ -494,7 +547,7 @@ def attributed_conventions_bytes(agent_text: str, root: pathlib.Path) -> int:
 
     `<!-- context-budget: conventions-sections=6,9,13 -->`（`none` なら 0）というマーカーが
     あれば、そこに書かれた節だけを数える（`print_conventions.py --sections` で必要な節だけを
-    読み込むよう絞り込んでいるエージェント向け。DOGFOODING-LOG.md F-047）。
+    読み込むよう絞り込んでいるエージェント向け。摩擦点 F-047）。
     マーカーが無いエージェントは「`CONVENTIONS.md` をまるごと読む」とみなし、ファイル全体の
     サイズを安全側で計上する（マーカー導入前の全エージェントと同じ、従来の挙動）。
     存在しない節番号が書かれていた場合はその節を 0 バイトとして扱う（他のチェック対象ではない）。
@@ -539,7 +592,7 @@ def check_context_budget(root: pathlib.Path) -> list[str]:
         violations.append(
             f"harness/CONVENTIONS.md: {conventions_size} バイトで上限 "
             f"{CONTEXT_BUDGET_CONVENTIONS} バイトを超えています。説明・背景・設計意図を "
-            f"HARNESS_GUIDE.md へ移してください（CONVENTIONS.md 15節）"
+            f"docs/HARNESS_GUIDE.md へ移してください（CONVENTIONS.md 15節）"
         )
 
     worst_agent, worst_total = None, 0
@@ -554,13 +607,19 @@ def check_context_budget(root: pathlib.Path) -> list[str]:
             agent_text = agent_path.read_text(encoding="utf-8")
         except OSError:
             agent_text = ""
-        total = size + attributed_conventions_bytes(agent_text, root)
+        violations += check_undeclared_procedure_reads(agent_path, agent_text)
+        total = (
+            size
+            + attributed_conventions_bytes(agent_text, root)
+            + always_read_bytes(agent_text, root)
+        )
         if total > worst_total:
             worst_agent, worst_total = agent_path.name, total
 
     if worst_total > CONTEXT_BUDGET_SESSION:
         violations.append(
-            f"常時読み込みの合計（{worst_agent} が読む CONVENTIONS.md 相当 + 自身のプロンプト）が "
+            f"常時読み込みの合計（{worst_agent} のプロンプト + 読む CONVENTIONS.md 相当 + "
+            f"起動直後に読む手順書）が "
             f"{worst_total} バイトで上限 {CONTEXT_BUDGET_SESSION} バイトを超えています"
             f"（CONVENTIONS.md 15節）"
         )
@@ -653,6 +712,142 @@ def check_prompt_duplication(root: pathlib.Path) -> list[str]:
     return violations
 
 
+# 項目 P: 主張と証跡の対応表（harness/CLAIMS.md）と実体の drift 検出
+CLAIMS_TEST_REF_RE = re.compile(r"([A-Za-z0-9_]+\.py)::([A-Za-z0-9_]+)")
+CLAIMS_EMPTY_CELLS = {"", "—", "-", "–", "なし", "N/A"}
+
+
+def _claims_table_rows(text: str) -> list[list[str]]:
+    """Markdown の表の行（ヘッダ・区切り行を除く）をセルの配列にして返す。"""
+    rows = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or not line.endswith("|"):
+            continue
+        cells = [c.strip() for c in line[1:-1].split("|")]
+        if len(cells) < 5:
+            continue
+        if cells[0] == "規則":
+            continue  # ヘッダ
+        if all(re.fullmatch(r"[-: ]+", c) for c in cells):
+            continue  # 区切り
+        rows.append(cells)
+    return rows
+
+
+def check_claims_coverage(root: pathlib.Path) -> list[str]:
+    """項目 P: `harness/CLAIMS.md` の表が実体と食い違っていないことを検証する。
+
+    この表は「ハーネスが何をブロックすると主張しているか」と「それを実証しているテスト」の
+    対応表である（F-029/F-030 では中核ルール群が丸ごと空振りしていても気付けなかった）。
+    表が実体から drift すれば索引としての価値が消えるので、機械的に見張る:
+
+      1. 表に書かれた `<file>.py::<test>` が `harness/tests/` に実在すること
+      2. 実証テストが空（`—` 等）の行には、「未実証の残余」が書かれていること
+         （実証できない主張を、理由を書かずに置くことを許さない）
+    """
+    claims_path = _common.harness_root(root) / "CLAIMS.md"
+    if not claims_path.exists():
+        return []
+    text = claims_path.read_text(encoding="utf-8")
+    tests_dir = _common.harness_root(root) / "tests"
+
+    violations = []
+    sources: dict[str, str | None] = {}
+    for file_name, test_name in CLAIMS_TEST_REF_RE.findall(text):
+        if file_name not in sources:
+            path = tests_dir / file_name
+            sources[file_name] = path.read_text(encoding="utf-8") if path.is_file() else None
+        source = sources[file_name]
+        if source is None:
+            violations.append(
+                f"harness/CLAIMS.md: 実証テストのファイル harness/tests/{file_name} が存在しません"
+            )
+            continue
+        if not re.search(rf"^def {re.escape(test_name)}\s*\(", source, re.MULTILINE):
+            violations.append(
+                f"harness/CLAIMS.md: harness/tests/{file_name} に {test_name} が存在しません"
+                f"（テストを書くか、表の記載を実体に合わせてください）"
+            )
+
+    for cells in _claims_table_rows(text):
+        rule, evidence, residual = cells[0], cells[2], cells[4]
+        if evidence.strip("` ") in CLAIMS_EMPTY_CELLS and residual in CLAIMS_EMPTY_CELLS:
+            violations.append(
+                f"harness/CLAIMS.md: 「{rule}」に実証テストが無いのに、なぜ実証できないかが"
+                f"書かれていません（「未実証の残余」列を埋めてください）"
+            )
+    return violations
+
+
+# 項目 Q: 版管理（VERSION / CHANGELOG.md）
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+HARNESS_PREFIXES = ("harness/", ".claude/", ".github/")
+UNRELEASED_HEADING_RE = re.compile(r"^##\s*\[?Unreleased\]?", re.MULTILINE | re.IGNORECASE)
+
+
+def read_harness_version(root: pathlib.Path) -> str | None:
+    """`VERSION` の内容（`1.2.3`）。無い・書式違反なら None。"""
+    try:
+        value = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value if SEMVER_RE.match(value) else None
+
+
+def unreleased_entries(changelog_text: str) -> list[str]:
+    """`## [Unreleased]` セクションの箇条書き項目を返す（見出しだけの空セクションは空）。"""
+    m = UNRELEASED_HEADING_RE.search(changelog_text)
+    if not m:
+        return []
+    rest = changelog_text[m.end():]
+    next_section = re.search(r"^## ", rest, re.MULTILINE)
+    body = rest[: next_section.start()] if next_section else rest
+    return [line.strip() for line in body.splitlines() if line.strip().startswith("- ")]
+
+
+def check_versioning(changed: list[tuple[str, str]], root: pathlib.Path) -> list[str]:
+    """項目 Q: 導入されたハーネスの版を機械的に特定できる状態を保つ。
+
+    版が分からないと、不具合報告と改修の対応が取れない（「どの版で起きたか」が言えない）。
+    `VERSION` の存在だけでは腐るので、**ハーネス本体を触ったコミットでは `CHANGELOG.md` の
+    Unreleased セクションが更新されていること**まで機械的に要求する。
+
+    CHANGELOG の**内容が正しいか**は判定しない（記述の有無だけを見る。文章の妥当性を
+    機械が判定できるふりをしない、というのがこのハーネスの一貫した方針）。
+    """
+    violations = []
+    if read_harness_version(root) is None:
+        violations.append(
+            "VERSION: 存在しないか、セマンティック バージョニングの書式（例 1.2.3）ではありません"
+        )
+    changelog_path = root / "CHANGELOG.md"
+    if not changelog_path.exists():
+        return violations + ["CHANGELOG.md: 存在しません（Keep a Changelog 形式で作成してください）"]
+
+    harness_changes = [
+        path for _status, path in changed
+        if path.startswith(HARNESS_PREFIXES) and path != ".claude/settings.local.json"
+    ]
+    if not harness_changes:
+        return violations
+
+    changed_paths = {path for _status, path in changed}
+    if "CHANGELOG.md" not in changed_paths:
+        violations.append(
+            f"CHANGELOG.md: ハーネス本体に {len(harness_changes)} 件の変更"
+            f"（{harness_changes[0]} ほか）がありますが、CHANGELOG.md が更新されていません。"
+            "`## [Unreleased]` に何を変えたかを追記してください"
+        )
+        return violations
+    if not unreleased_entries(changelog_path.read_text(encoding="utf-8")):
+        violations.append(
+            "CHANGELOG.md: `## [Unreleased]` セクションに項目がありません"
+            "（見出しだけでは、何が変わったのか導入側から分かりません）"
+        )
+    return violations
+
+
 def _strip_timestamp(text: str) -> str:
     return TIMESTAMP_LINE_RE.sub("", text)
 
@@ -741,6 +936,8 @@ def main(argv: list[str]) -> int:
     violations += check_prompt_duplication(root)
     violations += check_progress_freshness(root, branch)
     violations += check_conventions_frozen_section_count(root)
+    violations += check_claims_coverage(root)
+    violations += check_versioning(changed, root)
 
     if violations:
         print(f"\nNG: {len(violations)} 件の違反が見つかりました:", file=sys.stderr)

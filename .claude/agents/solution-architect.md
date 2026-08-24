@@ -66,7 +66,7 @@ python3 harness/scripts/print_conventions.py --sections 6,9,10,11,12,13,14
    作成する（`inputs`/`outputs`/`error_cases`/`tech_stack` を埋める。実装の詳細ではなく契約に集中する）。
    `test_strategy.coverage[]` に、その機能が覆う要件の **`acceptance_criteria` ごとに**
    テスト識別子（`test_ids`）を対応づける。ここに書いた識別子は実装後に JUnit XML と突合され、
-   「そのテストが実在して成功した」ことまで機械検証される（CONVENTIONS.md 14節）。
+   「そのテストが実在して成功した」ことまで機械検証される（CONVENTIONS.md 13節）。
    `python3 harness/scripts/check_traceability.py --app <app-id>` で要件 → 機能 → テストの
    対応が漏れていないかを確認する。
 7. `design.md` にも人間向けの説明（全体像・機能一覧表・つながりの図や表）を書く。

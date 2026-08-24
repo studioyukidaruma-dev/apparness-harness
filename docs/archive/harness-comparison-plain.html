@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>やさしい版 ハーネス比較 — apparness と claude-code-harness</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #F6F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EFF2F6;
+    --ink: #14181F;
+    --muted: #5B6675;
+    --line: #DDE2E9;
+    --line-strong: #C3CBD6;
+    --accent: #1D5E8C;
+    --accent-soft: #E3EEF6;
+    --amber: #A66207;
+    --amber-soft: #FAEEDC;
+    --red: #A32B22;
+    --red-soft: #F9E6E4;
+    --green: #2A6A4C;
+    --green-soft: #E2F0E8;
+    --shadow: 0 1px 2px rgba(20, 24, 31, .06), 0 8px 24px -16px rgba(20, 24, 31, .25);
+
+    --f-sans: "IBM Plex Sans JP", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #10141A;
+      --surface: #171D25;
+      --surface-2: #1E2630;
+      --ink: #E4E9F0;
+      --muted: #94A0AF;
+      --line: #262F3A;
+      --line-strong: #3A4756;
+      --accent: #6FADD9;
+      --accent-soft: #17303F;
+      --amber: #DBA05A;
+      --amber-soft: #35281A;
+      --red: #E08078;
+      --red-soft: #38211F;
+      --green: #6CBE95;
+      --green-soft: #17301F;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #10141A;
+    --surface: #171D25;
+    --surface-2: #1E2630;
+    --ink: #E4E9F0;
+    --muted: #94A0AF;
+    --line: #262F3A;
+    --line-strong: #3A4756;
+    --accent: #6FADD9;
+    --accent-soft: #17303F;
+    --amber: #DBA05A;
+    --amber-soft: #35281A;
+    --red: #E08078;
+    --red-soft: #38211F;
+    --green: #6CBE95;
+    --green-soft: #17301F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-sans);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 56px; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; font-weight: 600; }
+  h1 { font-size: 36px; letter-spacing: -.02em; }
+  h2 { font-size: 24px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; }
+  p { margin: 0; }
+  code, .mono { font-family: var(--f-mono); font-size: .88em; }
+  .prose { max-width: 68ch; display: flex; flex-direction: column; gap: 14px; }
+  .muted { color: var(--muted); }
+
+  header .eyebrow {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  }
+  header .lede { font-size: 18px; color: var(--muted); max-width: 66ch; margin-top: 16px; }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+  .sec-head { display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--line-strong); padding-top: 16px; }
+  .sec-num { font-family: var(--f-mono); font-size: 12px; color: var(--muted); letter-spacing: .1em; }
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); }
+
+  /* --- swimlane --- */
+  .lane { min-width: 1080px; display: grid; grid-template-columns: 158px 190px 190px 176px 1fr 210px; }
+  .lane > div { padding: 12px 14px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); font-size: 13.5px; line-height: 1.62; }
+  .lane > div:nth-child(6n) { border-right: none; }
+  .lane .hd {
+    position: sticky; top: 0; background: var(--surface-2); font-family: var(--f-mono);
+    font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 2px solid var(--line-strong); padding-top: 10px; padding-bottom: 10px;
+  }
+  .lane .phase { background: var(--surface-2); }
+  .lane .phase b { display: block; font-size: 15px; font-weight: 600; }
+  .lane .phase .pid { font-family: var(--f-mono); font-size: 11px; color: var(--accent); letter-spacing: .08em; }
+  .lane .gate-row > div { background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); }
+  .gate-cell { grid-column: 1 / -1; padding: 12px 14px; background: var(--amber-soft); border-bottom: 2px solid var(--line-strong); font-size: 13.5px; }
+  .gate-cell .gid { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; color: var(--amber); font-weight: 500; }
+
+  ul.tight { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 3px; }
+  ul.none { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+
+  .tag {
+    display: inline-block; font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; line-height: 1.5;
+  }
+  .t-det { color: var(--green); background: var(--green-soft); }
+  .t-ai { color: var(--red); background: var(--red-soft); }
+  .t-ops { color: var(--amber); background: var(--amber-soft); }
+  .t-rule { color: var(--accent); background: var(--accent-soft); }
+  .size { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+  .warnmark { color: var(--red); font-weight: 700; }
+
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th {
+    background: var(--surface-2); font-family: var(--f-mono); font-size: 11.5px; font-weight: 500;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--line-strong);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, th.mono { font-family: var(--f-mono); font-size: 12.5px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; font-size: 13px; }
+  .legend div { display: flex; align-items: center; gap: 8px; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 18px; border-radius: 0 4px 4px 0; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; }
+  .callout.warn { border-left-color: var(--red); }
+  .callout h3 { font-size: 15px; }
+
+  .audit { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+  .card h3 { display: flex; align-items: center; gap: 8px; }
+  .card p, .card li { font-size: 13.5px; line-height: 1.65; }
+  .card .where { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 640px) { .wrap { padding: 36px 16px 64px; } h1 { font-size: 28px; } }
+</style>
+<style>
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .verdict { border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); box-shadow: var(--shadow); padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .verdict .v-lbl { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .verdict strong { font-size: 17px; }
+  .bar { display: inline-block; height: 9px; border-radius: 2px; background: var(--accent); vertical-align: middle; }
+  .bar.b-alt { background: var(--amber); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13.5px; }
+  .kv dt { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+  .kv dd { margin: 0; }
+  .t-a { color: var(--accent); background: var(--accent-soft); }
+  .t-b { color: var(--amber); background: var(--amber-soft); }
+  .fn { font-size: 12.5px; color: var(--muted); max-width: 78ch; }
+  .win { font-family: var(--f-mono); font-size: 11px; letter-spacing: .05em; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .win-a { color: var(--accent); background: var(--accent-soft); border: 1px solid currentColor; }
+  .win-b { color: var(--amber); background: var(--amber-soft); border: 1px solid currentColor; }
+  .win-d { color: var(--muted); background: var(--surface-2); border: 1px solid currentColor; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">やさしい版 / 2026-08-24</div>
+  <h1>ふたつのハーネス、どっちが優れているか</h1>
+  <p class="lede">
+    いま持っている <b>apparness</b> と、ネットから拾ってきた <b>claude-code-harness</b>。
+    この 2 つを実際に全部開いて中身を数えて比べました。
+    専門用語はできるだけ使わず、使うときは必ずその場で言い換えを添えます。
+    <b>先に結論を言うと、「どちらが上」ではなく「別の仕事をする道具」です。</b>
+  </p>
+</header>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 1</div>
+    <h2>まず「ハーネス」って何のこと？</h2>
+  </div>
+  <div class="prose">
+    <p>
+      ハーネスとは、<b>AI に仕事をさせるときの「作業のきまり」と「やってはいけないことの見張り番」をセットにした仕組み</b>のことです。
+      馬具の「ハーネス（引き具）」が語源で、暴れる馬をつなぎ止めて、荷車を正しい向きに引かせる道具です。
+    </p>
+    <p>
+      なぜ必要かというと、AI は「やっておきました」と言うのが上手だからです。
+      本当はテストを走らせていないのに「テストは全部通りました」と書く。
+      設計を変えたのに、元の設計書を直し忘れる。
+      話が長くなるほど最初のほうの約束を忘れる。
+      <b>人間が毎回全部チェックするのは無理なので、機械に見張らせる。それがハーネスです。</b>
+    </p>
+  </div>
+
+  <div class="callout">
+    <h3>この報告書でずっと出てくる 2 つの言葉</h3>
+    <ul class="tight">
+      <li><b>「機械が止める」</b>＝ プログラムが実際に処理をブロックする。AI がどう言い訳しても通らない。<span class="tag t-det">強い</span></li>
+      <li><b>「お願いしてある」</b>＝ AI への指示書に「〜してください」と書いてあるだけ。守るかどうかは AI 次第。<span class="tag t-ops">弱い</span></li>
+    </ul>
+    <p class="muted" style="font-size:13.5px">この差がこの比較のほぼすべてです。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 2</div>
+    <h2>2 つは、そもそも違う仕事をする道具</h2>
+  </div>
+
+  <div class="grid2">
+    <div class="verdict">
+      <div class="v-lbl">apparness（手元にあるほう）</div>
+      <strong>「アプリを 1 本、ゼロから作りきる」ための工程管理そのもの</strong>
+      <p class="muted" style="font-size:14px">
+        たとえるなら<b>工場の組立ライン</b>です。
+        設計図が承認されないと部品づくりに進めない。部品が検査を通らないと次の工程に流れない。
+        誰がどの部品を触っていいかも決まっていて、他人の持ち場には手を出せない。
+        <b>「順番」と「合格判定」を機械が握っている</b>のが特徴です。
+      </p>
+    </div>
+    <div class="verdict">
+      <div class="v-lbl">claude-code-harness（拾ってきたほう）</div>
+      <strong>「すでにあるプログラムを、毎日安全に直し続ける」ための現場管理</strong>
+      <p class="muted" style="font-size:14px">
+        たとえるなら<b>工事現場の安全管理室</b>です。
+        今日やる作業を朝に書き出させ、危ない機械の使用は事前に許可を取らせ、
+        作業後は別の担当者が点検し、記録が揃ってはじめて引き渡す。
+        <b>「危険」と「記録」を握っている</b>のが特徴です。
+      </p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <h3>だから、片方でもう片方の代わりはできません</h3>
+    <p>
+      apparness で「既存のアプリのバグを直す」ことは<b>できません</b>。空っぽの状態から作り始める前提で作られているからです。<br>
+      claude-code-harness で「要件定義から順番どおりにアプリを作らせる」ことも<b>できません</b>。要件定義や設計という段階そのものが無いからです。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 3</div>
+    <h2>大きさを数えてみた</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      大きいほうが偉い、という話ではありません。ただ、桁が違うことは知っておく必要があります。
+    </p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>数えたもの</th><th>apparness</th><th>claude-code-harness</th><th>差</th></tr></thead>
+      <tbody>
+        <tr><td>ファイルの数</td><td class="num">約 90</td><td class="num">552</td><td class="num">約 6 倍</td></tr>
+        <tr><td>書かれている行数の合計</td><td class="num">12,398</td><td class="num">87,547</td><td class="num">約 7 倍</td></tr>
+        <tr><td>AI に持たせている「技」（スキル）</td><td class="num">4 個</td><td class="num">23 個</td><td class="num">約 6 倍</td></tr>
+        <tr><td>裏で動く小さなプログラム</td><td class="num">16 本</td><td class="num">155 本</td><td class="num">約 10 倍</td></tr>
+        <tr><td>説明書の数</td><td class="num">3 冊</td><td class="num">143 冊</td><td class="num">約 48 倍</td></tr>
+        <tr><td>これまでの変更履歴</td><td class="num">1 行（履歴がまとめられている）</td><td class="num">538 KB（文庫本 3 冊ぶん）</td><td>—</td></tr>
+        <tr><td>バージョン</td><td class="mono">v1（最初の版）</td><td class="mono">v5.11.0（5 回大きく作り直した後）</td><td>—</td></tr>
+        <tr><td>対応している AI ツール</td><td>Claude Code だけ</td><td>Claude Code / Codex / Cursor / Grok</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <h3>読み取れること</h3>
+    <p>
+      claude-code-harness は<b>何年もかけて磨かれた完成品</b>、apparness は<b>できたばかりだが芯がしっかりしている試作品</b>です。
+      ただし大きさには代償もあります。claude-code-harness には
+      「説明書が増えすぎて AI が読みきれない問題」を扱うための説明書まで存在していて、
+      <b>大きさそのものが管理すべき問題になっている</b>のが見て取れます。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 4</div>
+    <h2>いちばん大事な違い：AI の「やりました」をどう確かめるか</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      ここが両者を分ける最大のポイントで、しかも<b>apparness が勝っているところ</b>です。
+    </p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="tag t-det">機械が止める</span> apparness のやり方</h3>
+      <p>
+        AI が「この機能はテスト済みです」という札を立てようとすると、機械が次の 3 つを確かめます。
+      </p>
+      <ul class="tight">
+        <li>テストを走らせた<b>記録（受領書）</b>が実際にあるか</li>
+        <li>その記録で、全部のテストが<b>成功で終わっている</b>か</li>
+        <li>その記録が、<b>今のプログラムの状態</b>に対して取られたものか</li>
+      </ul>
+      <p>
+        3 つ目が肝です。これが無いと「昔うまくいったときの記録を使い回す」ことができてしまいます。
+        そして<b>この受領書を AI が手書きで作ることは、常に拒否されます</b>。
+        受領書はテストを実際に起動するプログラムだけが作れます。
+      </p>
+    </div>
+    <div class="card">
+      <h3><span class="tag t-ai">AI の自己申告</span> claude-code-harness のやり方</h3>
+      <p>
+        AI（作業役）に、6 項目の自己チェックリストを埋めさせます。
+        「重複コードは無い」「宣言した関数は全部呼ばれている」「既存のテストを壊していない」など、
+        項目の選び方は非常に良くできています。
+      </p>
+      <p>
+        ただし、<b>「確認しました＝はい」も「証拠はこれです」も、AI 自身が書く文章です。</b>
+        まとめ役はそれが空欄でないかを見るだけで、書かれた証拠を実際に走らせ直すわけではありません。
+      </p>
+      <p>
+        さらに、<b>テストを先に書かせる強制の仕組みは、配布された設定では最初からオフになっています</b>
+        （<code>enabled = false</code>）。使う人が自分でオンにする必要があります。
+      </p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>ひとことで言うと</h3>
+    <p>
+      apparness は<b>「証拠を作らせない」</b>仕組み。claude-code-harness は<b>「証拠を語らせる」</b>仕組み。
+      AI を疑う度合いでは apparness のほうが徹底しています。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 5</div>
+    <h2>逆に、apparness に完全に抜けているもの</h2>
+  </div>
+
+  <div class="callout warn">
+    <h3>「危ないことをさせない」見張りが、1 つもありません</h3>
+    <p>
+      apparness の見張り番 11 個は、すべて<b>「工程の順番を守らせる」ため</b>のものです。
+      パソコンやデータそのものを守るルールは<b>ゼロ件</b>でした。具体的には、次のことが全部素通りします。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:34%">AI がやってしまうと困ること</th><th style="width:33%">apparness</th><th style="width:33%">claude-code-harness</th></tr></thead>
+      <tbody>
+        <tr><td>フォルダをまるごと消すコマンドを打つ</td><td><b class="warnmark">止まらない</b></td><td>止まる（または人に確認する）</td></tr>
+        <tr><td>パスワードや秘密鍵のファイルを読む</td><td><b class="warnmark">止まらない</b></td><td>止まる</td></tr>
+        <tr><td>読んだ内容を外部のサイトに送る</td><td><b class="warnmark">止まらない</b></td><td>止まる（送り先の一覧で遮断）</td></tr>
+        <tr><td>これまでの作業履歴を強引に上書きして消す</td><td><b class="warnmark">止まらない</b></td><td>止まる</td></tr>
+        <tr><td>本番環境に勝手に反映する</td><td><b class="warnmark">止まらない</b></td><td>止まる</td></tr>
+        <tr><td>「全部止める」の非常ボタン</td><td><b class="warnmark">無い</b></td><td>ある（特定のファイルを置くだけで全停止）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p>
+      これは apparness の「手抜き」ではなく、<b>もともとそこを守るつもりで作られていない</b>からです。
+      とはいえ、AI に自動でアプリを作らせている最中に AI が変なコマンドを打つ可能性はゼロではないので、
+      <b>実際に使ううえでは、いちばん優先して埋めるべき穴</b>です。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 6</div>
+    <h2>逆に、claude-code-harness にも弱点があります</h2>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>1. 心臓部の中身が見えない</h3>
+      <p>
+        見張り番の判断をしているのは <b>13 MB の「実行ファイル」1 個</b>です。
+        これは人間には読めない形式（コンピュータが直接実行する形）で、
+        <b>その元になったプログラムの文章が、配られたファイルの中に入っていませんでした</b>（実測して 0 件）。
+      </p>
+      <p>
+        つまり「本当にそう動いているのか」を自分で確かめる方法がありません。
+        <b>apparness は逆で、見張り番のプログラムが全部そのまま読める文章で書かれています。</b>
+        AI を縛る道具としては、これは大きな安心材料です。
+      </p>
+    </div>
+    <div class="card">
+      <h3>2. 見張り番が「不在なら通す」設計</h3>
+      <p>
+        実行ファイルが見つからなかったとき、この仕組みは<b>「判断なし」として黙って処理を通します</b>。
+        エラーで止まるのではなく、通ります。
+      </p>
+      <p>
+        「絶対に外せない見張り」と説明されていますが、それは<b>見張りがちゃんと居るときの話</b>です。
+        <b>ちなみに apparness も同じ弱点を持っています</b>（Python が入っていない環境では見張りが全部消えます）。
+        <b>これは両方に共通する、いちばん見落とされやすい穴です。</b>
+      </p>
+    </div>
+    <div class="card">
+      <h3>3. 動作確認のテストが付いてこない</h3>
+      <p>
+        配られたファイルの中に、<b>「この仕組みがちゃんと動くか確かめるテスト」が入っていません</b>。
+        入れたあと正しく動いているかは、基本的に信じるしかありません。
+      </p>
+      <p>
+        apparness には <b>3,819 行ぶんのテスト</b>が同梱されていて、自動で毎回実行されます。
+      </p>
+    </div>
+    <div class="card">
+      <h3>4. とにかく巨大で、覚えることが多い</h3>
+      <p>
+        技（スキル）が 23 個、説明書が 143 冊。
+        「まず 5 つの動詞だけ覚えればいい」と親切に書いてありますが、
+        その裏に <b>155 本のプログラム</b>が動いています。
+      </p>
+      <p>
+        何か思ったとおりに動かなかったとき、原因を自分で追いかけるのは相当大変です。
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 7</div>
+    <h2>apparness だけが持っている、地味だがすごい仕組み</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      AI ハーネスがいちばんよく失敗するのは、<b>「ルールを足しすぎて、AI がルールを読むだけで疲れてしまう」</b>という壊れ方です。
+      ルールを足すのは簡単なので、みんなどんどん足します。そして気づくと肝心の仕事に使える集中力が残っていない。
+    </p>
+    <p>
+      apparness は、この問題を<b>「気をつける」ではなく機械で押さえています</b>。
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:26%">仕組み</th><th style="width:38%">何をするか</th><th style="width:36%">いまの状況（実測）</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>文字数の上限</b></td>
+          <td>AI がいつも読まされる文書に、バイト数の上限を設定。超えたら自動検査が落ちる</td>
+          <td>規約は <b>35,891 / 36,000 文字</b>。<b class="warnmark">残り 109 文字</b></td>
+        </tr>
+        <tr>
+          <td><b>二重書きの検出</b></td>
+          <td>同じことが 2 か所に書かれていたら不合格にする（片方だけ直して食い違うのを防ぐ）</td>
+          <td>実際に食い違いが起きた事例から導入</td>
+        </tr>
+        <tr>
+          <td><b>章の凍結</b></td>
+          <td>規約の章を 15 章で固定し、<b>16 章目を作ろうとすると拒否する</b></td>
+          <td>2026-08-23 から凍結中</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <h3>ただし、いま上限にぶつかっています</h3>
+    <p>
+      規約の残りは <b>109 文字</b>、いちばん重い指示書の残りは <b>19 文字</b>です。
+      日本語で言うと<b>ひらがな 9 文字ぶん</b>しか余っていません。
+    </p>
+    <p>
+      つまり、これから「ルールを 1 つ足す」というごく普通の改修をしようとすると、
+      <b>その瞬間に自動検査が落ちます。</b>
+      なので改修の一番最初にやるべきことは、機能追加ではなく
+      <b>「説明文を別の本に引っ越して、場所を空ける」</b>ことです。
+      これは設計どおりに仕組みが働いている証拠でもあります。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 8</div>
+    <h2>claude-code-harness から学ぶべき「態度」</h2>
+    <p class="muted" style="font-size:14.5px;max-width:70ch">
+      機能ではなく、文書の書き方の話です。ここは真似する価値がとても高いところです。
+    </p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>「確認していない」と「無い」を区別する</h3>
+      <p>
+        claude-code-harness の文書には <code>not_observed != absent</code>
+        （＝「見ていない」は「無い」ではない）という言葉が繰り返し出てきます。
+        手元に証拠が無いことを「対応していない」とも「対応済み」とも書かず、
+        <b>「ここでは証明できていない」とだけ書く</b>。この態度が全体に徹底されています。
+      </p>
+    </div>
+    <div class="card">
+      <h3>自社の目玉機能を自分で格下げする</h3>
+      <p>
+        「主張の監査表」という文書があり、宣伝文句を 1 つずつ
+        「いま証明済み / 追加の証拠が要る」に仕分けています。
+        <b>看板機能のひとつが「まだ強く主張するのは安全でない」と自己格下げされていました。</b>
+        自分に不利な事実を先に書いておくと、後で信用を失いません。
+      </p>
+    </div>
+    <div class="card">
+      <h3>「同じ名前でも強さは違う」と明記する</h3>
+      <p>
+        4 つの AI ツールに対応しているけれど、<b>守りの強さは同じではない</b>とはっきり書き、
+        どのツールで何が弱いかを表にしています。
+        「全部対応しています」と丸めて書かないと決めているわけです。
+      </p>
+    </div>
+    <div class="card">
+      <h3>apparness も実はこれをやっている</h3>
+      <p>
+        apparness の作業記録には、<b>「決定論的な強制の中核が、実は空振りしていた」</b>という
+        自分にとって最悪の発見が、いちばん重い問題として堂々と記録されています。
+        態度としては同じ水準です。
+        足りないのは<b>それを毎回自動で確かめ続ける仕組み</b>のほうです。
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">STEP 9</div>
+    <h2>結論</h2>
+  </div>
+
+  <div class="verdict">
+    <div class="v-lbl">総合</div>
+    <strong>道具としての完成度は claude-code-harness が上。ただし apparness の「芯」は claude-code-harness には無いものです。</strong>
+    <p class="muted" style="font-size:14.5px">
+      claude-code-harness は 5 世代作り直された完成品で、危険の防止・導入の簡単さ・見やすい画面・
+      リリースの自動化まで揃っています。総合点で言えば明らかに上です。
+    </p>
+    <p class="muted" style="font-size:14.5px">
+      しかし apparness には、<b>「AI がテストを通したと嘘をつけない」「要件を変えたのに設計が古いまま進めない」
+      「作った機能どうしのつなぎ目が食い違ったら止まる」</b>という、
+      claude-code-harness が持っていない強制の仕組みがあります。
+      しかもそれが<b>読めるコードで書かれ、テストされ、実際に 3 本のアプリで試された結果として直されています</b>。
+    </p>
+  </div>
+
+  <div class="scroll" style="margin-top:8px">
+    <table>
+      <thead><tr><th style="width:46%">やりたいこと</th><th style="width:26%">おすすめ</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>今あるプログラムを毎日安全に直したい</td><td><b>claude-code-harness</b></td><td>apparness はそもそも対応していない</td></tr>
+        <tr><td>新しいアプリを、順番を守らせながらゼロから作りたい</td><td><b>apparness</b></td><td>claude-code-harness には要件定義・設計という段階が無い</td></tr>
+        <tr><td>AI の「やりました」を絶対に信用したくない</td><td><b>apparness</b></td><td>実行記録を機械が作り、AI が書き換えられない</td></tr>
+        <tr><td>AI に危ない操作をさせたくない</td><td><b>claude-code-harness</b></td><td>apparness には該当する見張りが 1 つも無い</td></tr>
+        <tr><td>非エンジニアが画面を見て判断したい</td><td><b>claude-code-harness</b></td><td>専用の HTML 画面が 3 種類ある</td></tr>
+        <tr><td>仕組み自体を自分で読んで納得したい</td><td><b>apparness</b></td><td>全部読める文章で書かれている</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <h3>これから apparness をよくするときの、いちばん大事な注意</h3>
+    <p>
+      <b>claude-code-harness に機能数で追いつこうとしないでください。</b>
+      向こうは 5 年ぶんの積み上げがあり、しかもその大きさ自体に苦しんでいます。
+      apparness の価値は「小さくて、全部読めて、それでも AI を確実に止められる」ことです。
+    </p>
+    <p>
+      取り込むべきは<b>機能ではなく「向こうが押さえている危険」</b>——
+      つまり①危ない操作の遮断と、②見張り番自身が生きているかの確認、この 2 つだけです。
+      具体的な進め方は <code>docs/plans/IMPROVEMENT-PLAN.md</code> にまとめました。
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="sec-num">付録</div>
+    <h2>用語の言いかえ</h2>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:26%">よく出てくる言葉</th><th>この報告書での言いかえ</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">ハーネス</td><td>AI に仕事をさせるときの「きまり」と「見張り番」のセット</td></tr>
+        <tr><td class="mono">Hook（フック）</td><td>AI が何か操作しようとした瞬間に割り込んで、通すか止めるかを決める見張り番</td></tr>
+        <tr><td class="mono">決定論的</td><td>機械が必ず同じ判定をする。AI の言い分で結果が変わらない</td></tr>
+        <tr><td class="mono">ガードレール</td><td>危ない操作の一覧と、その扱い（禁止 / 要確認 / 警告）</td></tr>
+        <tr><td class="mono">受領書（レシート）</td><td>テストを実際に走らせた記録。誰がいつ何を実行して結果がどうだったかの証拠</td></tr>
+        <tr><td class="mono">契約（contract）</td><td>「この機能は何を受け取って何を返すか」を先に決めた紙。中身を知らなくても組み合わせられる</td></tr>
+        <tr><td class="mono">トレーサビリティ</td><td>「この要望は、どの機能の、どのテストで確かめられたか」を最後までたどれること</td></tr>
+        <tr><td class="mono">worktree（ワークツリー）</td><td>同じプロジェクトの作業場をもう 1 つ作る機能。担当者ごとに机を分けるイメージ</td></tr>
+        <tr><td class="mono">fail-open / fail-closed</td><td>見張りが壊れたとき「通す」のが fail-open、「止める」のが fail-closed。安全なのは後者</td></tr>
+        <tr><td class="mono">CI</td><td>変更を保存するたびにサーバー側で自動的に検査を走らせる仕組み。手元をごまかしても効く</td></tr>
+        <tr><td class="mono">コンテキスト</td><td>AI が一度に覚えていられる情報の量。ここが埋まるほど注意力が落ちる</td></tr>
+        <tr><td class="mono">スキル / サブエージェント</td><td>AI に持たせた専門技（スキル）と、別人格として呼び出す助手（サブエージェント）</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer style="border-top:1px solid var(--line);padding-top:20px">
+  <p class="fn">
+    調査日 2026-08-24。数字はすべて実際にファイルを開いて数えた値です。
+    技術的な根拠と細かい判定の内訳は <code>docs/archive/harness-comparison-technical.html</code> に書いてあります。
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

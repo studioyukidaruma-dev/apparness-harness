@@ -8,3 +8,12 @@ __pycache__/
 *.pyc
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# 比較調査の対象だった他ハーネスの複製（2026-08-24 に削除済み。105MB）。
+# 調査結果は docs/archive/harness-comparison-*.html に残っている。
+# 再取得したときに誤ってコミットしないよう、無視指定だけ残す。
+claude-code-harness-main.zip
+claude-code-harness-main/
+
+# render_progress.py --html の生成物（派生物は判断の根拠にしない。CONVENTIONS.md 12節）
+apps/*/PROGRESS.html

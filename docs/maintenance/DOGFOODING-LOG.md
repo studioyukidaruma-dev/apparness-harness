@@ -9,6 +9,77 @@
 
 ---
 
+## ★ 未処理の摩擦点（2026-08-24 時点。この文書の先頭で必ず確認すること）
+
+3 本完走してクローズ済みだが、**次の 3 件は未処理のまま残っている**。改修に着手する人は
+まずここを見ること（全文は本文の該当節）。
+
+| ID | 深刻度 | 状態 | 内容 |
+|---|---|---|---|
+| **F-059** | 低 | **未着手**（着手指示は出ているが未実施） | 依存機能の公開 API 名が `contract.yaml` に機械的な形で存在しない |
+| **F-060** | 低 | **未改修**（記録のみ） | Rule 7 のエラーメッセージが、実際に機能する回避策を示していない |
+| **F-064** | 中 | **対応不要と判断済み** | レビュー待機中に応答を終えようとすると Rule 8 に阻まれる |
+
+F-076〜F-082 は改修見送り（理由は各項目に記載）。それ以外の F-001〜F-075 は改修済み。
+
+## ★ 摩擦点をテストへ変換するルール（2026-08-24 追加）
+
+**深刻度が「最高」または「高」の摩擦点は、再発を検出するテストが無い状態でクローズしない。**
+
+- 対応表は `harness/CLAIMS.md` の「深刻度 最高・高 の摩擦点 → 再発防止テスト」。
+  そこに書かれたテスト名が実在するかは CI 項目 P が機械的に検証する。
+- テストが書けないものは、同じ表の「未実証の残余」列に**なぜ書けないか**を書く（空欄は CI が拒否）。
+- 変換の手順は `friction-to-test.md`（同ディレクトリ）。
+- 中・低の摩擦点はこのルールの対象外（テストを書いてもよいが、必須ではない）。
+
+この文書（140KB の散文）自体を機械可読にして CI 判定する案は**過剰と判断して見送った**。
+判断の記録は `friction-to-test.md`（同ディレクトリ） 末尾。
+
+## ★ ドッグフーディング成果物の保全状況（2026-08-24 時点）
+
+**結論: 3 アプリ（md-todo-cli / bookmark-vault / habit-tui）の成果物は、現時点で
+どこからも辿れない。** 「3 本完走した」というこのハーネスの最重要の実績が、第三者にも将来の
+自分にも追検証できない状態にある（改修計画の F-A6）。
+
+### 何を探して、無かったか
+
+| 探した先 | 結果 |
+|---|---|
+| このリポジトリ（`apparness-harness`）の `apps/` | 存在しない |
+| このリポジトリの git 履歴 | `851f07a chore: harness-template を main (068363e) から再生成` の 1 コミットのみ。`apps/` を含むツリーは履歴上に存在しない |
+| ローカルの `apparness` リポジトリ（`~/ghq/github.com/studioyukidaruma-dev/apparness`） | `apps/` は空。履歴上に現れるのは `todo-app` と `pomodoro-timer` のみで、3 アプリはいずれも無い |
+| `apparness` の origin（GitHub） | `refs/heads/main` のみ。ローカル HEAD と同一で、3 アプリは含まれない |
+| 本文が参照するコミット `ebd68d8`（bookmark-vault 完走）・`ac96c4e`（habit-tui 完走）・`068363e`（テンプレート再生成元） | いずれも到達可能なオブジェクトとして存在しない |
+
+つまり、成果物は**このマシンから見えるどのリポジトリにも残っていない**。別のマシン・別の
+クローン・別のリモートにしか存在しない可能性がある。
+
+### 見つかったときに何を保全するか
+
+全部をこのリポジトリに戻す必要はない。**完走を裏付けるのに要るのは次の 4 種類だけ**で、
+これらはコードを含まないため軽量に保全できる:
+
+1. `apps/<app-id>/03-features/*/status.yaml` — `state: INTEGRATED` と `verification_receipt`
+   （どのコミットで、どのコマンドが `exit_code: 0` だったか）
+2. `apps/<app-id>/04-integration/integration.machine.yaml` — 統合の受領書と `interface_coverage[]`
+3. `apps/<app-id>/PROGRESS.md` / `STATE.machine.yaml` — 完走時点のダッシュボード
+4. `apps/<app-id>/00-requirements/` `02-design/` の machine.yaml — 何を作ると宣言したか
+
+受領書は `run_verification.py` / `run_integration_verification.py` だけが生成でき、手書きできない
+（Rule 10 / Rule 11）。**受領書とその `commit` こそが完走の証拠**であり、実装コードそのものは
+無くてもよい。
+
+保全先をこのリポジトリに置く場合の推奨パスは `docs/dogfooding-artifacts/<app-id>/`
+（`apps/` に置くと CI 項目 A・I・K・N が実在するアプリとして検証を始めてしまうため、
+`apps/` の外に置く）。
+
+### 保全した／保全先が決まったら
+
+この節を書き換えて、**保全場所と、そこで何を確認できるか**を記録すること。
+「どこかにあるはず」ではなく、**辿れるパスまたは URL** を書く。
+
+---
+
 ## この文書の構成（追記が時系列なので、並びが前後している）
 
 | 節 | 内容 |
@@ -121,7 +192,7 @@ bookmark-vault integrator実行）」節の F-065〜F-067）。
    コミットしても安全）。`CONVENTIONS.md` 12節に一文追記し、`feature-builder.md` にも
    「検証失敗時はいったんコミットしてから原因を直し、受領書を作り直す」手順を明記する。
    **`CONVENTIONS.md` は 2026-08-23 時点で 35993/36000 バイト（残り 7 バイト）。**
-   追記する場合は必ず同時にどこかを削るか `HARNESS_GUIDE.md` へ移すこと
+   追記する場合は必ず同時にどこかを削るか `docs/HARNESS_GUIDE.md` へ移すこと
    （F-047 と同じ捻出作業が要る）。
 
 4. **F-058（低）** `open_issues[]` の申し送り文が、integrator の実際の権限
@@ -302,7 +373,7 @@ Go等、全機能が最終的に1つのバイナリにコンパイルされる�
 必要だが、これは1本目（md-todo-cli）の設計を読んで初めて気づいたパターンで、
 `CONVENTIONS.md` 6節の説明（producerの出力がconsumerの入力になる、という抽象的な言い方）
 だけでは自明ではない。改修は見送り（6節への追記は`CONVENTIONS.md`のバイト予算が
-逼迫しているため見送り。`HARNESS_GUIDE.md`側に具体例を足す余地はある）。
+逼迫しているため見送り。`docs/HARNESS_GUIDE.md`側に具体例を足す余地はある）。
 
 ### F-078 solution-architect: `design-baseline.md`（Layer 1）がWeb/GUI前提で、TUI/非GUIアプリでは手動読み替えが必要（低）
 
@@ -445,9 +516,9 @@ git checkout main && git merge --no-ff harness/<topic>
 ```
 
 - **`CONVENTIONS.md` は 36000 バイト上限**（項目 L）。2026-08-23 時点で 35993 バイトで
-  **残り 7 バイトしかない**（Rule 11 追加時、`既知の限界` 節を `HARNESS_GUIDE.md` 側の
+  **残り 7 バイトしかない**（Rule 11 追加時、`既知の限界` 節を `docs/HARNESS_GUIDE.md` 側の
   既存記述に一本化して捻出した）。
-  追記するなら、同時に何かを `HARNESS_GUIDE.md` か `harness/README.md` へ移すこと。
+  追記するなら、同時に何かを `docs/HARNESS_GUIDE.md` か `harness/README.md` へ移すこと。
   超えると `ci_check.py` と `test_context_budget.py` が落ちる。
 - **規約を追記する前に 15節「何をどこに書くか」を読む。** 手順は agent/skill 側、規範は
   `CONVENTIONS.md` 側。二重に書くと `ci_check.py` の項目 M が落ちる（F-048）。
@@ -521,7 +592,7 @@ i = last.find("摩擦点"); print(last[max(0,i-200):])
 項目 L は `CONVENTIONS.md` 単体 36000 バイト、`CONVENTIONS.md + 各 agent 定義` 46000 バイトを
 上限とする。改修前の時点で `CONVENTIONS.md`(35813) + `solution-architect.md`(10180) = 45993 で、
 **上限まで残り 7 バイト**だった。Rule 3・Rule 7 に 1 文ずつ足すだけで、
-7節の worktree 読み替えの段落・12節の背景説明・10節の設計意図などを `HARNESS_GUIDE.md` へ
+7節の worktree 読み替えの段落・12節の背景説明・10節の設計意図などを `docs/HARNESS_GUIDE.md` へ
 退避する作業が必要になった（今回の改修で計 8 箇所を圧縮・移設した）。
 
 予算強制そのものは設計どおり働いている（前回の通しでも実証済み）。問題は**予算が飽和した状態から
@@ -1628,7 +1699,7 @@ JSON Schema しか無く、それは既に `check_interfaces.py` が検証して
 - **F-054（中）**: 検証が失敗しても受領書付き `status.yaml` をコミットして構わないことを
   `CONVENTIONS.md` 12節・`feature-builder.md` に明記（`state: TESTED` への昇格は Rule 10 が
   受領書の中身で別途止めるため安全）。`CONVENTIONS.md` は改修前 35993/36000 バイトで
-  残り 7 バイトしか無かったため、Rule 10/Rule 8 の順序の詳細説明を `HARNESS_GUIDE.md` 14節へ
+  残り 7 バイトしか無かったため、Rule 10/Rule 8 の順序の詳細説明を `docs/HARNESS_GUIDE.md` 14節へ
   移設して捻出した（改修後 35943 バイト）。
 
 回帰テスト7件を追加（`test_yaml_parser.py` に F-061 用3件、`test_verification.py` に

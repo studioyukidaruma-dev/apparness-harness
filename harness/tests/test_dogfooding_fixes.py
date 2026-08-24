@@ -1,4 +1,4 @@
-"""ドッグフーディング（`DOGFOODING-LOG.md`）で見つかった穴の再発防止テスト。
+"""実地でアプリを作りながら見つかった穴の再発防止テスト。
 
 いずれも「実運用で 1 度起きたこと」を固定するためのもので、各テストの docstring に
 対応する摩擦点 ID を書いてある。
@@ -424,3 +424,95 @@ def test_own_feature_directory_is_still_writable(app_repo_with_worktree) -> None
     _main, worktree = app_repo_with_worktree
     target = worktree / "apps/demo/03-features/feat-a/src/ok.py"
     assert _guard(worktree, "Write", {"file_path": str(target), "content": "x"}) == 0
+
+
+# --------------------------------------------------------------------------------------
+# F-R4: 雛形生成の git 失敗を、traceback ではなく「エラー: … ＋ 次の一手」で返す
+# --------------------------------------------------------------------------------------
+
+def _scaffold_repo_without_git_identity(tmp_path: pathlib.Path, monkeypatch) -> pathlib.Path:
+    """`new_feature_scaffold.py` が走る条件は満たすが、git の identity が無いリポジトリ。
+
+    identity を持たせずに seed コミットを作るため、永続しない `-c` 指定で 1 回だけ名乗る。
+    global / system の設定を読み込まないよう空ファイルへ向ける（実行環境の git 設定に
+    結果が左右されないようにする）。
+    """
+    import shutil
+    import subprocess
+
+    empty_config = tmp_path / "empty-gitconfig"
+    empty_config.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty_config))
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(empty_config))
+    for var in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.delenv(var, raising=False)
+
+    root = tmp_path / "repo"
+    (root / "apps" / "demo" / "00-requirements").mkdir(parents=True)
+    (root / "apps" / "demo" / "01-foundation").mkdir(parents=True)
+    (root / "apps" / "demo" / "02-design").mkdir(parents=True)
+    harness_root = pathlib.Path(__file__).resolve().parents[1]
+    shutil.copytree(harness_root / "templates", root / "harness" / "templates")
+
+    (root / "apps" / "demo" / "00-requirements" / "requirements.machine.yaml").write_text(
+        "version: 1\n", encoding="utf-8"
+    )
+    (root / "apps" / "demo" / "01-foundation" / "shared-kernel.yaml").write_text(
+        "required_skills: []\n", encoding="utf-8"
+    )
+    (root / "apps" / "demo" / "02-design" / "architecture.machine.yaml").write_text(
+        'status: APPROVED\napproved_by: "人間"\napproved_at: "2026-08-24T00:00:00Z"\n'
+        'features:\n  - id: sample\n    name: "サンプル"\n',
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com",
+         "commit", "-q", "-m", "seed"],
+        cwd=root, check=True,
+    )
+    return root
+
+
+def test_run_git_reports_the_reason_instead_of_raising(tmp_path) -> None:
+    """`check=True` の traceback は「ハーネスのバグ」に見え、本当の原因に到達できない。"""
+    import subprocess
+
+    import new_feature_scaffold
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    message = new_feature_scaffold.run_git(
+        ["checkout", "no-such-branch"], root, "存在しないブランチへの切り替え", hint="  次の一手"
+    )
+    assert message is not None
+    assert message.startswith("エラー: ")
+    assert "  git: " in message
+    assert message.endswith("  次の一手")
+
+
+def test_run_git_returns_none_on_success(tmp_path) -> None:
+    import subprocess
+
+    import new_feature_scaffold
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    assert new_feature_scaffold.run_git(["status", "--porcelain"], root, "状態の確認") is None
+
+
+def test_scaffold_without_git_identity_fails_cleanly(tmp_path, monkeypatch, capsys) -> None:
+    """git identity 未設定でも traceback を出さず、`エラー: ` と設定コマンドを返すこと。"""
+    import new_feature_scaffold
+
+    root = _scaffold_repo_without_git_identity(tmp_path, monkeypatch)
+    monkeypatch.chdir(root)
+
+    assert new_feature_scaffold.main(["new_feature_scaffold.py", "demo", "sample"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("エラー: "), err
+    assert "Traceback" not in err
+    assert "user.email" in err  # 環境側の原因と、その直し方に到達できる

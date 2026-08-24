@@ -289,3 +289,68 @@ def test_acceptance_criteria_are_not_judged_before_all_contracts_exist() -> None
         {"alpha": contract_covering("FR-1", "基準A")},
     )
     assert violations == []
+
+
+# --------------------------------------------------------------------------------------
+# F-015 の再発防止: 設計フェーズでも契約が読まれること
+#
+# `load_contracts()` が `03-features/*/contract.yaml` しか読まなかった頃、worktree を作る前
+# ——つまり `solution-architect` がこの検査を実行するよう指示されている設計フェーズ——では
+# 契約が 1 件も見つからず、`coverage[]` が空でも「OK」と出ていた。
+# **指示どおりに実行すると偽の安心を得る**状態だったので、設計時ドラフトも読む。
+# --------------------------------------------------------------------------------------
+
+def _design_phase_app(tmp_path: pathlib.Path) -> pathlib.Path:
+    """`02-design/features/*.contract.yaml` だけがある（worktree 作成前の）アプリ。"""
+    import yaml
+
+    app = tmp_path / "apps" / "demo"
+    (app / "02-design" / "features").mkdir(parents=True)
+    (app / "00-requirements").mkdir(parents=True)
+    (app / "00-requirements" / "requirements.machine.yaml").write_text(
+        yaml.safe_dump(requirements(fr("FR-1")), allow_unicode=True), encoding="utf-8"
+    )
+    (app / "02-design" / "architecture.machine.yaml").write_text(
+        yaml.safe_dump(architecture(alpha=["FR-1"]), allow_unicode=True), encoding="utf-8"
+    )
+    return app
+
+
+def test_design_phase_drafts_are_loaded(tmp_path) -> None:
+    import yaml
+
+    app = _design_phase_app(tmp_path)
+    (app / "02-design" / "features" / "alpha.contract.yaml").write_text(
+        yaml.safe_dump(contract("FR-1"), allow_unicode=True), encoding="utf-8"
+    )
+    contracts = check_traceability.load_contracts(tmp_path, "demo")
+    assert "alpha" in contracts, "設計時ドラフトが読まれていない（F-015 の再発）"
+
+
+def test_design_phase_gap_is_detected_before_any_worktree_exists(tmp_path) -> None:
+    """契約が空のまま「OK」と出ないこと。これが F-015 の本体。"""
+    import yaml
+
+    app = _design_phase_app(tmp_path)
+    (app / "02-design" / "features" / "alpha.contract.yaml").write_text(
+        yaml.safe_dump({"feature_id": "alpha"}, allow_unicode=True), encoding="utf-8"
+    )
+    violations = check_traceability.check_app(tmp_path, "demo")
+    assert violations, "coverage[] が空なのに設計フェーズで見逃している（F-015 の再発）"
+
+
+def test_implementation_contract_takes_precedence_over_the_draft(tmp_path) -> None:
+    """実装中の契約があれば、そちらが正（ドラフトは設計時点のスナップショット）。"""
+    import yaml
+
+    app = _design_phase_app(tmp_path)
+    (app / "02-design" / "features" / "alpha.contract.yaml").write_text(
+        yaml.safe_dump({"feature_id": "alpha", "version": 1}, allow_unicode=True), encoding="utf-8"
+    )
+    feature_dir = app / "03-features" / "alpha"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "contract.yaml").write_text(
+        yaml.safe_dump({"feature_id": "alpha", "version": 2}, allow_unicode=True), encoding="utf-8"
+    )
+    contracts = check_traceability.load_contracts(tmp_path, "demo")
+    assert contracts["alpha"]["version"] == 2

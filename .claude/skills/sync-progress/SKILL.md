@@ -13,5 +13,11 @@ description: apps/<app-id>/03-features/*/status.yaml から PROGRESS.md と STAT
    ```
    python3 harness/scripts/render_progress.py --all
    ```
-2. 出力された `apps/<app_id>/PROGRESS.md` の内容をユーザーに要約して伝える
+2. **非エンジニアに見せる面が要るなら `--html` を付ける**。同じデータから
+   `apps/<app_id>/PROGRESS.html`（単一ファイル・外部リソース依存なし）が生成される。
+   ```
+   python3 harness/scripts/render_progress.py --app <app_id> --html
+   ```
+   生成物は `.gitignore` 対象。コミットせず、見せたいときに毎回生成する。
+3. 出力された `apps/<app_id>/PROGRESS.md` の内容をユーザーに要約して伝える
    （どの機能が完了していて、次に何をすべきか）。

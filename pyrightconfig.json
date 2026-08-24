@@ -1,0 +1,24 @@
+{
+  "include": ["harness"],
+  "exclude": ["**/__pycache__", "**/.verify", "apps/*/.worktrees"],
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "standard",
+  "reportMissingModuleSource": "none",
+  "executionEnvironments": [
+    {
+      "root": "harness/hooks",
+      "extraPaths": ["harness/hooks/lib"]
+    },
+    {
+      "root": "harness/scripts",
+      "extraPaths": ["harness/scripts", "harness/hooks/lib"]
+    },
+    {
+      "root": "harness/tests",
+      "extraPaths": ["harness/hooks", "harness/hooks/lib", "harness/scripts"]
+    },
+    {
+      "root": "."
+    }
+  ]
+}

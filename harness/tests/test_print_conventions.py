@@ -1,6 +1,7 @@
 """`print_conventions.py`（agent/skill が CONVENTIONS.md の必要な節だけを読み込む入口）の検証。
 
-コンテキスト予算（15節・DOGFOODING-LOG.md F-047）を守るために追加したツール。
+コンテキスト予算（`CONVENTIONS.md` 15節）を守るために追加したツール。担当外の節まで
+読み込ませていたことが常時コストを押し上げていた（摩擦点 F-047）。
 節の切り出しが取りこぼし・重複なく行われることと、CLI の異常系を固定する。
 """
 from __future__ import annotations
