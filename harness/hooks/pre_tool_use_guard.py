@@ -21,6 +21,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import path_utils  # noqa: E402
@@ -62,7 +63,7 @@ def check_rule2_feature_scope(rel_path: str, cwd: str) -> str | None:
     m = FEATURE_SCOPE_RE.match(rel_path)
     if not m:
         return None
-    _app_id, feature_id, rest = m.groups()
+    feature_id, rest = m.group(2), m.group(3)
     if rest == "status.yaml":
         return None  # 状態遷移は担当者・integrator 双方が正当に更新するため対象外
     toplevel = path_utils.get_worktree_toplevel(cwd)
@@ -131,7 +132,7 @@ def check_rule5_required_skills(rel_path: str, toplevel: str) -> str | None:
     return "\n".join(lines)
 
 
-def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     m = ARCHITECTURE_RE.match(rel_path)
     if not m:
         return None
@@ -167,7 +168,7 @@ def check_rule7_requirements_consistency(rel_path: str, tool_name: str, tool_inp
     return None
 
 
-def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     """Rule 7（承認ゲート）の要件側・同時性の強制（CONVENTIONS.md 9節）。
 
     `requirements.machine.yaml` / `architecture.machine.yaml` を `status: APPROVED` にする
@@ -189,7 +190,7 @@ def check_rule7_approval_record(rel_path: str, tool_name: str, tool_input: dict,
 
 
 def check_rule3_contract_approval_record(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 3（契約凍結）の前提を機械的に確かめる（CONVENTIONS.md 9節・F-039）。
 
@@ -234,7 +235,7 @@ def check_rule3_contract_approval_record(
     )
 
 
-def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dict, toplevel: str) -> str | None:
+def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str) -> str | None:
     m = STATUS_YAML_RE.match(rel_path)
     if not m:
         return None
@@ -255,7 +256,7 @@ def check_rule9_status_transition(rel_path: str, tool_name: str, tool_input: dic
 
 
 def check_rule10_verification_receipt(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 10: 検証受領書ゲート（CONVENTIONS.md 12節）。
 
@@ -325,7 +326,7 @@ def check_rule10_verification_receipt(
 
 
 def check_rule11_integration_receipt_immutable(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 11(a): `integration.machine.yaml` の `verification_receipt` は手書きできない
     （Rule 10(a) の統合版。`run_integration_verification.py` だけが書き込める）。
@@ -355,7 +356,7 @@ def check_rule11_integration_receipt_immutable(
 
 
 def check_rule11_integration_receipt(
-    rel_path: str, tool_name: str, tool_input: dict, toplevel: str
+    rel_path: str, tool_name: str, tool_input: dict[str, Any], toplevel: str
 ) -> str | None:
     """Rule 11: 統合の受領書ゲート（CONVENTIONS.md 12/13節。Rule 10 の統合版）。
 
@@ -371,7 +372,7 @@ def check_rule11_integration_receipt(
     m = STATUS_YAML_RE.match(rel_path)
     if not m:
         return None
-    app_id, _feature_id = m.groups()
+    app_id = m.group(1)
     status_path = os.path.join(toplevel, rel_path)
     try:
         with open(status_path, "r", encoding="utf-8") as f:
@@ -462,7 +463,7 @@ def is_open_issue_append(current_content: str, new_content: str) -> bool:
 
 
 def check_rule3_contract_freeze(
-    rel_path: str, toplevel: str, tool_name: str = "", tool_input: dict | None = None
+    rel_path: str, toplevel: str, tool_name: str = "", tool_input: dict[str, Any] | None = None
 ) -> str | None:
     m = FEATURE_CONTRACT_RE.match(rel_path)
     if m:
@@ -488,7 +489,7 @@ def check_rule3_contract_freeze(
 
     m = DESIGN_CONTRACT_RE.match(rel_path)
     if m:
-        app_id, _feature_id = m.groups()
+        app_id = m.group(1)
         architecture_path = os.path.join(toplevel, f"apps/{app_id}/02-design/architecture.machine.yaml")
         status = path_utils.read_state_field(architecture_path)
         if status is None or status == "DRAFT":
@@ -545,7 +546,7 @@ def check_requires_simulatable_tool(rel_path: str, tool_name: str) -> str | None
 
 
 def check_rule12_dangerous_operation(
-    tool_name: str, tool_input: dict, cwd: str, toplevel: str
+    tool_name: str, tool_input: dict[str, Any], cwd: str, toplevel: str
 ) -> str | None:
     """Rule 12: 危険操作フロア（CONVENTIONS.md 7節）。
 
@@ -567,7 +568,7 @@ def check_rule12_dangerous_operation(
 
 
 def run_checks(
-    rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict | None = None
+    rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict[str, Any] | None = None
 ) -> str | None:
     tool_input = tool_input or {}
     for check in (check_rule1_harness_immutability, check_rule2_feature_scope):
@@ -648,7 +649,7 @@ def save_bash_snapshot(cwd: str, toplevel: str, session_id: str | None) -> None:
 def main() -> int:
     payload = path_utils.read_hook_input()
     tool_name = payload.get("tool_name", "")
-    tool_input = payload.get("tool_input", {}) or {}
+    tool_input: dict[str, Any] = payload.get("tool_input", {}) or {}
     cwd = payload.get("cwd") or os.getcwd()
 
     toplevel = path_utils.get_worktree_toplevel(cwd) or cwd
@@ -662,7 +663,7 @@ def main() -> int:
     if tool_name == "Bash":
         command = tool_input.get("command", "")
         candidates = path_utils.extract_bash_candidate_paths(command)
-        violations = []
+        violations: list[str] = []
         for candidate in candidates:
             target_rel, target_top = path_utils.resolve_write_target(candidate, cwd, toplevel)
             rel_path, scope_top = path_utils.resolve_worktree_scope(target_rel, target_top)

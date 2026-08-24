@@ -82,6 +82,21 @@
 
 ### Fixed
 
+- **エディタ上の型チェックエラー 210 件を解消した**（実行時の挙動は不変）。根本原因は 1 つで、
+  `hooks` が `sys.path` を実行時に操作して `path_utils` を読むため、Pyright/Pylance が
+  インポートを解決できず、そこから「型が不明」の指摘が 166 件派生していた。
+  - `pyrightconfig.json` を追加し、`harness/hooks` / `harness/scripts` / `harness/tests` の
+    `extraPaths` を宣言した。
+  - `harness/hooks/**` の素のジェネリック注釈（`dict` / `list`）28 件に型引数を付けた。
+    このとき `_classify_bash_lines` の戻り値注釈が T-020 の 3-tuple 化に追随しておらず
+    2-tuple のままだったことも判明し、あわせて修正した。
+  - 注釈が無かった 6 つのシグネチャ（`parse_simple_yaml` / `_yaml_scalar` / `_yaml_flow` /
+    `_yaml_split_key` / `read_state_field` / `detect_dangerous_bash_operation` の `resolve`）を
+    埋めた。
+  - `path_utils` の関数内 `import os` 9 件をモジュール先頭へ集約した。
+  - すべて注釈と import 位置の変更のみで、`from __future__ import annotations` により実行時には
+    評価されない。656 テスト・CI 全項目・Hook の実地動作で無変更を確認済み。
+
 - **内容比較ゲート（Rule 3・7・9・10・11）の迂回経路 3 件を塞いだ**（実測で再現して確認）。
   判定を「Bash かどうか」ではなく「`simulate_write_result()` が書き込み後の内容を再現できる手段か」
   に一般化した（`check_requires_simulatable_tool`）。`CONTENT_JUDGED_RES` に

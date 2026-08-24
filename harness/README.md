@@ -90,6 +90,10 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 - `harness/STACK_PACK.md` — スタック固有の標準を外部プラグインとして接続するための仕様
 - `VERSION` / `CHANGELOG.md`（リポジトリルート）— ハーネスの版と変更履歴。CI の項目 Q が、
   ハーネス本体を触ったコミットで CHANGELOG が更新されていることを要求する
+- `pyrightconfig.json`（リポジトリルート）— 型チェッカ（Pyright / VS Code の Pylance）向けの設定。
+  `hooks` は `sys.path` を実行時に足して `path_utils` を読むため、`extraPaths` を宣言しないと
+  エディタ上で「インポートを解決できません」が出て、そこから型不明のエラーが大量に派生する
+  （実測 210 件）。実行には一切影響しない
 
 ## 品質保証（セキュリティ・デザイン）
 

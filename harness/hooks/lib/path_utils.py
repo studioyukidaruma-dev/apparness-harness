@@ -4,10 +4,12 @@ Hook はツール呼び出しのたびに毎回起動されるため、起動コ
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+from typing import Any, Callable
 
 MULTI_EDIT_FILE_FIELD = "file_path"
 NOTEBOOK_EDIT_FIELD = "notebook_path"
@@ -33,7 +35,7 @@ _BASH_WRITE_REDIRECT_OPS = {">", ">>"}
 _BASH_SEGMENT_BREAKS = {";", "&&", "||", "|", "&", "(", ")"}
 
 
-def read_hook_input() -> dict:
+def read_hook_input() -> dict[str, Any]:
     raw = sys.stdin.read()
     try:
         return json.loads(raw) if raw.strip() else {}
@@ -87,7 +89,7 @@ def get_git_dir(cwd: str) -> str | None:
     return _run_git(["rev-parse", "--absolute-git-dir"], cwd=cwd)
 
 
-def parse_porcelain(status_text: str | None) -> dict:
+def parse_porcelain(status_text: str | None) -> dict[str, str]:
     """`git status --porcelain` の出力を {パス: 状態コード} に変換する。"""
     result: dict[str, str] = {}
     for line in (status_text or "").splitlines():
@@ -104,8 +106,6 @@ def parse_porcelain(status_text: str | None) -> dict:
 
 def revert_path(rel_path: str, cwd: str) -> bool:
     """1 つのパスを HEAD の状態へ巻き戻す。未追跡ファイルは削除する。成功なら True。"""
-    import os
-
     if _run_git(["checkout", "HEAD", "--", rel_path], cwd=cwd) is not None:
         return True
     # HEAD に存在しない（新規追加された）ファイル。index から外して実体を消す
@@ -127,8 +127,6 @@ SNAPSHOT_MAX_CONTENT_BYTES = 1_000_000
 def _file_digest(abs_path: str) -> str | None:
     """ファイル内容の SHA-1。読めなければ None（＝存在しない／読めない、として扱う）。"""
     import hashlib
-    import os
-
     try:
         if not os.path.isfile(abs_path):
             return None
@@ -138,7 +136,7 @@ def _file_digest(abs_path: str) -> str | None:
         return None
 
 
-def capture_worktree_state(toplevel: str) -> dict | None:
+def capture_worktree_state(toplevel: str) -> dict[str, dict[str, Any]] | None:
     """未コミットの各パスについて `{code, sha, text}` を記録する。
 
     **状態コードではなく内容のハッシュで比較する**のが要点（F-050）。
@@ -150,15 +148,13 @@ def capture_worktree_state(toplevel: str) -> dict | None:
     `text` は巻き戻し先として使う。HEAD ではなく **Bash 実行直前の内容**へ戻すことで、
     実行前から未コミットだった変更（人間の編集など）を巻き添えで消さずに済む。
     """
-    import os
-
     status = get_status_porcelain(toplevel)
     if status is None:
         return None
-    state: dict = {}
+    state: dict[str, dict[str, Any]] = {}
     for rel_path, code in parse_porcelain(status).items():
         abs_path = os.path.join(toplevel, rel_path)
-        entry: dict = {"code": code, "sha": _file_digest(abs_path)}
+        entry: dict[str, Any] = {"code": code, "sha": _file_digest(abs_path)}
         try:
             if entry["sha"] and os.path.getsize(abs_path) <= SNAPSHOT_MAX_CONTENT_BYTES:
                 with open(abs_path, "r", encoding="utf-8") as f:
@@ -169,7 +165,7 @@ def capture_worktree_state(toplevel: str) -> dict | None:
     return state
 
 
-def diff_worktree_state(before: dict, after: dict) -> list[str]:
+def diff_worktree_state(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     """スナップショット同士を比べ、**内容が実際に変わった**パスを返す。"""
     changed = []
     for rel_path, entry in after.items():
@@ -179,10 +175,8 @@ def diff_worktree_state(before: dict, after: dict) -> list[str]:
     return sorted(changed)
 
 
-def restore_from_snapshot(rel_path: str, toplevel: str, entry: dict | None) -> bool:
+def restore_from_snapshot(rel_path: str, toplevel: str, entry: dict[str, Any] | None) -> bool:
     """Bash 実行直前の内容へ戻す。スナップショットに内容が無ければ HEAD へ戻す。"""
-    import os
-
     if entry is None:
         return revert_path(rel_path, toplevel)  # 実行前に存在しなかった＝新規作成
     text = entry.get("text")
@@ -202,8 +196,6 @@ def find_main_repo_root(worktree_toplevel: str) -> str:
     """git worktree のメインリポジトリのルートを返す（.git ファイルの gitdir 記載から辿る）。
     通常の（worktree でない）チェックアウトなら worktree_toplevel をそのまま返す。
     """
-    import os
-
     git_path = os.path.join(worktree_toplevel, ".git")
     if os.path.isdir(git_path):
         return worktree_toplevel
@@ -224,7 +216,7 @@ def find_main_repo_root(worktree_toplevel: str) -> str:
     return gitdir[:idx]
 
 
-def extract_structured_edit_paths(tool_name: str, tool_input: dict) -> list[str]:
+def extract_structured_edit_paths(tool_name: str, tool_input: dict[str, Any]) -> list[str]:
     """Edit/Write/MultiEdit/NotebookEdit の対象絶対パスを返す。"""
     if tool_name == "NotebookEdit":
         path = tool_input.get(NOTEBOOK_EDIT_FIELD)
@@ -235,7 +227,7 @@ def extract_structured_edit_paths(tool_name: str, tool_input: dict) -> list[str]
     return []
 
 
-def _classify_bash_lines(command: str) -> list[tuple[str, str]]:
+def _classify_bash_lines(command: str) -> list[tuple[str, str, str]]:
     """`command` を物理行に分け、各行の直後に置くべき区切り文字（`;`/`\\n`/` `）を判定する。
 
     shlex は改行を単なる空白として読み捨てるため、これに頼ると「改行だけで区切られた
@@ -434,8 +426,6 @@ def extract_bash_candidate_paths(command: str) -> list[str]:
 
 def to_worktree_relative(abs_or_rel_path: str, toplevel: str) -> str:
     """worktree のルートからの相対パス（POSIX区切り）を返す。既に相対ならそのまま正規化する。"""
-    import os
-
     if not os.path.isabs(abs_or_rel_path):
         return abs_or_rel_path.replace("\\", "/")
     try:
@@ -460,8 +450,6 @@ def resolve_write_target(target: str, cwd: str, toplevel: str) -> tuple[str, str
     相対パスは `cwd` を基準に解決する。セッションの cwd は worktree ルートとは限らない
     （機能ディレクトリで動いていることが多い）ため、toplevel 基準で解釈すると取り違える。
     """
-    import os
-
     abs_target = target if os.path.isabs(target) else os.path.join(cwd, target)
     abs_target = os.path.normpath(abs_target)
     for root in (toplevel, find_main_repo_root(toplevel)):
@@ -491,8 +479,6 @@ def resolve_worktree_scope(rel_path: str, toplevel: str) -> tuple[str, str]:
 
     worktree の中から書いている場合は接頭辞が現れないので、この関数は恒等写像になる（既存動作を変えない）。
     """
-    import os
-
     path = rel_path.replace("\\", "/")
     base = toplevel
     while True:
@@ -503,7 +489,7 @@ def resolve_worktree_scope(rel_path: str, toplevel: str) -> tuple[str, str]:
         path = path[m.end():]
 
 
-def read_state_field(status_yaml_path) -> str | None:
+def read_state_field(status_yaml_path: str | os.PathLike[str]) -> str | None:
     """status.yaml / architecture.machine.yaml から `state:`/`status:` 行だけを正規表現で軽量抽出する。
     hooks は PyYAML に依存しないため、フルパースはしない。
     """
@@ -518,7 +504,7 @@ def read_state_field(status_yaml_path) -> str | None:
     return None
 
 
-def simulate_write_result(tool_name: str, tool_input: dict, current_content: str) -> str:
+def simulate_write_result(tool_name: str, tool_input: dict[str, Any], current_content: str) -> str:
     """PreToolUse 時点でまだ書き込まれていない、書き込み後のファイル内容をシミュレートする。
     Edit/MultiEdit はファイル全体を渡してこないため、Rule7 のような「書き込み後の内容」を
     見て判定するルールはこれで再現してから検査する。
@@ -551,14 +537,14 @@ def extract_scalar_field(content: str, key: str) -> str | None:
     return m.group(1).strip().strip('"\'')
 
 
-def extract_state_history(content: str) -> list:
+def extract_state_history(content: str) -> list[dict[str, Any]]:
     """`status.yaml` の `state_history[]` を取り出す（依存ゼロのパーサを使う）。"""
     data = parse_simple_yaml(content) if content else {}
     history = data.get("state_history") if isinstance(data, dict) else None
     return [e for e in history if isinstance(e, dict)] if isinstance(history, list) else []
 
 
-def resolve_effective_previous_state(state_history: list | None) -> str | None:
+def resolve_effective_previous_state(state_history: list[Any] | None) -> str | None:
     """`BLOCKED` の直前にあった実質的な状態を `state_history[]` から復元する。
 
     `at`（ISO-8601 の UTC 文字列）があればそれで昇順に並べ、無いエントリは記載順のまま先に置く
@@ -575,7 +561,7 @@ def resolve_effective_previous_state(state_history: list | None) -> str | None:
 
 
 def validate_status_transition(
-    old_state: str | None, new_state: str, state_history: list | None = None
+    old_state: str | None, new_state: str, state_history: list[Any] | None = None
 ) -> str | None:
     """status.yaml の `state` 遷移が CONVENTIONS.md 5節の状態機械に沿っているか判定する。
     妥当（または判定不能）なら None、不正なら拒否理由の文字列を返す。
@@ -633,7 +619,7 @@ def _parse_inline_string_list(text: str) -> list[str]:
     return [item.strip().strip('"\'') for item in inner.split(",") if item.strip()]
 
 
-def extract_required_skills(content: str) -> list[dict]:
+def extract_required_skills(content: str) -> list[dict[str, Any]]:
     """shared-kernel.yaml の `required_skills:` リストを軽量パースする。
     `- name: "..."` に続く `plugin_ref: "..."` / `purpose: "..."` / `applies_to: [...]` を
     同一エントリとして拾う。フルな YAML パーサーではなく、テンプレートで規定した書式のみを前提にする。
@@ -650,7 +636,7 @@ def extract_required_skills(content: str) -> list[dict]:
     block = content[start:start + block_match.start()] if block_match else content[start:]
 
     skills: list[dict] = []
-    current: dict | None = None
+    current: dict[str, Any] | None = None
     for line in block.splitlines():
         name_m = re.match(r"^\s*-\s*name\s*:\s*(.+?)\s*$", line)
         if name_m:
@@ -675,8 +661,6 @@ def get_enabled_plugins(repo_root: str) -> set[str]:
     """.claude/settings.json と .claude/settings.local.json の enabledPlugins をマージして返す。
     キー形式は "<plugin-name>@<marketplace>"。JSON 標準ライブラリのみ使用。
     """
-    import os
-
     enabled: set[str] = set()
     for name in ("settings.json", "settings.local.json"):
         path = os.path.join(repo_root, ".claude", name)
@@ -715,7 +699,7 @@ def allow() -> None:
 # （Hook は「判定不能なら安全側＝許可に倒す」方針であり、パース失敗でツールを止めない）。
 # 正確な検証は CI 側の JSON Schema（PyYAML でフルパース）が担う。
 
-def _yaml_split_key(text: str):
+def _yaml_split_key(text: str) -> tuple[str, str] | None:
     """`key: value` 行を (キー, 値) に分ける。マッピング行でなければ None。
 
     YAML ではキーの区切りは「空白か行末が続くコロン」だけである。単純な `^(.+?):(.*)$` だと
@@ -776,7 +760,7 @@ def _yaml_strip_comment(line: str) -> str:
     return "".join(out).rstrip()
 
 
-def _yaml_scalar(text: str):
+def _yaml_scalar(text: str) -> Any:
     text = text.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
         return text[1:-1]
@@ -797,7 +781,7 @@ def _yaml_scalar(text: str):
     return text
 
 
-def _yaml_flow(text: str, pos: int = 0):
+def _yaml_flow(text: str, pos: int = 0) -> tuple[Any, int]:
     """`{...}` / `[...]` のフロー記法を読む。(値, 次の位置) を返す。"""
     def skip_ws(i: int) -> int:
         while i < len(text) and text[i] in (" ", "\t"):
@@ -827,7 +811,7 @@ def _yaml_flow(text: str, pos: int = 0):
     if pos >= len(text):
         return None, pos
     if text[pos] == "{":
-        result: dict = {}
+        result: dict[str, Any] = {}
         pos += 1
         while True:
             pos = skip_ws(pos)
@@ -851,7 +835,7 @@ def _yaml_flow(text: str, pos: int = 0):
             if pos < len(text) and text[pos] == ",":
                 pos += 1
     if text[pos] == "[":
-        items: list = []
+        items: list[Any] = []
         pos += 1
         while True:
             pos = skip_ws(pos)
@@ -873,7 +857,7 @@ def _yaml_flow(text: str, pos: int = 0):
 _YAML_BLOCK_SCALAR_MARKERS = {"|", ">", "|-", ">-", "|+", ">+"}
 
 
-def _yaml_consume_block_scalar(lines: list[list], i: int, indent: int, marker: str):
+def _yaml_consume_block_scalar(lines: list[list[Any]], i: int, indent: int, marker: str) -> tuple[str, int]:
     """ブロックスカラーの本体行（親キーより深いインデントの行）をまとめて読み飛ばす。"""
     body: list[str] = []
     while i < len(lines) and lines[i][0] > indent:
@@ -883,15 +867,15 @@ def _yaml_consume_block_scalar(lines: list[list], i: int, indent: int, marker: s
     return joiner.join(body), i
 
 
-def _yaml_parse_block(lines: list[list], i: int, indent: int):
+def _yaml_parse_block(lines: list[list[Any]], i: int, indent: int) -> tuple[Any, int]:
     """`lines`（(インデント, 本文) の列）の位置 `i` から、インデント `indent` のブロックを読む。"""
     if i < len(lines) and lines[i][1].startswith("-"):
         return _yaml_parse_sequence(lines, i, indent)
     return _yaml_parse_mapping(lines, i, indent)
 
 
-def _yaml_parse_mapping(lines: list[list], i: int, indent: int):
-    result: dict = {}
+def _yaml_parse_mapping(lines: list[list[Any]], i: int, indent: int) -> tuple[dict[str, Any], int]:
+    result: dict[str, Any] = {}
     while i < len(lines):
         line_indent, text = lines[i]
         if line_indent < indent:
@@ -932,8 +916,8 @@ def _yaml_parse_mapping(lines: list[list], i: int, indent: int):
     return result, i
 
 
-def _yaml_parse_sequence(lines: list[list], i: int, indent: int):
-    items: list = []
+def _yaml_parse_sequence(lines: list[list[Any]], i: int, indent: int) -> tuple[list[Any], int]:
+    items: list[Any] = []
     while i < len(lines):
         line_indent, text = lines[i]
         if line_indent != indent or not text.startswith("-"):
@@ -971,11 +955,11 @@ def _yaml_parse_sequence(lines: list[list], i: int, indent: int):
     return items, i
 
 
-def parse_simple_yaml(content: str):
+def parse_simple_yaml(content: str) -> Any:
     """ハーネスが規定する範囲の YAML を dict/list/スカラーに変換する（依存ゼロ）。
     解釈できない行は読み飛ばす。空なら `{}` を返す。
     """
-    lines: list[list] = []
+    lines: list[list[Any]] = []
     for raw in content.splitlines():
         stripped = _yaml_strip_comment(raw)
         if not stripped.strip():
@@ -1009,11 +993,11 @@ VERIFICATION_COMMANDS = {
 DEFAULT_MAX_SKIP_RATIO = 0.2
 
 
-def merge_verification_declaration(shared_kernel_content: str, contract_content: str) -> dict:
+def merge_verification_declaration(shared_kernel_content: str, contract_content: str) -> dict[str, Any]:
     """`shared-kernel.yaml`（全機能共通）に `contract.yaml`（機能個別）を上書きして解決する。
     値が null/空文字のキーは「宣言なし」として扱い、上書きにも使わない。
     """
-    def _block(content: str) -> dict:
+    def _block(content: str) -> dict[str, Any]:
         data = parse_simple_yaml(content) if content else {}
         block = data.get("verification") if isinstance(data, dict) else None
         return block if isinstance(block, dict) else {}
@@ -1073,7 +1057,7 @@ def interface_coverage_gaps(architecture_content: str, integration_content: str)
     arch = parse_simple_yaml(architecture_content) if architecture_content else {}
     interfaces = (arch.get("interfaces") if isinstance(arch, dict) else None) or []
 
-    def _key(entry: dict) -> tuple:
+    def _key(entry: dict[str, Any]) -> tuple[Any, ...]:
         return (
             entry.get("producer_feature"), entry.get("producer_output"),
             entry.get("consumer_feature"), entry.get("consumer_input"),
@@ -1100,10 +1084,10 @@ def interface_coverage_gaps(architecture_content: str, integration_content: str)
 
 
 def validate_verification_receipt(
-    declaration: dict,
+    declaration: dict[str, Any],
     receipt,
     head_commit: str | None,
-    declared_test_ids: list | None = None,
+    declared_test_ids: list[Any] | None = None,
     *,
     target_state: str = "TESTED",
     declaration_label: str = "`contract.yaml` の `test_strategy.coverage[]`",
@@ -1160,7 +1144,7 @@ def validate_verification_receipt(
 
 
 def validate_traceability(
-    declared_test_ids: list | None,
+    declared_test_ids: list[Any] | None,
     traceability,
     *,
     target_state: str = "TESTED",
@@ -1206,7 +1190,7 @@ def validate_traceability(
     return None
 
 
-def validate_junit_summary(declaration: dict, test_entry: dict) -> str | None:
+def validate_junit_summary(declaration: dict[str, Any], test_entry: dict[str, Any]) -> str | None:
     """受領書に記録された JUnit XML の集計値を検証する（③: 空振り・スキップ率の検出）。
     JUnit XML は pytest/jest/vitest/go-test/cargo/JUnit/RSpec/PHPUnit がいずれも出力できる
     事実上のクロススタック標準であり、ハーネスは言語を知らずにこれらを判定できる。
@@ -1256,7 +1240,7 @@ def approval_value_is_empty(value) -> bool:
     return False
 
 
-def find_empty_approval_fields(data) -> list:
+def find_empty_approval_fields(data: Any) -> list[str]:
     """マッピングから、空のままの承認フィールド名を列挙する。"""
     if not isinstance(data, dict):
         return []
@@ -1467,7 +1451,10 @@ DANGEROUS_OPS_HINT = (
 
 
 def detect_dangerous_bash_operation(
-    command: str, cwd: str, toplevel: str, resolve=None
+    command: str,
+    cwd: str,
+    toplevel: str,
+    resolve: Callable[[str, str, str], tuple[str, str]] | None = None,
 ) -> str | None:
     """Bash コマンドが Rule 12 の禁止操作を含むなら、拒否理由を返す。
 
