@@ -659,7 +659,7 @@
         <tr><td>非エンジニア向け UI</td><td>計画概要 / 進捗 / 受け入れ の HTML 3 面を専用 skill が生成</td><td>進捗ダッシュボード（Markdown）のみ。自動生成・手書き禁止という規律は同等</td></tr>
         <tr><td>リリース自動化</td><td>版判定・CHANGELOG・タグ・GitHub Release まで一括。リリース前検査で fail-closed</td><td>—</td></tr>
         <tr><td>記憶</td><td>プロジェクト単位の記憶とセッション横断の想起（別リポジトリの companion）</td><td>—（状態ファイルと進捗ダッシュボードによる中断・再開性はある）</td></tr>
-        <tr><td>失敗の資産化</td><td><code>failure-codifier</code> skill がログから再発パターンを抽出し規則案を生成</td><td>ドッグフーディング記録に人手で 79 件を蓄積。仕組み化はされていない</td></tr>
+        <tr><td>失敗の資産化</td><td><code>failure-codifier</code> skill がログから再発パターンを抽出し規則案を生成</td><td>ドッグフーディング記録に人手で 77 件を蓄積。仕組み化はされていない</td></tr>
         <tr><td>レビュー</td><td>多角レビュー（dual / team-debate / blind-judge）、cross-family review を契約として要求</td><td><code>gate-reviewer</code> 1 種。判断基準を rubric のみに固定し、<b>verdict を深刻度の集計から機械的に決定</b>。レビューアに Write/Edit を与えない</td></tr>
         <tr><td>i18n</td><td>英日 2 言語。skill frontmatter に併記</td><td>日本語のみ</td></tr>
       </tbody>
@@ -709,7 +709,7 @@
     <h3>apparness 側の対応物</h3>
     <p>
       apparness はガイド §7 に「決定論 vs AI 判断 対照表」を、§11 に「既知の制約」を持っており、思想としては同型である。
-      さらにドッグフーディング記録は 79 件の摩擦点を深刻度つきで記録し、
+      さらにドッグフーディング記録は 77 件の摩擦点を深刻度つきで記録し、
       <b>「決定論的強制の中核が空振りしていた」（F-029/F-030）という自分にとって最も不利な事実を第一級の記録として残している</b>。
       これは claims-audit と同じ規律である。
       不足しているのは<b>「対照表の各行が今も本当に効いていることの継続的な証跡」</b>——
@@ -728,7 +728,7 @@
       <thead><tr><th style="width:22%">項目</th><th>apparness</th><th>CCH</th></tr></thead>
       <tbody>
         <tr><td>実運用実績</td><td>3 アプリを <code>INTEGRATED</code> まで完走（2026-08-23 時点）</td><td>自己ホスティング（CCH 自身の開発に CCH を使用）。公開リリース v5.11.0 まで継続</td></tr>
-        <tr><td>摩擦点の記録</td><td>F-001〜F-067、F-073〜F-082（計 79 件）。深刻度 最高 / 高 / 中 / 低 で分類し改修状況を追跡</td><td>CHANGELOG 538 KB、計画ディレクトリ、証跡ディレクトリ、Judgment Ledger</td></tr>
+        <tr><td>摩擦点の記録</td><td>F-001〜F-067、F-073〜F-082（計 77 件）。深刻度 最高 / 高 / 中 / 低 で分類し改修状況を追跡</td><td>CHANGELOG 538 KB、計画ディレクトリ、証跡ディレクトリ、Judgment Ledger</td></tr>
         <tr><td>最重要の発見</td><td>F-029/F-030: worktree 経由でパススコープが読み替えられず、Rule 1・2・3・5・9・10 が同時に素通り。<b>静的検知と事後検証の二段構えがどちらもこの経路で機能していなかった</b></td><td>Phase 111: マルチホストの安全性が均一でないことを認め、公開の tier 表記を Claude のみ「正式対応」に絞った</td></tr>
         <tr><td>実証の残課題</td><td>ドッグフーディング成果物（生成アプリ）が本スナップショットに存在せず、git 履歴も 1 コミットに潰れている。<b>第三者が完走を追検証できない</b></td><td>配布物にテストが無く Go ソースも同梱されないため、<b>導入者が主張を追検証できない</b></td></tr>
       </tbody>

@@ -337,7 +337,7 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 
 <h2 id="rules">4. Rule 1–12 の判定仕様</h2>
 
-<p>規範の単一情報源は <code>harness/CONVENTIONS.md</code> 7節（7,774 バイト）。実装は <code>harness/hooks/</code>。</p>
+<p>規範の単一情報源は <code>harness/CONVENTIONS.md</code> 7節（8,257 バイト）。実装は <code>harness/hooks/</code>。</p>
 
 <div class="scroll">
 <table>
@@ -627,7 +627,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 </table>
 </div>
 
-<h3>CONVENTIONS.md の節別サイズ（全 30,717 バイト / 15 節で凍結）</h3>
+<h3>CONVENTIONS.md の節別サイズ（全 31,200 バイト / 15 節で凍結）</h3>
 <div class="scroll">
 <table>
 <thead><tr><th>節</th><th class="num">bytes</th><th>内容</th><th>読む agent</th></tr></thead>
@@ -638,7 +638,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 <tr><td class="id">4</td><td class="num">582</td><td>worktree パス規則</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">5</td><td class="num">1,492</td><td>状態機械</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">6</td><td class="num">1,307</td><td>独立機能の設計原則</td><td>solution-architect</td></tr>
-<tr><td class="id">7</td><td class="num">7,774</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">7</td><td class="num">8,257</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">8</td><td class="num">262</td><td>緊急避難（HARNESS_UNLOCK）</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">9</td><td class="num">1,966</td><td>自動化の度合い（AUTONOMY.yaml）</td><td>solution-architect</td></tr>
 <tr><td class="id">10</td><td class="num">2,958</td><td>品質保証の多層構造</td><td>solution-architect</td></tr>
@@ -652,7 +652,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 </div>
 
 <p>
-<strong>7節（12 ルール、7,774 バイト）を読む agent は 1 つも無い。</strong>
+<strong>7節（12 ルール、8,257 バイト）を読む agent は 1 つも無い。</strong>
 規範の本文を読ませる代わりに、違反時に Hook が返すエラーメッセージが「なぜ止まったか」と
 「正しい進み方」を伝える設計（<code>CONVENTIONS.md</code> 15節の分担表）。
 agent プロンプト中の「7節 Rule 7」といった記載は<strong>出典の注記</strong>であり、読み込み指示ではない。
@@ -740,6 +740,11 @@ feature-contract ×2 / status / integration）</td></tr>
 <code>## [Unreleased]</code> に項目が要る</td></tr>
 <tr><td>改修計画</td><td><code>IMPROVEMENT-PLAN.machine.yaml</code> / <code>.md</code></td><td>対象外</td>
 <td>機械可読の <code>tasks[]</code>。制約から昇格したタスクはここへ</td></tr>
+<tr><td>型チェッカ設定</td><td><code>pyrightconfig.json</code></td><td>対象外</td>
+<td><code>harness/hooks</code> は実行時に <code>sys.path</code> を操作して <code>path_utils</code> を読むため、
+<code>extraPaths</code> の宣言が無いと静的解析がインポートを解決できず、そこから「型が不明」の
+指摘が大量に派生する（実測 210 件）。<code>typeCheckingMode</code> は <code>standard</code>。
+実行時の挙動には一切影響しない</td></tr>
 </tbody>
 </table>
 </div>
@@ -1048,6 +1053,8 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
 <td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
 <tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（656 passed）</td></tr>
+<tr><td>エディタ診断の件数</td><td>VS Code の言語サーバ（Pylance）から取得した実診断</td>
+<td>修正前 210 Error ＋ 3 Hint → 修正後 0 件</td></tr>
 </tbody>
 </table>
 </div>

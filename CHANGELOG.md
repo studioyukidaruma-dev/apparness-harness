@@ -58,6 +58,14 @@
 
 ### Documentation
 
+- `README.md` を全面的に書き直した。プロジェクト概要・環境・ディレクトリ構成・開発環境構築・
+  アプリ作成の流れ・機械が強制すること（Rule 12 と CI 16 項目）・コマンド一覧・文書の役割分担・
+  トラブルシューティングを収録。記載したコマンドの引数は全スクリプトの `--help` と突き合わせて検証した。
+- フロー説明書 2 版の数値を最新化（`CONVENTIONS.md` 31,200 バイト / 7節 8,257 バイト /
+  656 テスト）し、`pyrightconfig.json` を文書の役割分担表に追加した。
+- **摩擦点の件数を 79 → 77 に訂正した。** 実数は F-001〜F-067（67 件）＋ F-073〜F-082（10 件）＝ 77 件。
+  比較調査 HTML の算術誤りが改修計画へ、さらに CLAIMS.md・README へ引き写されていた。出所ごと修正。
+
 - `harness-flow-plain.html` / `harness-flow-technical.html` を全面改訂。Rule 12・SessionStart
   自己診断・CI 項目 P/Q・`CLAIMS.md` / `procedures/` / `VERSION` の追加を反映し、
   「いつ何が動くか」「誰がどの文書をどれだけ読むか（実測値）」「文書の役割分担と追記先」
@@ -129,4 +137,4 @@
   要件トレーサビリティ）、コンテキスト予算（項目 L）、二重管理検出（項目 M）、
   `CONVENTIONS.md` の 15 節凍結（項目 O）。
 - ドッグフーディングで 3 アプリ（md-todo-cli / bookmark-vault / habit-tui）を完走し、
-  79 件の摩擦点を `DOGFOODING-LOG.md` に記録。
+  77 件の摩擦点を `DOGFOODING-LOG.md` に記録。

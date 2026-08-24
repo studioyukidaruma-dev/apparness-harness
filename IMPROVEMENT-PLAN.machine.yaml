@@ -236,7 +236,7 @@ findings:
   - id: F-A10
     severity: low
     category: process
-    statement: "DOGFOODING-LOG.md の 79 件の摩擦点が、再発防止テストへ変換される手順として仕組み化されていない。"
+    statement: "DOGFOODING-LOG.md の 77 件の摩擦点が、再発防止テストへ変換される手順として仕組み化されていない。"
     comparison: "claude-code-harness の failure-codifier skill が対応物。"
     addressed_by: [T-032]
 
@@ -486,7 +486,7 @@ tasks:
   - id: T-032
     priority: 3
     title: "摩擦点から再発防止テストへの変換を手順化する"
-    why: "F-A10。79 件の摩擦点は貴重な資産だが、テストへの変換が場当たりになっている。"
+    why: "F-A10。77 件の摩擦点は貴重な資産だが、テストへの変換が場当たりになっている。"
     targets:
       - DOGFOODING-LOG.md
       - harness/CLAIMS.md
