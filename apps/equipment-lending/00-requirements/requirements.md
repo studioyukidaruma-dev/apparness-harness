@@ -5,7 +5,9 @@
 
 - app_id: `equipment-lending`
 - version: 1
-- status: DRAFT
+- status: APPROVED
+- approved_by: たくみのせ
+- approved_at: 2026-08-24T14:15:24Z
 
 ## 概要 (Summary)
 

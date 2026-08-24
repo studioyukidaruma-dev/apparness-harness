@@ -3,7 +3,7 @@
 app_id: "equipment-lending"
 app_name: "備品貸出管理"
 version: 1
-status: DRAFT
+status: APPROVED
 summary: "会社の備品の在庫の数を管理するアプリ。現在は貸出を紙で管理しているため、どこに何が何個あるかがすぐ分からない。現場の作業員がスマホのブラウザから、備品の保管場所と在庫数を確認でき、誰がいつ何を借りたか・返したかを登録できる状態にする。データは社内サーバに保存し、全員が同じ在庫状況を見られるようにする。"
 goals:
   - "スマホから在庫がわかる"
@@ -68,6 +68,6 @@ constraints:
   - "社内サーバに配置する。"
   - "アプリ全体の完成条件は「各機能要件の受け入れ基準がすべて満たされること」とする。"
 open_questions: []
-approved_by: null
-approved_at: null
+approved_by: "たくみのせ"
+approved_at: "2026-08-24T14:15:24Z"
 superseded_by: null
