@@ -183,6 +183,13 @@ Rule 7・9・10 は書き込み前後の内容比較に依存し Bash では判�
 検知は静的検知（実行前）と事後検証（`post_tool_use_guard.py`。内容ハッシュ比較で巻き戻す）の
 2 段構えです。
 
+**強制レイヤ自身の健全性は起動時に自己診断します。** `SessionStart` フック
+（`session_start_healthcheck.py`）が、hooks の import 可否・`path_utils` の主要関数・
+`.claude/settings.json` の Hook 登録を検査し、異常があれば警告とセッションへの追加コンテキストで
+知らせます。`PROGRESS.md` の先頭にも同じ診断結果が出ます。`PreToolUse` ガードは想定外の例外を
+握りつぶさず **fail-closed**（exit 2 ＋ 理由）で止まります——判定できない状態で通すと、
+全ルールが黙って無効化されたまま作業が続くためです（`HARNESS_GUIDE.md` 5節）。
+
 **この Bash 検知にバイパス用の環境変数は意図的に用意しません**（`HARNESS_UNLOCK=1` は Rule 1
 専用の既存の緊急避難路として残します）。誤検知を見つけたら、検知ロジック自体を修正して
 対応してください。

@@ -61,3 +61,10 @@
 | 項目 N | `interfaces[]` のエッジが結合テストに対応づけられていないこと | `test_check_integration_traceability.py::test_partial_coverage_still_reports_gaps` | 2026-08-24 | — |
 | 項目 O | CONVENTIONS.md への節の新設 | `test_conventions_frozen.py::test_new_section_is_rejected` | 2026-08-24 | 節の削除・既存節の変更は凍結の対象外（意図的） |
 | 項目 P | この表に書かれた実証テストが実在しないこと | `test_claims.py::test_unknown_test_name_is_rejected` / `test_claims.py::test_missing_evidence_without_a_reason_is_rejected` | 2026-08-24 | この表に**行を足し忘れた**規則は検出できない（規則の追加は人間の判断） |
+
+## 強制レイヤ自体の健全性
+
+| 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
+|---|---|---|---|---|
+| fail-closed | ガード本体で想定外の例外が起きたとき、通過ではなく拒否になること | `test_healthcheck.py::test_unexpected_exception_denies_instead_of_passing` / `test_healthcheck.py::test_the_guard_still_passes_normally_when_nothing_is_wrong` | 2026-08-24 | `python3` 自体が存在しない場合は Hook が起動できないため、ハーネスからは何もできない（SessionStart の自己診断と PROGRESS.md 表示で**可視化**するのが対策） |
+| 自己診断 | 強制レイヤが壊れている状態を検出して報告すること | `test_healthcheck.py::test_broken_hook_import_is_reported` / `test_healthcheck.py::test_missing_hook_registration_is_reported` / `test_healthcheck.py::test_progress_line_reports_the_problem_when_broken` | 2026-08-24 | 検出できても Claude Code 側の Hook 実行を止める手段は無い（報告と可視化まで） |

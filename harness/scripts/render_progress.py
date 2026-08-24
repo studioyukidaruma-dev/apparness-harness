@@ -145,6 +145,7 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
                   f"（`AUTONOMY.yaml` 参照。要件定義の承認はモードに関わらず常に人間必須）")
     lines.append(f"- 要件定義 (00-requirements): **{req_status}**")
     lines.append(f"- 設計 (02-design): **{design_status}**")
+    lines.append(_enforcement_line(app_dir))
     lines.append("")
 
     if not statuses:
@@ -200,6 +201,30 @@ def _write_progress_md(app_dir, app_id, req_status, design_status, autonomy_mode
     lines.append("")
 
     write_if_changed(app_dir / "PROGRESS.md", "\n".join(lines))
+
+
+def _enforcement_line(app_dir: pathlib.Path) -> str:
+    """強制レイヤの健全性を 1 行で表示する（F-A2）。
+
+    Hook が起動に失敗しても Claude Code はそれを「通過」として扱うため、強制が黙って
+    無効化された状態が続きうる。ダッシュボードは人間が状況を確認する最終的な担保
+    （CONVENTIONS.md 9節）なので、そこに状態を出す。
+
+    実行環境（Python のバージョン等）に依存する判定は含めない。`PROGRESS.md` は
+    コミットされる成果物で、CI の項目 G が再生成結果との一致を見るため、環境ごとに
+    差分が出る値を混ぜると構造的に不合格になる。
+    """
+    try:
+        harness = _common.harness_root(app_dir)
+        # hooks は依存ゼロで、scripts より後に読み込まれる。ここで初めて import することで、
+        # hooks が欠けている環境でもダッシュボードの生成自体は止めない（止めると Rule 4 が
+        # 連鎖して壊れ、進捗が見えなくなる ＝ 可視化したい状況で可視化が消える）。
+        sys.path.insert(0, str(harness / "hooks"))
+        import session_start_healthcheck  # noqa: PLC0415
+
+        return session_start_healthcheck.progress_line(str(harness.parent))
+    except Exception as exc:  # noqa: BLE001
+        return f"- 強制レイヤ: **診断不能**（{type(exc).__name__}: {exc}）"
 
 
 def _verification_summary(status: dict) -> str:
