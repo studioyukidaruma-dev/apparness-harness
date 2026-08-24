@@ -63,6 +63,11 @@
   「いつ何が動くか」「誰がどの文書をどれだけ読むか（実測値）」「文書の役割分担と追記先」
   「ブランチ規約と保護」「ゲート判定の書式と決定性」を追記した。
   コンテキスト予算の既知の過小評価（`quality/*.md` を計上していないこと）も明記。
+- 上記の記載内容を実行物（settings.json・ci_check.py の AST・path_utils の定数・schemas・
+  scaffold スクリプト・agent frontmatter）から再抽出して照合し、実装にしか存在しなかった
+  2 つの性質を追記した: **①判定不能時は allow に倒れる 8 条件**、
+  **②Rule ごとのツール適用範囲の差**（Rule 7・9・10・11 は Edit/Write/MultiEdit のみ、
+  NotebookEdit には適用されない）。両版に出典と再検証手順の節も追加。
 
 - `harness/README.md` を 12 ルール・SessionStart 自己診断・`CLAIMS.md` / `procedures/` /
   `VERSION` の追加に追随させた。

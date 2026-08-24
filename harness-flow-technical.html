@@ -94,6 +94,7 @@ apparness ハーネスの実行時アーキテクチャ。介入点・参照文�
 <li><a href="#ci">CI 項目 A–Q（サーバーサイド再検証）</a></li>
 <li><a href="#claims">主張と証跡の対応（CLAIMS.md）</a></li>
 <li><a href="#limits">既知の限界と残余</a></li>
+<li><a href="#source">この文書の出典と再検証手順</a></li>
 </ol>
 </div>
 
@@ -424,6 +425,86 @@ settings.json の 5 登録を検査。正常時 53ms・無出力）
 人間の判断を挟みたい操作は <strong>deny にしたうえで「人間が別途手で実行する」運用に倒す</strong>。
 また INV-4 によりバイパス用環境変数を持たないため、誤検知は検知ロジック側を修正して解消する。
 </p>
+</div>
+
+<h3>判定不能時の挙動 — undecidable → allow（fail-closed と対になる方針）</h3>
+
+<p>
+<strong>「例外」と「判定不能」は挙動が逆である。</strong>これは監査上いちばん誤解されやすい点なので明示する。
+</p>
+<ul>
+<li><strong>例外</strong>（判定に到達したが壊れた）→ <span class="tag t-deny">deny</span>。
+<code>_fail_closed_main()</code> が exit 2 ＋ 理由を返す。</li>
+<li><strong>判定不能</strong>（判定に必要な材料が存在しない）→ <span class="tag t-none">allow</span>。
+各 check 関数が <code>None</code> を返す。<strong>Hook は「材料が無いから止める」ことをしない。</strong></li>
+</ul>
+
+<p>
+後者は <code>pre_tool_use_guard.py</code> 内に 8 条件、<code>path_utils.py</code> 内にさらに数条件ある。
+<strong>これらは Rule が意図的に空振りする経路であり、監査時に最初に確認すべき点である。</strong>
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Rule</th><th>allow に倒れる条件</th><th>実装</th><th>成立しうる状況</th></tr></thead>
+<tbody>
+<tr><td class="id">2</td><td><code>get_worktree_toplevel(cwd)</code> が <code>None</code></td>
+<td><code>pre_tool_use_guard.py:68</code></td><td>git リポジトリ外、<code>git</code> 不在、3 秒 timeout</td></tr>
+<tr><td class="id">3</td><td>対応する <code>status.yaml</code> の state が読めない</td>
+<td><code>check_rule3_contract_freeze</code></td><td>status.yaml 未作成</td></tr>
+<tr><td class="id">3</td><td><code>contract.yaml</code> が存在しない／パースできない</td>
+<td><code>pre_tool_use_guard.py:219</code></td><td>契約作成前の <code>CONTRACT_APPROVED</code> 遷移</td></tr>
+<tr><td class="id">5</td><td><code>shared-kernel.yaml</code> が読めない</td>
+<td><code>pre_tool_use_guard.py:108</code></td><td>worktree に上位文書が入っていない（F-014 の状況）</td></tr>
+<tr><td class="id">7</td><td>要件の <code>version</code> または <code>based_on_requirements_version</code> が <code>None</code></td>
+<td><code>pre_tool_use_guard.py:156</code></td><td>どちらかのキーが未記載</td></tr>
+<tr><td class="id">9</td><td><code>status.yaml</code> が存在しない（新規作成）／新 state が読めない</td>
+<td><code>pre_tool_use_guard.py:244</code></td><td>scaffold 直後</td></tr>
+<tr><td class="id">10</td><td><code>shared-kernel.yaml</code> と <code>contract.yaml</code> が<strong>両方</strong>読めない</td>
+<td><code>pre_tool_use_guard.py:313</code></td><td>宣言元が丸ごと欠落</td></tr>
+<tr><td class="id">10 / 11</td><td><code>get_head_commit()</code> が <code>None</code></td>
+<td><code>pre_tool_use_guard.py:318, 405</code></td><td>コミットが 1 つも無い、git 不在</td></tr>
+<tr><td class="id">1–6（Bash）</td><td><code>shlex</code> のトークン化に失敗（クォート不整合等）</td>
+<td><code>_tokenize_bash_command()</code> が <code>None</code> → 候補 0 件</td><td>閉じていない引用符を含むコマンド</td></tr>
+<tr><td class="id">7（承認記録）</td><td>書き込み後内容が <code>parse_simple_yaml</code> でパースできない</td>
+<td><code>validate_approval_record()</code> の <code>except</code></td><td>編集途中の不完全な YAML</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box warn">
+<h4>この方針の代償と、埋め合わせ</h4>
+<p style="margin-bottom:0">
+「材料が無ければ通す」は、<strong>材料を消せばゲートを外せる</strong>ことを意味する
+（例: <code>shared-kernel.yaml</code> を消せば Rule 5 は発火しない）。
+Hook 単体ではこれを塞げないため、<strong>CI 側は逆に「無ければ違反」で判定する</strong>——
+項目 I は <code>test_command</code> が<strong>どこにも宣言されていない</strong>のに
+<code>TESTED</code>/<code>INTEGRATED</code> なら不合格にし、項目 A はスキーマ必須キーの欠落を弾く。
+Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的である。
+</p>
+</div>
+
+<h3>Rule ごとのツール適用範囲</h3>
+
+<p>
+<code>PreToolUse</code> の matcher は 7 ツールだが、<strong>全 Rule が全ツールに適用されるわけではない</strong>。
+内容比較に依存する Rule 7・9・10・11 は <code>run_checks()</code> 内で
+<code>tool_name in ("Edit", "Write", "MultiEdit")</code> に限定されている。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>ツール</th><th>適用される Rule</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>Edit</code> / <code>Write</code> / <code>MultiEdit</code></td><td>1・2・3・5・6・7・9・10・11・12</td><td>全 Rule が効く</td></tr>
+<tr><td><code>NotebookEdit</code></td><td>1・2・3・5・6</td>
+<td><strong>7・9・10・11 は適用されない</strong>（<code>tool_name</code> が上記タプルに含まれないため）。
+<code>notebook_path</code> が <code>status.yaml</code> 等を指す状況は想定されていないが、構造上の穴ではある</td></tr>
+<tr><td><code>Bash</code></td><td>1・2・3・5・6・12 ＋ 構造化ツール要求</td>
+<td>7・9・10・11 は内容を予測できないため、対象 3 ファイルへの Bash 書き込みを<strong>一律 deny</strong>して代替</td></tr>
+<tr><td><code>Read</code> / <code>NotebookRead</code></td><td>12 のみ（D-2）</td><td>読み取りなので書き込み系 Rule は無関係</td></tr>
+</tbody>
+</table>
 </div>
 
 <h3>Bash 経由書き込みの 2 段検知</h3>
@@ -899,6 +980,62 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <li><strong>項目 L の値と実効コストの差</strong> ― <code>quality/*.md</code> は現状カウント外（§6 の警告）</li>
 <li><strong><code>os.environ</code> の参照が <code>HARNESS_UNLOCK</code> のみか</strong> ― INV-4 の機械的な検査点</li>
 </ol>
+
+<h2 id="source">13. この文書の出典と再検証手順</h2>
+
+<p>
+記載した事実は<strong>実行物（コード・設定・スキーマ・agent/skill プロンプト）から機械的に抽出した</strong>。
+人間向け文書（<code>CONVENTIONS.md</code>・<code>HARNESS_GUIDE.md</code>・<code>README.md</code>）は、
+実装より古い可能性があるため<strong>一次情報として採用していない</strong>。
+</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>記載事項</th><th>一次情報（実行物）</th><th>再検証コマンド</th></tr></thead>
+<tbody>
+<tr><td>Hook のイベント・matcher・timeout</td><td><code>.claude/settings.json</code>（Claude Code が実際に読む実効設定）</td>
+<td><code>python3 -c "import json;print(json.load(open('.claude/settings.json'))['hooks'])"</code></td></tr>
+<tr><td>CI 項目 A–Q の実体と個数</td><td><code>ci_check.py</code> の <code>main()</code> が呼ぶ関数（AST 抽出。docstring ではない）</td>
+<td>AST で <code>violations +=</code> の呼び出しを列挙（16 件 ＝ 文字数 16 と一致）</td></tr>
+<tr><td>Rule ごとのツール適用範囲</td><td><code>pre_tool_use_guard.run_checks()</code> / <code>main()</code> の分岐（AST 抽出）</td>
+<td>同上</td></tr>
+<tr><td>判定不能時の allow 条件</td><td><code>pre_tool_use_guard.py</code> の <code>return None</code> 箇所</td>
+<td><code>grep -n "return None  #" harness/hooks/pre_tool_use_guard.py</code></td></tr>
+<tr><td>Rule 12 の対象（秘密パス・egress・git）</td><td><code>path_utils</code> の定数を <code>import</code> して実値を取得</td>
+<td><code>python3 -c "import path_utils as p;print(p.SECRET_READ_COMMANDS)"</code></td></tr>
+<tr><td>状態機械・enum</td><td><code>path_utils.STATUS_LINEAR_ORDER</code> と <code>schemas/status.schema.json</code>（両者の一致も確認）</td>
+<td><code>set(schema.enum) == path_utils.STATUS_ALL_STATES</code> → True</td></tr>
+<tr><td>受領書・review の書式</td><td><code>schemas/status.schema.json</code>（<code>additionalProperties: false</code>）＋ <code>run_verification.py</code> の実書き込み</td>
+<td>スキーマの <code>required</code> と <code>properties</code> を直接参照</td></tr>
+<tr><td>ディレクトリ構造</td><td><code>new_app_scaffold.py</code> が実際に <code>mkdir</code>/生成するパス</td>
+<td><code>grep -n "mkdir\|write_from_template" harness/scripts/new_app_scaffold.py</code></td></tr>
+<tr><td>ブランチ名・worktree パス</td><td><code>new_feature_scaffold.py</code> の <code>branch = f"feature/{app_id}/{feature_id}"</code> と <code>git worktree add</code></td>
+<td><code>grep -n "branch =\|worktree_path" harness/scripts/new_feature_scaffold.py</code></td></tr>
+<tr><td>agent の tools / skills / 読む節</td><td><code>.claude/agents/*.md</code> の frontmatter と <code>context-budget</code> マーカー</td>
+<td>frontmatter を直接パース</td></tr>
+<tr><td>コンテキスト量</td><td><code>ci_check.attributed_conventions_bytes()</code> / <code>always_read_bytes()</code> を<strong>実際に呼んで</strong>算出</td>
+<td><code>ci_check.check_context_budget(root)</code></td></tr>
+<tr><td>節ごとのバイト数</td><td><code>print_conventions.parse_sections()</code>（agent が実際に使う抽出関数）</td>
+<td>同関数の戻り値を集計</td></tr>
+<tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
+<td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
+<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（641 passed）</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box note">
+<h4>人間向け文書との差分監査の結果</h4>
+<p style="margin-bottom:0">
+<code>ci_check.py</code> の docstring が列挙する項目文字（16 個）と <code>main()</code> が実際に呼ぶ検査（16 件）は
+<strong>個数・対応とも一致</strong>していた。<code>status.schema.json</code> の <code>state</code> enum と
+<code>path_utils.STATUS_ALL_STATES</code> も一致。<code>CONVENTIONS.md</code> 7節の Rule 記述と実装の間にも、
+今回の照合で意味的な齟齬は見つからなかった。<br>
+ただし<strong>「判定不能なら通す」の 8 条件と、Rule ごとのツール適用範囲の差</strong>は、
+<code>CONVENTIONS.md</code> にも旧版のこの文書にも書かれていなかった（実装にしか存在しなかった）。
+本版 §3 に追記済み。
+</p>
+</div>
 
 <footer>
 harness-flow-technical.html ― apparness ハーネス <code>VERSION</code> 1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
