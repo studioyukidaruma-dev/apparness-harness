@@ -159,9 +159,10 @@ flowchart TD
 | 項目 | 内容 |
 |---|---|
 | 使われるタイミング | 新規アプリ作成の開始時。ユーザーが「新しいアプリを作りたい」と言ったとき |
-| 読み込むファイル | `harness/CONVENTIONS.md` 9節（自動化モードの説明） |
-| 実行するスクリプト | `harness/scripts/new_app_scaffold.py`（**決定論**：雛形一式の生成、`AUTONOMY.yaml`・`00-requirements/`・`01-foundation/`・`02-design/`・`04-integration/` を作成し `render_progress.py` を呼ぶ） |
-| AIが判断する部分 | `app_id`/`app_name` の確認、`AskUserQuestion` での `autonomy_mode` 確認（未回答なら `SUPERVISED` を既定にしてよい） |
+| 読み込むファイル | `harness/CONVENTIONS.md` 9節（自動化モードの説明）、`briefs/<app-id>.brief.yaml`（**企画ブリーフ**。あれば要件定義の出発点。無ければ従来どおり対話） |
+| 実行するスクリプト | `harness/scripts/new_app_scaffold.py`（**決定論**：雛形一式の生成、`AUTONOMY.yaml`・`00-requirements/`・`01-foundation/`・`02-design/`・`04-integration/` を作成し `render_progress.py` を呼ぶ）
+| | `harness/scripts/check_brief.py`（**決定論**：ブリーフの書式検証と未記入項目の列挙。未記入項目のリストがそのまま要件定義で確認すべき議題になる） |
+| AIが判断する部分 | `app_id`/`app_name` の確認、`AskUserQuestion` での `autonomy_mode` 確認（未回答なら `SUPERVISED` を既定にしてよい）、ブリーフの記述と要件の対応づけ |
 | 決定論的な部分 | 雛形ファイルの内容そのもの（テンプレートから生成、AIは中身を作文しない） |
 | 完了後のコミット | `git add -A && git commit`（AIが実行するが、内容は雛形そのものなので実質固定的） |
 
@@ -171,7 +172,7 @@ flowchart TD
 |---|---|
 | 使われるタイミング | `init-app` の直後。要件定義フェーズ |
 | tools | Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash |
-| 読み込むファイル | `harness/CONVENTIONS.md`（全文）、`apps/<app-id>/00-requirements/requirements.md`・`requirements.machine.yaml` |
+| 読み込むファイル | `harness/CONVENTIONS.md`（全文）、`apps/<app-id>/00-requirements/requirements.md`・`requirements.machine.yaml`・`brief.yaml`（あれば。記入済みは聞き直さず、未記入だけを対話で補う） |
 | 触ってよい範囲 | `apps/<app-id>/00-requirements/` 配下のみ |
 | 実行するスクリプト | `harness/scripts/validate_yaml.py`（**決定論**：`requirements.schema.json` に対する検証。更新のたびに実行） |
 | AIが判断する部分 | ユーザーとの対話内容（目的・ゴール・機能要件など）、`open_questions` が解消されたかの判断 |

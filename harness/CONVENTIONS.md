@@ -25,9 +25,12 @@
   HARNESS_GUIDE.md            ← 設計意図・背景・既知の制約
   flow/ plans/ archive/       ← しくみ説明・改修計画・役目を終えた調査資料
   maintenance/                ← 実地の摩擦点と、それをテストへ変える手順
+/briefs/<app-id>.brief.yaml    ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力。
+                                 init-app が探し、あれば要件定義の出発点にする
 /apps/<app-id>/                ← 生成物。init-app skill が都度生成する
   AUTONOMY.yaml               ← 自動化の度合い（9節）
   00-requirements/  requirements.md / requirements.machine.yaml / history/
+                    brief.yaml  ← 取り込んだ企画ブリーフ（任意。入力の記録であって承認物ではない）
   01-foundation/    shared-kernel.yaml  ← 全機能が依存する共有契約（10節）
   02-design/        design.md / architecture.machine.yaml / history/
                     features/<feature-id>.contract.yaml  ← 契約ドラフト（設計時点）

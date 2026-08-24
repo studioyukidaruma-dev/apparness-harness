@@ -70,7 +70,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 | 依存ゼロの強制レイヤ | `harness/hooks/**` は Python 標準ライブラリのみ。**縛る側のコードが読める** |
 | 実行ベースの検証 | 受領書・JUnit XML・JSON Schema 突合。自己申告に頼らない |
 | アプリ非依存 | 技術スタックを規定しない。検証コマンドはアプリ側が宣言する |
-| 自己テスト | 685 件（`harness/tests/`）。CI で毎回実行 |
+| 自己テスト | 702 件（`harness/tests/`）。CI で毎回実行 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -126,10 +126,11 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   │   └── session_start_healthcheck.py 強制レイヤの自己診断
 │   ├── procedures/                  ← フェーズ固有の手順（読む agent は always-reads 宣言が必須。CI 項目 L が計上）
 │   ├── quality/                     ← セキュリティ・デザイン・レビュー基準
-│   ├── schemas/                     ← 機械可読ファイルの JSON Schema（7 種）
-│   ├── scripts/                     ← 決定論ロジック（16 本）
-│   ├── templates/                   ← 各種ひな形（12 種）
-│   └── tests/                       ← ハーネス自身の pytest（685 件）
+│   ├── schemas/                     ← 機械可読ファイルの JSON Schema（8 種）
+│   ├── scripts/                     ← 決定論ロジック（18 本）
+│   ├── templates/                   ← 各種ひな形（13 種）
+│   └── tests/                       ← ハーネス自身の pytest（702 件）
+├── briefs/<app-id>.brief.yaml       ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力
 ├── apps/<app-id>/                   ← 生成物。init-app skill が都度生成する（未生成）
 ├── docs/                            ← **人間専用。** アプリ作成中の subagent は読まない
 │   ├── README.md                        どこに何があるかの索引
@@ -174,7 +175,7 @@ python3 harness/scripts/ci_check.py --branch $(git branch --show-current)
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-`685 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
+`702 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
 3 つ目は**強制レイヤ自身が健全か**の自己診断で、異常があればここに理由が出ます。
 
 ### ハーネスを改修するとき
@@ -205,6 +206,23 @@ git switch -c harness/<topic>
 ```
 NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLEMENTED → TESTED → INTEGRATED
 ```
+
+### 先に要件を書いて渡す（企画ブリーフ・任意）
+
+対話で少しずつ引き出すのではなく、目的・必要な機能・使ってほしい技術を**一度にまとめて**渡したい
+場合は、`init-app` の前にブリーフを書きます。
+
+```
+python3 harness/scripts/new_brief.py <app-id> "<app-name>"   # briefs/<app-id>.brief.yaml を生成
+# 分かるところだけ埋める（空欄のままでよい）
+python3 harness/scripts/check_brief.py briefs/<app-id>.brief.yaml
+```
+
+`init-app` は `briefs/<app-id>.brief.yaml` を自動で探します。あれば要件定義の出発点になり、
+**記入済みの項目は聞き直されず、空欄だけが対話で確認されます**。ブリーフが無ければ従来どおり
+全て対話で決めます。項目名を綴り間違えると `check_brief.py` が exit 1 で落ちます（黙って
+無視されて「書いたのに伝わらない」状態になるのを防ぐため）。ブリーフはあくまで**入力**であり、
+要件の承認は従来どおり人間が明示的に行います。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -269,7 +287,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 
 | コマンド | 実行する処理 |
 | --- | --- |
-| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（685 件） |
+| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（702 件） |
 | `python3 harness/scripts/ci_check.py --branch <name>` | 規約の決定論チェック 16 項目 |
 | `python3 harness/hooks/session_start_healthcheck.py < /dev/null` | 強制レイヤの健全性診断 |
 | `python3 harness/scripts/render_progress.py --app <app-id>` | ダッシュボード再生成 |
@@ -284,7 +302,9 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 | `python3 harness/scripts/print_conventions.py --sections 6,9,13` | 規約の必要な節だけを出力 |
 | `python3 harness/scripts/diff_architecture.py <old> <new>` | 設計の差分を機械的に算出 |
 | `python3 harness/scripts/vuln_scan.py [--app <app-id>]` | 依存ライブラリの脆弱性スキャン |
-| `python3 harness/scripts/new_app_scaffold.py <app-id> <app-name> [mode]` | アプリ雛形の生成（通常は skill 経由） |
+| `python3 harness/scripts/new_brief.py <app-id> [app-name]` | 企画ブリーフの記入用フォーマットを生成 |
+| `python3 harness/scripts/check_brief.py <brief.yaml> [--json]` | ブリーフの書式検証と未記入項目の列挙 |
+| `python3 harness/scripts/new_app_scaffold.py <app-id> <app-name> [mode] [--brief <path>]` | アプリ雛形の生成（通常は skill 経由） |
 | `python3 harness/scripts/new_feature_scaffold.py <app-id> <feature-id>` | 機能 worktree の生成（通常は skill 経由） |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>

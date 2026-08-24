@@ -75,7 +75,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <p class="lead">
 apparness ハーネスの実行時アーキテクチャ。介入点・参照文書・コンテキスト予算・ブランチ保護・
 ゲート判定の書式と決定性を、実装に対応づけて記述する。<br>
-対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 685 件緑<br>
+対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 702 件緑<br>
 平易版: <code>docs/flow/harness-flow-plain.html</code>
 </p>
 
@@ -245,7 +245,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 
     <rect x="8" y="536" width="924" height="52" rx="6" fill="var(--warn-bg)" stroke="var(--warn)"/>
     <text x="18" y="556" font-weight="700" fill="var(--ink)">CI（GitHub Actions / .github/workflows/harness-checks.yml）</text>
-    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 685 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
+    <text x="18" y="574" fill="var(--ink)">jobs: harness-selftest（pytest 702 件） / ci-check（項目 A–Q） / vuln-scan（OSV-Scanner）</text>
 
     <line x1="128" y1="98" x2="128" y2="110" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
     <line x1="128" y1="182" x2="128" y2="194" stroke="currentColor" stroke-width="1.4" marker-end="url(#a2)"/>
@@ -559,7 +559,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 <thead><tr><th>subagent</th><th>tools</th><th>宣言 skills</th><th>起動元</th><th>起動するもの</th></tr></thead>
 <tbody>
 <tr><td class="id">requirements-analyst</td><td>Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash</td><td>―</td>
-<td>skill <code>init-app</code> / <code>diff-design</code></td><td><code>validate_yaml.py</code></td></tr>
+<td>skill <code>init-app</code> / <code>diff-design</code></td><td><code>validate_yaml.py</code>, <code>check_brief.py</code>（ブリーフがある場合）</td></tr>
 <tr><td class="id">solution-architect</td><td>Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion</td><td>―</td>
 <td>skill <code>init-app</code> / <code>diff-design</code></td>
 <td><code>check_interfaces.py</code>, <code>check_traceability.py</code>, <code>print_conventions.py</code></td></tr>
@@ -584,7 +584,7 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 <table>
 <thead><tr><th>skill</th><th class="num">サイズ</th><th>呼ぶスクリプト</th><th>引き継ぐ subagent</th></tr></thead>
 <tbody>
-<tr><td class="id">init-app</td><td class="num">3,865</td><td><code>new_app_scaffold.py</code></td><td>requirements-analyst → solution-architect</td></tr>
+<tr><td class="id">init-app</td><td class="num">6,953</td><td><code>new_app_scaffold.py</code>, <code>new_brief.py</code>, <code>check_brief.py</code></td><td>requirements-analyst → solution-architect</td></tr>
 <tr><td class="id">new-feature-worktree</td><td class="num">2,892</td><td><code>new_feature_scaffold.py</code></td><td>―（worktree 内で feature-builder を起動する導線を案内）</td></tr>
 <tr><td class="id">sync-progress</td><td class="num">1,148</td><td><code>render_progress.py</code>（<code>--html</code> 可）</td><td>―</td></tr>
 <tr><td class="id">diff-design</td><td class="num">4,025</td><td><code>diff_architecture.py</code>, <code>print_conventions.py</code></td><td>requirements-analyst → solution-architect</td></tr>
@@ -622,8 +622,8 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 <thead><tr><th>subagent</th><th class="num">prompt</th><th>sections</th><th class="num">conventions</th>
 <th class="num">procedures</th><th class="num">項目 L 合計</th><th class="num">上限比</th></tr></thead>
 <tbody>
-<tr><td class="id">requirements-analyst</td><td class="num">4,164</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">4,164</td><td class="num">9%</td></tr>
-<tr><td class="id">solution-architect</td><td class="num">11,352</td><td><code>6,9,10,11,12,13,14</code></td><td class="num">13,647</td><td class="num">0</td><td class="num">24,999</td><td class="num">54%</td></tr>
+<tr><td class="id">requirements-analyst</td><td class="num">6,756</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">6,756</td><td class="num">15%</td></tr>
+<tr><td class="id">solution-architect</td><td class="num">11,352</td><td><code>6,9,10,11,12,13,14</code></td><td class="num">13,793</td><td class="num">0</td><td class="num">25,145</td><td class="num">55%</td></tr>
 <tr><td class="id">feature-builder</td><td class="num">3,696</td><td><code>none</code></td><td class="num">0</td><td class="num">4,701</td><td class="num">8,397</td><td class="num">18%</td></tr>
 <tr><td class="id">gate-reviewer</td><td class="num">4,907</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">4,907</td><td class="num">11%</td></tr>
 <tr><td class="id">integrator</td><td class="num">8,224</td><td><code>none</code></td><td class="num">0</td><td class="num">0</td><td class="num">8,224</td><td class="num">18%</td></tr>
@@ -631,27 +631,27 @@ Hook（未然・寛容）と CI（事後・厳格）の非対称は意図的で�
 </table>
 </div>
 
-<h3>CONVENTIONS.md の節別サイズ（ファイル全体 31,975 バイト / 15 節で凍結）</h3>
-<p class="note">各行は <code>print_conventions.parse_sections()</code> が返す本文のバイト数（CI 項目 L が <code>attributed_conventions_bytes()</code> で数えるのと同じ単位。合計 31,136 バイトで、差分 839 バイトは 1 節より前の前書きと見出し行）。<code>ci_check.py</code> の項目 L が上限を課すのは「ファイル全体 36,000 バイト」と「agent が読むと宣言した節の合計を含むセッション常時コスト 46,000 バイト」で、節ごとの上限は無い。</p>
+<h3>CONVENTIONS.md の節別サイズ（ファイル全体 33,813 バイト / 15 節で凍結）</h3>
+<p class="note">各行は <code>print_conventions.parse_sections()</code> が返す本文のバイト数（CI 項目 L が <code>attributed_conventions_bytes()</code> で数えるのと同じ単位。合計 32,974 バイトで、差分 839 バイトは 1 節より前の前書きと見出し行）。<code>ci_check.py</code> の項目 L が上限を課すのは「ファイル全体 36,000 バイト」と「agent が読むと宣言した節の合計を含むセッション常時コスト 46,000 バイト」で、節ごとの上限は無い。</p>
 <div class="scroll">
 <table>
 <thead><tr><th>節</th><th class="num">bytes</th><th>内容</th><th>読む agent</th></tr></thead>
 <tbody>
-<tr><td class="id">1</td><td class="num">1,971</td><td>ディレクトリ構造</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">1</td><td class="num">2,699</td><td>ディレクトリ構造</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">2</td><td class="num">265</td><td>ID・命名規則</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">3</td><td class="num">417</td><td>ブランチ命名規則</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">4</td><td class="num">582</td><td>worktree パス規則</td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">5</td><td class="num">1,492</td><td>状態機械</td><td class="tag t-none">なし</td></tr>
-<tr><td class="id">6</td><td class="num">1,307</td><td>独立機能の設計原則</td><td>solution-architect</td></tr>
-<tr><td class="id">7</td><td class="num">9,034</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">6</td><td class="num">1,327</td><td>独立機能の設計原則</td><td>solution-architect</td></tr>
+<tr><td class="id">7</td><td class="num">9,044</td><td><strong>Hook が強制する 12 ルール</strong></td><td class="tag t-none">なし</td></tr>
 <tr><td class="id">8</td><td class="num">262</td><td>緊急避難（HARNESS_UNLOCK）</td><td class="tag t-none">なし</td></tr>
-<tr><td class="id">9</td><td class="num">1,966</td><td>自動化の度合い（AUTONOMY.yaml）</td><td>solution-architect</td></tr>
-<tr><td class="id">10</td><td class="num">2,958</td><td>品質保証の多層構造</td><td>solution-architect</td></tr>
+<tr><td class="id">9</td><td class="num">1,986</td><td>自動化の度合い（AUTONOMY.yaml）</td><td>solution-architect</td></tr>
+<tr><td class="id">10</td><td class="num">2,998</td><td>品質保証の多層構造</td><td>solution-architect</td></tr>
 <tr><td class="id">11</td><td class="num">1,152</td><td>上位文書優先の原則</td><td>solution-architect</td></tr>
-<tr><td class="id">12</td><td class="num">2,720</td><td>検証コマンドの宣言・実行・受領書</td><td>solution-architect</td></tr>
+<tr><td class="id">12</td><td class="num">2,766</td><td>検証コマンドの宣言・実行・受領書</td><td>solution-architect</td></tr>
 <tr><td class="id">13</td><td class="num">2,049</td><td>トレーサビリティ</td><td>solution-architect</td></tr>
-<tr><td class="id">14</td><td class="num">1,495</td><td>スタックパック</td><td>solution-architect</td></tr>
-<tr><td class="id">15</td><td class="num">3,466</td><td>コンテキスト予算</td><td class="tag t-none">なし</td></tr>
+<tr><td class="id">14</td><td class="num">1,515</td><td>スタックパック</td><td>solution-architect</td></tr>
+<tr><td class="id">15</td><td class="num">4,420</td><td>コンテキスト予算</td><td class="tag t-none">なし</td></tr>
 </tbody>
 </table>
 </div>
@@ -693,8 +693,8 @@ CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
 <table>
 <thead><tr><th>subagent</th><th class="num">項目 L</th><th class="num">実効（非 UI）</th><th class="num">実効（UI あり）</th><th class="num">対 46,000</th></tr></thead>
 <tbody>
-<tr><td class="id">requirements-analyst</td><td class="num">4,164</td><td class="num">4,164</td><td class="num">4,164</td><td class="num">9%</td></tr>
-<tr><td class="id">solution-architect</td><td class="num">24,999</td><td class="num">29,164</td><td class="num">29,164</td><td class="num">63%</td></tr>
+<tr><td class="id">requirements-analyst</td><td class="num">6,756</td><td class="num">6,756</td><td class="num">6,756</td><td class="num">15%</td></tr>
+<tr><td class="id">solution-architect</td><td class="num">25,145</td><td class="num">29,310</td><td class="num">29,310</td><td class="num">64%</td></tr>
 <tr><td class="id">feature-builder</td><td class="num">8,397</td><td class="num">12,562</td><td class="num">16,138</td><td class="num">35%</td></tr>
 <tr><td class="id">gate-reviewer</td><td class="num">4,907</td><td class="num">13,943</td><td class="num">17,519</td><td class="num">38%</td></tr>
 <tr><td class="id">integrator</td><td class="num">8,224</td><td class="num">12,389</td><td class="num">15,965</td><td class="num">35%</td></tr>
@@ -703,7 +703,7 @@ CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
 </div>
 <p style="margin-bottom:0">
 実効値でも全 agent が上限内。<code>quality/*.md</code> を <code>always-reads</code> に含める形で計上を厳密化することは可能で、
-その場合の最大値は solution-architect の 29,164（63%）となる。
+その場合の最大値は solution-architect の 29,310（64%）となる。
 </p>
 </div>
 
@@ -946,7 +946,7 @@ push 時点で既にコミット済みのため、それぞれ対象外。
 
 <h3>CI ジョブ構成（<code>.github/workflows/harness-checks.yml</code>）</h3>
 <ul>
-<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 685 件）</li>
+<li><code>harness-selftest</code> — <code>pytest harness/tests -q</code>（現在 702 件）</li>
 <li><code>ci-check</code> — <code>ci_check.py --branch … [--base …]</code>（<code>fetch-depth: 0</code>）</li>
 <li><code>vuln-scan</code> — OSV-Scanner（バージョン固定＋SHA256 検証）→ <code>vuln_scan.py</code>。検出の受容は <code>apps/&lt;app-id&gt;/.vuln-ignore</code> に <code>&lt;ID&gt;  expires=YYYY-MM-DD  reason=…</code> で記録する。期限・理由の欠落と期限切れは<strong>走査結果に関わらず exit 1</strong>。抑制した検出は標準出力に列挙される</li>
 </ul>
@@ -1057,7 +1057,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 <td>同関数の戻り値を集計</td></tr>
 <tr><td>どの agent が quality/*.md を読むか</td><td>agent プロンプトと <code>procedures/feature-build.md</code> の本文（＝実際に AI に渡る文字列）</td>
 <td><code>grep -n "quality/" .claude/agents/*.md harness/procedures/*.md</code></td></tr>
-<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（685 passed）</td></tr>
+<tr><td>テスト件数</td><td><code>pytest harness/tests -q</code> の実行結果</td><td>同左（702 passed）</td></tr>
 <tr><td>エディタ診断の件数</td><td>VS Code の言語サーバ（Pylance）から取得した実診断</td>
 <td>修正前 210 Error ＋ 3 Hint → 修正後 0 件</td></tr>
 </tbody>

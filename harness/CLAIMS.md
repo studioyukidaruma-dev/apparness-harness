@@ -72,6 +72,15 @@
 | 抑制の規律 | 期限（`expires`）・理由（`reason`）を欠く抑制、書式が不正な日付、期限切れの抑制（`apps/<app-id>/.vuln-ignore`） | `test_vuln_scan.py::test_a_line_without_expires_is_rejected_with_its_line_number` / `test_vuln_scan.py::test_a_line_without_reason_is_rejected` / `test_vuln_scan.py::test_an_expired_line_is_rejected` / `test_vuln_scan.py::test_the_ignore_file_is_validated_before_the_scan_runs` | 2026-08-24 | 書かれた `reason` が妥当かは判定しない（記述の有無と期限だけを見る。CI 項目 Q と同じ立場） |
 | 抑制の可視性 | （ブロックではなく報告）抑制した検出を黙って消すこと | `test_vuln_scan.py::test_a_valid_suppression_excludes_the_finding_and_says_so` / `test_vuln_scan.py::test_a_suppression_does_not_leak_into_another_app` | 2026-08-24 | — |
 
+## 企画ブリーフ（`new_brief.py` / `check_brief.py`）
+
+| 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
+|---|---|---|---|---|
+| 書式検証 | 項目名の綴り違い・未知の項目・不正な値が**黙って無視される**こと（「書いたのに伝わらない」を防ぐ） | `test_brief.py::test_a_misspelled_field_is_rejected` / `test_brief.py::test_a_must_feature_without_a_title_is_rejected` / `test_brief.py::test_an_unknown_autonomy_mode_is_rejected` | 2026-08-24 | 書かれた**内容**が正しいかは判定しない（要件として妥当かは人間の承認で決まる。9節） |
+| 未記入の列挙 | （ブロックではなく報告）どの項目が空で、そのうちどれを対話で確認すべきかを機械的に確定させる | `test_brief.py::test_a_blank_brief_reports_the_essentials_as_must` / `test_brief.py::test_filled_fields_are_not_reported_as_missing` / `test_brief.py::test_a_must_feature_without_acceptance_is_reported_as_must` / `test_brief.py::test_whitespace_only_is_treated_as_blank` | 2026-08-24 | 記入済みを**聞き直さない**こと・空欄を**推測で埋めない**ことは AI の振る舞いであり機械的には強制できない（列挙までが機械の担保。指示は `requirements-analyst` に置く） |
+| 雛形とスキーマの一致 | 生成される記入用フォーマットがスキーマから drift すること | `test_brief.py::test_the_generated_blank_brief_satisfies_the_schema` / `test_brief.py::test_ci_item_a_accepts_the_generated_brief` / `test_brief.py::test_new_brief_does_not_overwrite_without_force` | 2026-08-24 | — |
+| 入力の記録 | ブリーフを渡したのに生成物に残らないこと・存在しないブリーフで雛形が中途半端に作られること | `test_brief.py::test_the_scaffold_copies_the_brief_into_the_app` / `test_brief.py::test_the_scaffold_stops_before_creating_anything_if_the_brief_is_missing` / `test_brief.py::test_the_scaffold_without_a_brief_creates_no_brief_file` | 2026-08-24 | 取り込んだ `brief.yaml` と最終的な要件の**内容の一致**は突合しない（要件は対話で補われ、ブリーフを超えるのが正常なため） |
+
 ## 強制レイヤ自体の健全性
 
 | 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |

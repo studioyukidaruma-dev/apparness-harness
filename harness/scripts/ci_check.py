@@ -74,6 +74,8 @@ DEFAULT_BRANCHES = {"main", "master"}
 
 SCHEMA_MAP = [
     ("apps/*/AUTONOMY.yaml", "autonomy.schema.json"),
+    ("briefs/*.brief.yaml", "brief.schema.json"),
+    ("apps/*/00-requirements/brief.yaml", "brief.schema.json"),
     ("apps/*/00-requirements/requirements.machine.yaml", "requirements.schema.json"),
     ("apps/*/01-foundation/shared-kernel.yaml", "shared-kernel.schema.json"),
     ("apps/*/02-design/architecture.machine.yaml", "architecture.schema.json"),

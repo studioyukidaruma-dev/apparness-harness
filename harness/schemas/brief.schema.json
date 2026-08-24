@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apparness.local/schemas/brief.schema.json",
+  "title": "Brief",
+  "description": "アプリの要件定義に先立ってユーザーが記入する企画ブリーフ。briefs/<app-id>.brief.yaml と apps/<app-id>/00-requirements/brief.yaml を検証する。要件定義の入力であって承認物ではないため、必須項目は書式を成立させる最小限（brief_version）だけに留め、内容の充足は check_brief.py が『未記入項目』として報告する。",
+  "type": "object",
+  "required": ["brief_version"],
+  "additionalProperties": false,
+  "properties": {
+    "brief_version": { "type": "integer", "minimum": 1 },
+    "app_id": { "type": "string", "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)?$" },
+    "app_name": { "type": "string" },
+    "author": { "type": "string" },
+    "created_at": { "type": "string" },
+
+    "purpose": { "type": "string" },
+    "background": { "type": "string" },
+    "target_users": { "type": "array", "items": { "type": "string" } },
+    "goals": { "type": "array", "items": { "type": "string" } },
+    "non_goals": { "type": "array", "items": { "type": "string" } },
+
+    "must_features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string" },
+          "acceptance": { "type": "string" }
+        }
+      }
+    },
+    "nice_to_have": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "form": { "type": "string" },
+        "notes": { "type": "string" },
+        "references": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "tech": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred": { "type": "array", "items": { "type": "string" } },
+        "forbidden": { "type": "array", "items": { "type": "string" } },
+        "reasons": { "type": "string" },
+        "existing_assets": { "type": "string" }
+      }
+    },
+
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "handles": { "type": "array", "items": { "type": "string" } },
+        "persistence": { "type": "string" },
+        "personal_information": { "type": "string" },
+        "volume": { "type": "string" }
+      }
+    },
+
+    "integrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "purpose": { "type": "string" },
+          "credentials": { "type": "string" }
+        }
+      }
+    },
+
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runtime": { "type": "string" },
+        "deployment": { "type": "string" },
+        "offline": { "type": "string" },
+        "users_scale": { "type": "string" }
+      }
+    },
+
+    "non_functional_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "category": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "acceptance_overall": { "type": "array", "items": { "type": "string" } },
+    "autonomy_mode": { "type": "string", "enum": ["", "MANUAL", "SUPERVISED", "AUTONOMOUS"] },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string", "minLength": 1 },
+          "url": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "open_points": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

@@ -316,13 +316,29 @@ Claude Code はそれを「問題なし」と解釈して通してしまいま�
 <table>
 <thead><tr><th>スキル</th><th>いつ使うか</th><th>何をするか</th></tr></thead>
 <tbody>
-<tr><td><code>init-app</code></td><td>「新しいアプリを作りたい」</td><td>フォルダの雛形を作り、要件定義の担当者に引き継ぐ</td></tr>
+<tr><td><code>init-app</code></td><td>「新しいアプリを作りたい」</td><td>フォルダの雛形を作り、要件定義の担当者に引き継ぐ。<strong>企画ブリーフ</strong>（後述）があれば、それを要件定義の出発点にする</td></tr>
 <tr><td><code>new-feature-worktree</code></td><td>機能の実装に着手するとき</td><td>その機能専用の作業場所と雛形を作る</td></tr>
 <tr><td><code>sync-progress</code></td><td>進捗を見たいとき</td><td>ダッシュボードを作り直す（<code>--html</code> で見やすい画面も出せる）</td></tr>
 <tr><td><code>diff-design</code></td><td>「仕様を変えたい」</td><td>要件を新しい版として書き直し、設計の差分を機械的に出す</td></tr>
 </tbody>
 </table>
 </div>
+
+<h3>先に伝えたいことを書いておく（企画ブリーフ・任意）</h3>
+
+<p>
+対話で少しずつ聞かれるのが面倒なとき、<strong>目的・ほしい機能・使ってほしい技術</strong>などを
+先に 1 枚のファイルに書いて渡せます。<code>briefs/&lt;アプリID&gt;.brief.yaml</code> に置いておくと、
+<code>init-app</code> が自動で見つけて要件定義の出発点にします。
+</p>
+
+<ul>
+<li>書けるところだけ書けば十分です。<strong>空欄は対話で聞かれます</strong>（勝手に埋められません）</li>
+<li>逆に、<strong>書いた項目は聞き直されません</strong></li>
+<li>項目名を書き間違えると、確認コマンド（<code>check_brief.py</code>）がエラーで止めます。
+  「書いたのに伝わっていなかった」を防ぐためです</li>
+<li>ブリーフを書いても、<strong>要件の承認は今までどおり人が行います</strong></li>
+</ul>
 
 <h2 id="when">4. いつ何が動くのか（時間順）</h2>
 
@@ -338,7 +354,7 @@ Claude Code はそれを「問題なし」と解釈して通してしまいま�
 
 <h3>アプリを 1 本作り終えるまで</h3>
 <ol>
-<li><code>init-app</code> で雛形を作る → <code>requirements-analyst</code> が要件をまとめる → <strong>人が承認</strong></li>
+<li>（任意）<strong>企画ブリーフ</strong>を先に書く → <code>init-app</code> で雛形を作る → <code>requirements-analyst</code> が要件をまとめる → <strong>人が承認</strong></li>
 <li><code>solution-architect</code> が土台と設計を作る → 承認</li>
 <li>機能ごとに <code>new-feature-worktree</code> → <code>feature-builder</code> が実装
   <ul>
@@ -801,7 +817,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <tr><td>状態の並び・受領書やレビューの書式</td><td>形式定義ファイル（機械が検証に使うもの）＋ 記録を書き込むプログラム</td></tr>
 <tr><td>フォルダ構成・ブランチ名・作業場所のパス</td><td>それらを<strong>実際に作るスクリプト</strong></td></tr>
 <tr><td>担当者ごとの読み込み量</td><td>CI が使っている計算関数を実際に呼び出して算出</td></tr>
-<tr><td>テスト件数</td><td>テストを実際に実行した結果（685 件）</td></tr>
+<tr><td>テスト件数</td><td>テストを実際に実行した結果（702 件）</td></tr>
 </tbody>
 </table>
 </div>

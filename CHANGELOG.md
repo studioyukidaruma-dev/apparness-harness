@@ -18,6 +18,16 @@
 
 ### Added
 
+- **企画ブリーフ（`briefs/<app-id>.brief.yaml`）**: 要件定義の前に、目的・必要な機能・
+  使ってほしい技術などを固定フォーマットに一度に書いて渡せるようにした。`new_brief.py` が
+  記入用フォーマットを生成し、`check_brief.py` が書式（`schemas/brief.schema.json`）を検証して
+  **未記入項目を `MUST` / `ASK` / `FREE` に分類して列挙**する。`init-app` は
+  `briefs/<app-id>.brief.yaml` を自動で探し、あれば要件定義の出発点にし、無ければ従来どおり
+  対話で決める。記入済みの項目は聞き直さず、空欄だけを対話で補う。項目名の綴り違いは黙って
+  無視されず exit 1 で落ちる。`new_app_scaffold.py --brief` が入力の記録として
+  `apps/<app-id>/00-requirements/brief.yaml` に取り込む。ブリーフは入力であって承認物ではなく、
+  要件承認が人間必須である点は変わらない。
+
 - **脆弱性走査の抑制機構（`apps/<app-id>/.vuln-ignore`）**: 上流に fix が無い検出を、
   **期限（`expires=YYYY-MM-DD`）と理由（`reason=`）を必須**として受容できるようにした。
   期限・理由の欠落、日付の書式違反、期限切れは**走査結果に関わらず** exit 1（行番号つきで報告）。
