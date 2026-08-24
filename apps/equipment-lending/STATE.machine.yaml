@@ -1,6 +1,46 @@
 app_id: equipment-lending
-generated_at: '2026-08-24T14:58:15Z'
+generated_at: '2026-08-24T14:59:03Z'
 autonomy_mode: SUPERVISED
 requirements_status: APPROVED
 design_status: APPROVED
-features: []
+features:
+- id: equipment-master
+  state: CONTRACT_APPROVED
+  assignee: null
+  branch: feature/equipment-lending/equipment-master
+  worktree_path: apps/equipment-lending/.worktrees/equipment-master
+  blockers: []
+  superseded_by: null
+  verification: 未実行
+  review: 未実施
+  last_updated_at: '2026-08-24T14:59:02Z'
+- id: inventory-view
+  state: CONTRACT_APPROVED
+  assignee: null
+  branch: feature/equipment-lending/inventory-view
+  worktree_path: apps/equipment-lending/.worktrees/inventory-view
+  blockers: []
+  superseded_by: null
+  verification: 未実行
+  review: 未実施
+  last_updated_at: '2026-08-24T14:59:02Z'
+- id: lending-registry
+  state: CONTRACT_APPROVED
+  assignee: null
+  branch: feature/equipment-lending/lending-registry
+  worktree_path: apps/equipment-lending/.worktrees/lending-registry
+  blockers: []
+  superseded_by: null
+  verification: 未実行
+  review: 未実施
+  last_updated_at: '2026-08-24T14:59:02Z'
+- id: web-ui
+  state: CONTRACT_APPROVED
+  assignee: null
+  branch: feature/equipment-lending/web-ui
+  worktree_path: apps/equipment-lending/.worktrees/web-ui
+  blockers: []
+  superseded_by: null
+  verification: 未実行
+  review: 未実施
+  last_updated_at: '2026-08-24T14:59:03Z'
