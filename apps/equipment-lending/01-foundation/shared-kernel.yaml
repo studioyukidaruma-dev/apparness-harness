@@ -1,59 +1,141 @@
 # 全機能が依存してよい最小限の共有契約（DDD でいう Shared Kernel）。
 # ここに置くものは変更コストが高いことを認識し、本当に全機能共通のものだけに限定する。
+#
+# 収録の基準:
+#   - 3 つのサーバ側機能が同じ SQLite ファイルを読み書きするため、テーブル定義は共通でなければならない
+#   - 4 つの機能が同じ JSON の語彙（ID の形・時刻の形・エラーの形）を使う
+#   - 認証方式・ネットワーク境界はアプリ全体で 1 つしかない
+# 逆に「区画タイルの見せ方」「在庫数の算出式」「貸出の検証規則」は特定機能の関心事なので置かない。
 app_id: "equipment-lending"
 version: 1
-# 例:
-# common_types:
-#   - name: UserId
-#     json_schema: { "type": "string", "format": "uuid" }
-# auth:
-#   scheme: ""
-#   token_format: ""
-# data_store:
-#   policy: ""
-common_types: []
-auth: {}
-data_store: {}
-# solution-architect が設計時にユーザーへ確認し、プラグインとして追加インストールが必要な
-# Skill（デザイン系・専門的なルール集など）を使うと決めたらここに列挙する。ここに書かれた
-# Skill は「実装フェーズの必須要件」になる。feature-builder は実装開始前に、各 plugin_ref が
-# 有効化されているか Hook で機械的に検証され、欠けていればブロックされる
-# （harness/CONVENTIONS.md 10節参照）。Claude Code 標準搭載の security-review/code-review は
-# ここに含めない（常時利用可能という前提のため）。
-# 選んだ技術スタックに対応する「スタックパック」（スタック固有の標準を外部化したプラグイン。
-# harness/STACK_PACK.md）を使う場合も、ここに kind: stack-pack として登録する。
-# applies_to（任意）: この Skill を必須とする feature_id の配列。省略・空なら全機能に適用する。
-# UI を持つ機能だけが必要とするデザイン系 Skill 等、特定機能にしか関係しない Skill を、
-# 無関係な機能の実装にまで要求しないために使う（スタックパックのように全機能で使うものは省略でよい）。
-# 例:
-# required_skills:
-#   - name: "frontend-design"
-#     plugin_ref: "frontend-design@claude-plugins-official"
-#     purpose: "UIデザインの品質担保"
-#     applies_to: ["web-frontend"]
-#   - name: "python-stack-pack"
-#     plugin_ref: "python-stack-pack@your-marketplace"
-#     purpose: "Python + FastAPI の標準（バージョン下限・禁止パターン・テスト規約）"
-#     kind: "stack-pack"
+
+# common_types は「何を共通とみなすか」の単一の情報源。各 contract.yaml からは $ref せず、
+# インライン展開して書くこと（CONVENTIONS.md 6節）。
+common_types:
+  - name: EquipmentId
+    description: "備品を一意に識別する ID。備品マスタで採番し、URL・JSON の双方で使う。"
+    json_schema: { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" }
+  - name: LocationCode
+    description: "保管場所の区画コード（例: A-SHELF, 2F-SOKO）。区画タイル 1 枚に対応する。"
+    json_schema: { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" }
+  - name: LocationName
+    description: "区画の表示名（例: A棚, 2階倉庫）。画面にそのまま出す。"
+    json_schema: { "type": "string", "minLength": 1, "maxLength": 40 }
+  - name: EquipmentName
+    description: "備品の表示名（例: インパクトドライバ）。"
+    json_schema: { "type": "string", "minLength": 1, "maxLength": 60 }
+  - name: LendingId
+    description: "貸出 1 件を一意に識別する ID。返却登録はこの ID を指定して行う。"
+    json_schema: { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }
+  - name: BorrowerName
+    description: "借用者名。個人情報として扱い、ログ・エラーメッセージには出力しない。"
+    json_schema: { "type": "string", "minLength": 1, "maxLength": 40 }
+  - name: Quantity
+    description: "個数。貸出・在庫の数量はすべてこの型。"
+    json_schema: { "type": "integer", "minimum": 0, "maximum": 9999 }
+  - name: IsoTimestamp
+    description: "時刻。必ず UTC の ISO 8601（末尾 Z）で保存・送受信し、表示のときだけ現地時刻に直す。"
+    json_schema: { "type": "string", "format": "date-time" }
+  - name: ErrorResponse
+    description: "全 API 共通のエラー本体。code は各 contract.yaml の error_cases[].code と一致させる。"
+    json_schema:
+      type: "object"
+      required: ["error"]
+      properties:
+        error:
+          type: "object"
+          required: ["code", "message"]
+          properties:
+            code: { "type": "string" }
+            message: { "type": "string" }
+
+# 認証は設けない（要件の non_goals「権限管理はしない」および非機能要件）。
+# その代わりネットワーク境界で守る。この方針は全機能に等しく効く。
+auth:
+  scheme: "none"
+  rationale: "現場作業員が手袋のままスマホで数秒で登録できることを優先し、ログインを設けない（要件の non_goals）。"
+  network_boundary: "社内 LAN からのみ到達できるサーバに配置する。待受アドレスは環境変数 HOST（既定 127.0.0.1）で指定し、既定値のままではローカル以外から到達できない。0.0.0.0 での待受を既定にしない。"
+  pii_handling: "borrower_name は個人情報として扱う。アクセスログ・エラーメッセージ・例外メッセージに含めない。"
+
+# 3 つのサーバ側機能が同じファイルを読み書きするため、テーブル定義を共有する。
+# 各機能はこの定義に対して自分の SQL を書く（他機能のコードを import しない）。
+data_store:
+  engine: "SQLite（Node.js 標準の node:sqlite / DatabaseSync）"
+  file_path: "環境変数 EQUIPMENT_LENDING_DB。既定は <リポジトリ配置先>/data/equipment-lending.db"
+  policy: |
+    - SQL は必ずプリペアドステートメント（`db.prepare(...).run(値)`）で組み立てる。文字列連結でクエリを作らない。
+    - 接続時に `PRAGMA journal_mode = WAL` と `PRAGMA foreign_keys = ON` を有効にする（数名の同時アクセス想定）。
+    - 時刻は UTC の ISO 8601 文字列（例: 2026-08-24T05:00:00.000Z）で保存する。
+    - スキーマの作成・変更は equipment-master 機能だけが行う。他機能は CREATE/ALTER を実行しない
+      （読み書きのみ）。テーブルが存在しない場合は E_STORE_UNAVAILABLE として扱う。
+  schema_ddl: |
+    CREATE TABLE IF NOT EXISTS equipment (
+      equipment_id   TEXT PRIMARY KEY,
+      name           TEXT    NOT NULL,
+      location_code  TEXT    NOT NULL,
+      location_name  TEXT    NOT NULL,
+      total_quantity INTEGER NOT NULL CHECK (total_quantity >= 0),
+      updated_at     TEXT    NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_equipment_location ON equipment (location_code);
+
+    CREATE TABLE IF NOT EXISTS lending (
+      lending_id    TEXT PRIMARY KEY,
+      equipment_id  TEXT    NOT NULL REFERENCES equipment (equipment_id),
+      borrower_name TEXT    NOT NULL,
+      quantity      INTEGER NOT NULL CHECK (quantity > 0),
+      lent_at       TEXT    NOT NULL,
+      returned_at   TEXT    NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_lending_open ON lending (equipment_id, returned_at);
+
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version    INTEGER NOT NULL,
+      applied_at TEXT    NOT NULL
+    );
+  invariants: |
+    - 貸出中数量 = SELECT COALESCE(SUM(quantity),0) FROM lending WHERE equipment_id = ? AND returned_at IS NULL
+    - 残数（available_quantity） = equipment.total_quantity - 貸出中数量。負にならないよう貸出登録時に検証する。
+    - 返却は lending.returned_at に時刻を入れることで表す（行を削除しない。履歴を残すため）。
+
+# 全機能が同じ語彙で HTTP をしゃべるための最低限の約束。
+http_api:
+  base_path: "/api"
+  content_type: "application/json; charset=utf-8"
+  error_body: "ErrorResponse（common_types 参照）。HTTP ステータスは 400（入力不正）/404（対象なし）/409（在庫や状態の矛盾）/500（内部エラー）を使う。"
+  error_message_policy: "利用者に見せる message は日本語の短文にとどめ、スタックトレース・SQL・ファイルパス・借用者名を含めない。"
+  handler_shape: "各サーバ側機能は `createRoutes({ db })` を default export し、`(req, res) => boolean`（自機能のパスを処理したら true）を返す。統合時に 1 つの node:http サーバへ束ねる。"
+
+# UI を持つ機能が守る、要件由来の数値。design-baseline.md（常に効く最低ライン）に上積みする。
+ui_conventions:
+  target: "スマートフォンのブラウザ（幅 375px を基準、1280px でも崩れないこと）"
+  contrast: "文字と背景のコントラスト比 4.5:1 以上（大きい文字は 3:1 以上）"
+  tap_target: "タップ対象は 44x44px 以上、隣接するタップ対象との間隔は 8px 以上"
+  font_size: "本文 16px 以上、ボタンのラベル 18px 以上"
+  theme: "基調色 #0B3D6B（濃紺＝現場の標識色）／アクセント #C2410C 相当は使わず、状態色は貸出中 #B45309・在庫あり #15803D・エラー #B91C1C。色だけで区別せずラベルとアイコンを併用する。"
+  no_build_step: "ブラウザがそのまま読める ES Modules + 素の CSS で書き、バンドラ・トランスパイラを使わない。"
+
+# このアプリでは追加インストールが必要な Skill を必須依存にしない（要件の制約を参照）。
+# UI 品質は harness/quality/design-baseline.md（常に効く Layer 1）と ui_conventions で担保する。
 required_skills: []
-# 全機能共通の検証コマンドの宣言（CONVENTIONS.md 12節）。ハーネスは値を一切解釈せず、
-# そのままシェルに渡して実行し、終了コードだけを見る。機能ごとに違うコマンドが必要な場合は
-# contract.yaml の `verification:` でキー単位に上書きする。
-# **`test_command` を宣言しない限り、どの機能も `state: TESTED` にできない**
-# （Rule 10 が拒否する）。solution-architect が技術スタックを決めたときに必ず埋めること。
-# Lint は**有効にするルールを明示**すること。既定のルールセットに任せると、ランナーを
-# 更新しただけでゲートの意味が勝手に変わる（ruff 0.16 では既定の有効ルールが 59 → 413 に増えた）。
-# 例（Python の場合。他の言語なら当然まったく別のコマンドになる）:
-# verification:
-#   working_dir: "."
-#   test_command: "pytest -q --junitxml=.verify/junit.xml"
-#   typecheck_command: "mypy src"
-#   lint_command: "ruff check --select E,F,I ."
-#   junit_xml: ".verify/junit.xml"
-#   max_skip_ratio: 0.2   # 0.0 にする前に下を読むこと
-# max_skip_ratio を 0.0 にすると、環境依存で skip するテスト（root では再現できない権限エラー、
-# OS 依存の分岐など）を 1 件でも書いた時点でその機能を TESTED にできなくなる。実装者は
-# skip を避けるためにテスト側へ環境判定の分岐を持ち込むことになり、テストが読みにくくなる。
-# 「スキップを許さない」ではなく「許容する割合」を決める欄なので、0.0 は慎重に選ぶこと。
-verification: {}
-notes: ""
+
+# 全機能共通の検証コマンドの宣言（CONVENTIONS.md 12節）。
+# 追加インストールを一切必要としない Node.js 標準のテストランナーだけで完結させる。
+#   - node --test は Node 24 LTS に標準搭載（追加パッケージ不要）
+#   - --test-reporter=junit も標準搭載なので JUnit XML による機械検証を効かせられる
+#   - 出力先ディレクトリは node が自動作成しないため mkdir -p を前置している
+#   - glob をシングルクォートで囲むのは、シェルではなく node 自身に **/ を展開させるため
+# lint_command / typecheck_command は宣言しない（ESLint・TypeScript はいずれも npm からの
+# 追加取得が必要で、取得できない環境ではゲート全体が固まるため。理由は design.md に記録）。
+verification:
+  working_dir: "."
+  test_command: "mkdir -p .verify && node --test --test-reporter=junit --test-reporter-destination=.verify/junit.xml 'tests/**/*.test.js'"
+  junit_xml: ".verify/junit.xml"
+  max_skip_ratio: 0.2
+
+notes: |
+  - サードパーティのライブラリを 1 つも使わない構成にしている（有償ライセンス禁止の制約と、
+    パッケージ取得可否が未確認である環境上の制約の両方を満たすため）。実装フェーズで npm install が
+    必要になったら、その時点で設計に戻ること（diff-design）。
+  - .verify/ は検証コマンドが生成する成果物なので apps/equipment-lending/.gitignore に入れてある
+    （コミットすると受領書より後の変更とみなされ CI 項目 I が落ちる）。
