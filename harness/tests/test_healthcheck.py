@@ -34,8 +34,13 @@ SETTINGS = {
 }
 
 
-def build(tmp_path: pathlib.Path, settings: dict | None = SETTINGS) -> pathlib.Path:
-    """本物の hooks を複製した、健全な状態の一時リポジトリ。"""
+def build(tmp_path: pathlib.Path, settings: dict | None = SETTINGS, git: bool = True) -> pathlib.Path:
+    """本物の hooks を複製した、健全な状態の一時リポジトリ。
+
+    既定で git 初期化して 1 件コミットする。git 情報（作業ツリー・ブランチ・HEAD）が取れない
+    状態は Rule 1・2・6・10・11 の判定が劣化した状態であり、`diagnose_git_enforcement` が
+    警告する対象になったため、「健全」を表すには git リポジトリである必要がある（R-011）。
+    """
     root = tmp_path / "repo"
     shutil.copytree(HOOKS_DIR, root / "harness" / "hooks")
     (root / ".claude").mkdir(parents=True)
@@ -43,6 +48,15 @@ def build(tmp_path: pathlib.Path, settings: dict | None = SETTINGS) -> pathlib.P
         (root / ".claude" / "settings.json").write_text(
             json.dumps(settings, ensure_ascii=False), encoding="utf-8"
         )
+    if git:
+        for args in (
+            ["init", "-q", "-b", "main"],
+            ["config", "user.email", "t@example.com"],
+            ["config", "user.name", "t"],
+            ["add", "-A"],
+            ["commit", "-q", "-m", "init"],
+        ):
+            subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
     return root
 
 
@@ -220,3 +234,94 @@ def test_the_guard_still_passes_normally_when_nothing_is_wrong(tmp_path) -> None
     )
     assert result.returncode == 0, result.stderr
 
+
+
+# --------------------------------------------------------------------------------------
+# fail-closed: 入力そのものを解釈できないときも通過させない（R-010 / F-R1）
+# --------------------------------------------------------------------------------------
+
+def _run_hook(hook: pathlib.Path, stdin_text: str, cwd: pathlib.Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(hook)], input=stdin_text, capture_output=True, text=True, cwd=cwd
+    )
+
+
+def test_corrupt_hook_input_denies_instead_of_passing(tmp_path) -> None:
+    """JSON として読めない入力を `{}` に潰すと「ツール名なし＝判定対象外」で通過してしまう。"""
+    result = _run_hook(PRE_HOOK, "not json", tmp_path)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "解釈できませんでした" in result.stderr
+
+
+def test_a_json_array_as_hook_input_denies_instead_of_passing(tmp_path) -> None:
+    """JSON ではあるがオブジェクトでない入力も、payload として解釈できていない。"""
+    result = _run_hook(PRE_HOOK, "[1, 2, 3]", tmp_path)
+    assert result.returncode == 2, result.stdout + result.stderr
+
+
+def test_a_structured_edit_without_a_path_denies_instead_of_passing(tmp_path) -> None:
+    """書き込み先が入っていない Write は、何に対する操作か特定できない＝全 Rule が空振りする。"""
+    payload = json.dumps({
+        "tool_name": "Write", "cwd": str(tmp_path), "tool_input": {"file_path": None}
+    })
+    result = _run_hook(PRE_HOOK, payload, tmp_path)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "file_path" in result.stderr
+
+
+def test_empty_hook_input_still_passes(tmp_path) -> None:
+    """空の stdin は通す。ホストが payload 無しでイベントを呼ぶ経路を止めると通常運用が壊れる。"""
+    assert _run_hook(PRE_HOOK, "", tmp_path).returncode == 0
+
+
+def test_corrupt_stop_hook_input_denies_instead_of_passing(tmp_path) -> None:
+    """Stop hook も同じ規範。読めない入力を通すと Rule 8 が黙って無効化される。"""
+    result = _run_hook(HOOKS_DIR / "stop_commit_guard.py", "not json", tmp_path)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "Rule 8" in result.stderr
+
+
+def test_empty_stop_hook_input_still_passes(tmp_path) -> None:
+    assert _run_hook(HOOKS_DIR / "stop_commit_guard.py", "", tmp_path).returncode == 0
+
+
+def test_the_non_blocking_hooks_keep_the_lenient_reader() -> None:
+    """Rule 4（非ブロッキング）と事後検証は、壊れた入力で止めない側のままであること。
+
+    `post_tool_use_sync.py` をブロッキング化すると Rule 4 の仕様が変わり、
+    `post_tool_use_guard.py` は比較対象が無ければ何もしないのが正しい振る舞いになる。
+    """
+    for name in ("post_tool_use_sync.py", "post_tool_use_guard.py"):
+        source = (HOOKS_DIR / name).read_text(encoding="utf-8")
+        assert "read_hook_input_strict" not in source, name
+        assert "read_hook_input()" in source, name
+
+
+# --------------------------------------------------------------------------------------
+# git 情報が取れないときの劣化の可視化（R-011 / F-R2）
+# --------------------------------------------------------------------------------------
+
+def test_git_enforcement_is_healthy_inside_a_repository(tmp_path) -> None:
+    assert hc.diagnose_git_enforcement(str(build(tmp_path))) == []
+
+
+def test_git_enforcement_degradation_is_reported_outside_a_repository(tmp_path) -> None:
+    degraded = hc.diagnose_git_enforcement(str(build(tmp_path, git=False)))
+    joined = "\n".join(degraded)
+    assert "Rule 1" in joined and "Rule 2" in joined and "Rule 6" in joined, degraded
+
+
+def test_session_start_warns_when_git_is_unavailable(tmp_path) -> None:
+    """強制が丸ごと効いていない状態に気付く手段が無い、という穴を塞ぐ（F-029/F-030 と同型）。"""
+    result = _run_session_start(build(tmp_path, git=False))
+    assert result.returncode == 0  # SessionStart は止めない
+    assert "git 情報を取得できない" in result.stderr
+    assert "Rule 1" in result.stderr and "Rule 2" in result.stderr and "Rule 6" in result.stderr
+    assert "git リポジトリの中" in result.stderr  # 次の一手
+
+
+def test_git_enforcement_diagnosis_is_excluded_from_the_dashboard(tmp_path) -> None:
+    """`PROGRESS.md` はコミットされる成果物なので、実行環境依存の判定を混ぜない（CI 項目 G）。"""
+    root = build(tmp_path, git=False)
+    assert hc.diagnose_git_enforcement(str(root)) != []
+    assert "OK" in hc.progress_line(str(root))

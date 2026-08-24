@@ -10,8 +10,14 @@ Bash 経由の間接書き込み（`sed -i`/`cp`/`mv`/`tee`/リダイレクト�
 Bash コマンド（Claude Code が渡す典型的な形）でも `cp`/`mv`/`tee`/`sed -i` が先頭行以外にある場合を
 検知できる（`path_utils._normalize_bash_newlines`）。ただし変数展開されたパス等の検知漏れ
 （false negative）は起こりうる。これは「完全な防御ではなく、意図しない/不注意な間接書き込みを
-止める」という目的上許容する。**バイパス用の環境変数は意図的に用意しない**
-（AIがブロックされた際に自ら解除して実行できてしまい、決定論的強制が意味を失うため）。
+止める」という目的上許容する。**この Bash 間接書き込み検知には、解除用の環境変数を意図的に
+用意しない**（AIがブロックされた際に自ら解除して実行できてしまい、決定論的強制が意味を失うため）。
+
+解除路があるのは Rule 1 だけである（`HARNESS_UNLOCK=1`。ハーネス本体を `harness/` ブランチ以外
+から直す必要がある場合の緊急避難路で、使うと警告を stderr に出す。`CONVENTIONS.md` 8節・
+`CLAIMS.md` の Rule 1 行にも明記してある）。Rule 2〜12 には解除路が無く、とりわけ Rule 12
+（危険操作フロア）に環境変数を足さないことは INV-4 であり、
+`test_dangerous_ops.py::test_rule12_has_no_bypass_environment_variable` が固定している。
 
 exit 0 = 許可, exit 2 = 拒否（stderr に理由）。
 """
@@ -647,10 +653,27 @@ def save_bash_snapshot(cwd: str, toplevel: str, session_id: str | None) -> None:
 
 
 def main() -> int:
-    payload = path_utils.read_hook_input()
+    # 寛容版（read_hook_input）だと壊れた入力が `{}` に潰れ、「ツール名なし＝判定対象外」として
+    # 通過してしまう。ブロックする hook では判定できない入力は止める（F-R1）。
+    payload = path_utils.read_hook_input_strict()
     tool_name = payload.get("tool_name", "")
-    tool_input: dict[str, Any] = payload.get("tool_input", {}) or {}
+    tool_input_raw = payload.get("tool_input", {})
+    if tool_input_raw is None:
+        tool_input_raw = {}
+    if not isinstance(tool_input_raw, dict):
+        raise path_utils.HookInputError(
+            f"tool_input がオブジェクトではありません（{type(tool_input_raw).__name__}）"
+        )
+    tool_input: dict[str, Any] = tool_input_raw
     cwd = payload.get("cwd") or os.getcwd()
+
+    # 構造化編集ツールなのに書き込み先が入っていない payload は、何に対する操作かを特定できない。
+    # 「対象パスなし＝判定対象なし」として通すと、Rule 1〜11 がまとめて空振りする。
+    field = path_utils.STRUCTURED_EDIT_PATH_FIELDS.get(tool_name)
+    if field is not None and not path_utils.extract_structured_edit_paths(tool_name, tool_input):
+        raise path_utils.HookInputError(
+            f"{tool_name} の tool_input に書き込み先（{field}）が入っていません"
+        )
 
     toplevel = path_utils.get_worktree_toplevel(cwd) or cwd
 
@@ -705,6 +728,17 @@ def _fail_closed_main() -> int:
     """
     try:
         return main()
+    except path_utils.HookInputError as exc:
+        print(
+            "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が hook の入力を解釈できませんでした。\n"
+            f"  {exc}\n"
+            "何に対する操作かが分からない状態では Rule 1〜12 のどれも判定できません。"
+            "通すのではなく止めます。\n"
+            "PreToolUse に渡される payload（JSON）が壊れています。"
+            "Hook の起動方法（`.claude/settings.json` の command）を確認してください。",
+            file=sys.stderr,
+        )
+        return 2
     except Exception as exc:  # noqa: BLE001
         print(
             "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が想定外の例外で判定できませんでした。\n"

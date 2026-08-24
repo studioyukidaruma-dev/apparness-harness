@@ -18,6 +18,9 @@
 
 ### Added
 
+- **git 情報が取れない環境での強制の劣化を可視化**: `SessionStart` フックが、作業ツリー・
+  ブランチ・HEAD のいずれかを取得できない場合に、影響を受ける Rule（1・2・6・10・11）と
+  倒れる向き（通過／拒否）を名指しして stderr に警告する。exit 0 は維持し、強制は追加しない。
 - **Rule 12（危険操作フロア）**: 再帰削除（リポジトリ外）・秘密ファイルの読み取り・履歴の破壊・
   検証のスキップ・外部送信・`sudo` を無条件で拒否する。確認（ask）ではなく拒否（deny）。
   バイパス用の環境変数は用意しない。
@@ -44,47 +47,58 @@
 
 - **`pre_tool_use_guard.py` を fail-closed 化**: 想定外の例外を握りつぶさず、通過ではなく
   拒否（exit 2 ＋ 理由）で止まる。
+- **hook 入力の破損も fail-closed の対象にした**: `path_utils.read_hook_input_strict()` を追加し、
+  ブロックする hook（`pre_tool_use_guard.py` / `stop_commit_guard.py`）で使う。内容があるのに
+  JSON オブジェクトとして読めない入力、および書き込み先が入っていない構造化編集は exit 2。
+  空の stdin は従来どおり通す。非ブロッキングな hook（`post_tool_use_sync.py` /
+  `post_tool_use_guard.py`）は寛容版のまま。
+- **`new_feature_scaffold.py` の git 失敗の出し方**: `git worktree add` / `git add` / `git commit`
+  の `check=True` を外し、`エラー: …` ＋ git の出力 ＋ 次の一手（`user.name` / `user.email` の
+  設定コマンド）を stderr に出して非 0 で終わるようにした。traceback は出さない。
+- **`pre_tool_use_guard.py` の冒頭 docstring**: 「バイパス用の環境変数は用意しない」の適用範囲が
+  Bash 間接書き込み検知であることを明示し、Rule 1 の `HARNESS_UNLOCK=1` が意図的な緊急避難路で
+  あること、他の Rule には解除路が無いことを明記した（強制の実体は変更なし）。
 - **`.claude/settings.json`**: `PreToolUse` の matcher に `Read`/`NotebookRead` を追加
   （Rule 12 D-2）。`SessionStart` フックを追加。
 - **コンテキスト予算の再配分**: `harness/CONVENTIONS.md` から設計意図・背景・経緯を
-  `HARNESS_GUIDE.md` 18節へ移設（35,891 → 約 29,900 バイト）。
+  `docs/HARNESS_GUIDE.md` 18節へ移設（35,891 → 約 29,900 バイト）。
   `.claude/agents/feature-builder.md` の手順を `harness/procedures/feature-build.md` へ切り出し
   （11,981 → 3,599 バイト）。
 
-- **`harness/procedures/friction-to-test.md`**: 摩擦点を再発防止テストへ変換する手順。
+- **`docs/maintenance/friction-to-test.md`**: 摩擦点を再発防止テストへ変換する手順。
   深刻度 最高・高 の摩擦点は、再発を検出するテストが無い状態でクローズしない、というルールを置いた。
   対応表は `harness/CLAIMS.md` に置き、CI 項目 P で表と実体の drift を機械的に塞ぐ
-  （`DOGFOODING-LOG.md` を機械可読にする案は過剰と判断して見送り。判断は手順書の末尾に記録）。
+  （`docs/maintenance/DOGFOODING-LOG.md` を機械可読にする案は過剰と判断して見送り。判断は手順書の末尾に記録）。
 
 ### Documentation
 
 - `README.md` を全面的に書き直した。プロジェクト概要・環境・ディレクトリ構成・開発環境構築・
   アプリ作成の流れ・機械が強制すること（Rule 12 と CI 16 項目）・コマンド一覧・文書の役割分担・
   トラブルシューティングを収録。記載したコマンドの引数は全スクリプトの `--help` と突き合わせて検証した。
-- フロー説明書 2 版の数値を最新化（`CONVENTIONS.md` 31,200 バイト / 7節 8,257 バイト /
-  656 テスト）し、`pyrightconfig.json` を文書の役割分担表に追加した。
+- フロー説明書 2 版の数値を最新化（`CONVENTIONS.md` 31,975 バイト / 7節 9,034 バイト /
+  685 テスト）し、`pyrightconfig.json` を文書の役割分担表に追加した。
 - **摩擦点の件数を 79 → 77 に訂正した。** 実数は F-001〜F-067（67 件）＋ F-073〜F-082（10 件）＝ 77 件。
   比較調査 HTML の算術誤りが改修計画へ、さらに CLAIMS.md・README へ引き写されていた。出所ごと修正。
 
-- `harness-flow-plain.html` / `harness-flow-technical.html` を全面改訂。Rule 12・SessionStart
+- `docs/flow/harness-flow-plain.html` / `docs/flow/harness-flow-technical.html` を全面改訂。Rule 12・SessionStart
   自己診断・CI 項目 P/Q・`CLAIMS.md` / `procedures/` / `VERSION` の追加を反映し、
   「いつ何が動くか」「誰がどの文書をどれだけ読むか（実測値）」「文書の役割分担と追記先」
   「ブランチ規約と保護」「ゲート判定の書式と決定性」を追記した。
   コンテキスト予算の既知の過小評価（`quality/*.md` を計上していないこと）も明記。
 - 上記の記載内容を実行物（settings.json・ci_check.py の AST・path_utils の定数・schemas・
   scaffold スクリプト・agent frontmatter）から再抽出して照合し、実装にしか存在しなかった
-  2 つの性質を追記した: **①判定不能時は allow に倒れる 8 条件**、
+  2 つの性質を追記した: **①判定不能時は allow に倒れる 10 条件**、
   **②Rule ごとのツール適用範囲の差**（Rule 7・9・10・11 は Edit/Write/MultiEdit のみ、
   NotebookEdit には適用されない）。両版に出典と再検証手順の節も追加。
 
 - `harness/README.md` を 12 ルール・SessionStart 自己診断・`CLAIMS.md` / `procedures/` /
   `VERSION` の追加に追随させた。
 
-- `HARNESS_GUIDE.md` 11節（既知の制約）を **4 点セット**（症状 / 根本原因 / 適用中の緩和策 /
+- `docs/HARNESS_GUIDE.md` 11節（既知の制約）を **4 点セット**（症状 / 根本原因 / 適用中の緩和策 /
   再検討の条件）に統一し、「ハーネスの制御外に根本原因があるもの（A-1〜A-5）」と
   「apparness 側で直せるもの（B-1〜B-5）」に分けた。B は改修計画の `tasks[]` に昇格させ、
   条件付きタスク T-040（Rule 12 の読み取り・送信の事後検知）を追加した。
-- `DOGFOODING-LOG.md` の冒頭に「未処理の摩擦点（F-059 / F-060 / F-064）」と
+- `docs/maintenance/DOGFOODING-LOG.md` の冒頭に「未処理の摩擦点（F-059 / F-060 / F-064）」と
   「ドッグフーディング成果物の保全状況」を追加。3 アプリの成果物がどこからも辿れないこと、
   何を探して無かったか、見つかったときに何を保全すべきかを記録した。
 
@@ -137,4 +151,4 @@
   要件トレーサビリティ）、コンテキスト予算（項目 L）、二重管理検出（項目 M）、
   `CONVENTIONS.md` の 15 節凍結（項目 O）。
 - ドッグフーディングで 3 アプリ（md-todo-cli / bookmark-vault / habit-tui）を完走し、
-  77 件の摩擦点を `DOGFOODING-LOG.md` に記録。
+  77 件の摩擦点を `docs/maintenance/DOGFOODING-LOG.md` に記録。

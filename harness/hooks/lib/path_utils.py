@@ -13,6 +13,14 @@ from typing import Any, Callable
 
 MULTI_EDIT_FILE_FIELD = "file_path"
 NOTEBOOK_EDIT_FIELD = "notebook_path"
+# 構造化編集ツールと、その「書き込み先」を保持するフィールド名。判定対象のツールかどうかと、
+# どのフィールドを読むかの単一情報源（`extract_structured_edit_paths` と、入力健全性の判定が共有する）。
+STRUCTURED_EDIT_PATH_FIELDS = {
+    "Edit": MULTI_EDIT_FILE_FIELD,
+    "Write": MULTI_EDIT_FILE_FIELD,
+    "MultiEdit": MULTI_EDIT_FILE_FIELD,
+    "NotebookEdit": NOTEBOOK_EDIT_FIELD,
+}
 
 # schemas/status.schema.json の state enum と対応。CONVENTIONS.md 5節の状態機械の単一情報源はここではなく
 # CONVENTIONS.md 側だが、値の並びはこの定数と一致させること。
@@ -35,12 +43,52 @@ _BASH_WRITE_REDIRECT_OPS = {">", ">>"}
 _BASH_SEGMENT_BREAKS = {";", "&&", "||", "|", "&", "(", ")"}
 
 
+class HookInputError(ValueError):
+    """hook の入力（stdin の JSON）そのものを解釈できなかった。
+
+    `read_hook_input_strict()` だけが送出する。ブロックする hook はこれを握りつぶさず
+    fail-closed（exit 2）に倒す。詳細は `read_hook_input_strict()` の docstring を参照。
+    """
+
+
 def read_hook_input() -> dict[str, Any]:
+    """壊れた入力を `{}` として扱う寛容版。**ブロックしない hook 専用**。
+
+    `{}` は「ツール名なし＝判定対象外」として通過するため、ブロックする hook がこれを使うと
+    「入力が壊れている」と「判定対象ではない」を区別できなくなる（F-R1）。
+    ブロックする hook では `read_hook_input_strict()` を使うこと。
+    """
     raw = sys.stdin.read()
     try:
         return json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         return {}
+
+
+def read_hook_input_strict() -> dict[str, Any]:
+    """入力を解釈できなければ `HookInputError` を送出する fail-closed 版。
+
+    ブロックする hook（`pre_tool_use_guard.py` / `stop_commit_guard.py`）は「判定できないなら
+    通すのではなく止める」という規範で書かれているが、寛容版の `read_hook_input()` は
+    `JSONDecodeError` を `{}` に潰すため、その保証が **payload を解釈できた場合にしか効いて
+    いなかった**（F-R1）。解釈そのものが失敗した場合にも同じ規範が効くようにする。
+
+    空の stdin（`raw.strip()` が空）は従来どおり `{}` を返して通す。ホストがイベントを
+    payload 無しで呼ぶ経路が実在し、そこを止めると通常運用が壊れるため、
+    止める対象は「内容があるのに JSON オブジェクトとして読めない」場合に限る。
+    """
+    raw = sys.stdin.read()
+    if not raw.strip():
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HookInputError(f"stdin を JSON として解釈できません: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise HookInputError(
+            f"stdin の JSON がオブジェクトではありません（{type(payload).__name__}）"
+        )
+    return payload
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str | None:
@@ -218,13 +266,11 @@ def find_main_repo_root(worktree_toplevel: str) -> str:
 
 def extract_structured_edit_paths(tool_name: str, tool_input: dict[str, Any]) -> list[str]:
     """Edit/Write/MultiEdit/NotebookEdit の対象絶対パスを返す。"""
-    if tool_name == "NotebookEdit":
-        path = tool_input.get(NOTEBOOK_EDIT_FIELD)
-        return [path] if path else []
-    if tool_name in ("Edit", "Write", "MultiEdit"):
-        path = tool_input.get(MULTI_EDIT_FILE_FIELD)
-        return [path] if path else []
-    return []
+    field = STRUCTURED_EDIT_PATH_FIELDS.get(tool_name)
+    if field is None:
+        return []
+    path = tool_input.get(field)
+    return [path] if path else []
 
 
 def _classify_bash_lines(command: str) -> list[tuple[str, str, str]]:

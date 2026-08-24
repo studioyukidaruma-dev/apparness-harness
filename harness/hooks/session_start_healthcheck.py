@@ -13,6 +13,11 @@ Hook の起動そのものは Claude Code 側の責務なので、ハーネス�
   2. `additionalContext` として「このセッションでは決定論的強制が効いていない」ことを注入する
   3. `render_progress.py` が `PROGRESS.md` の先頭に同じ診断結果を表示する（`diagnose`）
 
+同じ理由で、**git 情報が取れないために Rule の判定が劣化している**ことも警告する
+（`diagnose_git_enforcement`）。判定はすべて git（作業ツリー・ブランチ・HEAD）に依存しており、
+取れない場合は誤爆を避けるため通過側に倒れる。その劣化が不可視だと、強制が丸ごと効いていない
+状態のまま作業が進む（F-029/F-030 と同型の失敗モード）。倒し方を変えるのではなく、見せる。
+
 **依存ゼロ**（標準ライブラリのみ）。exit 0 固定（セッション開始自体は妨げない）。
 """
 from __future__ import annotations
@@ -150,6 +155,62 @@ def _diagnose_settings(repo_root: str) -> list[str]:
     return problems
 
 
+# git 情報が取れないときに判定が劣化する Rule。`(関数名, 取れないもの, 劣化の中身)`。
+# 「通過に倒れる」ものと「拒否に倒れる」ものが混在するため、どちらに倒れるかまで書く。
+GIT_ENFORCEMENT_CHECKS = (
+    (
+        "get_worktree_toplevel",
+        "作業ツリーの位置",
+        "Rule 2（担当範囲外の機能ディレクトリ）と Rule 6（feature worktree からの上位文書）が"
+        "判定不能になり、**通過**します",
+    ),
+    (
+        "get_current_branch",
+        "現在のブランチ",
+        "Rule 1 が `harness/` ブランチかどうかを判定できず、ハーネス本体への書き込みを"
+        "一律**拒否**します",
+    ),
+    (
+        "get_head_commit",
+        "HEAD のコミット",
+        "Rule 10・11 の受領書とコミットの照合が判定不能になり、**通過**します",
+    ),
+)
+
+
+def diagnose_git_enforcement(cwd: str) -> list[str]:
+    """git 情報が取れず、Rule の判定が劣化している項目を列挙する。健全なら空リスト。
+
+    `diagnose()` とは別関数にしている。あちらは `PROGRESS.md`（コミットされる成果物）にも
+    出るため、実行環境に依存する判定を混ぜられない（CI 項目 G）。git が使えるかどうかは
+    まさにその実行環境の話なので、セッション開始時の警告だけで伝える。
+    """
+    try:
+        import path_utils  # noqa: PLC0415
+    except Exception:  # noqa: BLE001
+        return []  # path_utils 自体の異常は diagnose() が報告する（二重に出さない）
+
+    degraded: list[str] = []
+    for fn_name, subject, effect in GIT_ENFORCEMENT_CHECKS:
+        fn = getattr(path_utils, fn_name, None)
+        if not callable(fn):
+            continue  # 関数の欠落も diagnose() の担当
+        try:
+            value = fn(cwd)
+        except Exception:  # noqa: BLE001
+            value = None
+        if not value:
+            degraded.append(f"{subject}を特定できません → {effect}")
+    return degraded
+
+
+GIT_WARNING_HINT = (
+    "次の一手: git リポジトリの中（`git init` 済みで、コミットが 1 件以上あるディレクトリ）で"
+    "セッションを開始してください。git を使わない場所での作業は妨げませんが、"
+    "上記の Rule は効いていません。"
+)
+
+
 HEALTHY_LINE = "強制レイヤ: **OK**（Hook 登録・import・主要関数がそろっています）"
 
 
@@ -172,6 +233,18 @@ def main() -> int:
         payload = {}
     cwd = payload.get("cwd") or os.getcwd()
     repo_root = _repo_root(cwd)
+
+    degraded = diagnose_git_enforcement(cwd)
+    if degraded:
+        print(
+            "警告: git 情報を取得できないため、このセッションでは一部の Rule が判定不能です"
+            "（判定不能なものは誤爆を避けるため通過側に倒れます。意図的な設計ですが、"
+            "強制が効いていないことに変わりはありません）:\n"
+            + "\n".join(f"  - {d}" for d in degraded)
+            + "\n"
+            + GIT_WARNING_HINT,
+            file=sys.stderr,
+        )
 
     problems = diagnose(repo_root)
     if not problems:
