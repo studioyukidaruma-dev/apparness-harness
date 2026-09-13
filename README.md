@@ -199,7 +199,7 @@ git switch -c harness/<topic>
 導入先は git リポジトリである必要があります（ハーネスの判定が git に依存するため）。
 
 ```
-git clone --branch v1.2.0 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
+git clone --branch v1.2.1 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
 cd <導入先プロジェクト>
 python3 ~/apparness-harness/harness/scripts/install.py . --dry-run   # 何が起きるかを確認
 python3 ~/apparness-harness/harness/scripts/install.py .
