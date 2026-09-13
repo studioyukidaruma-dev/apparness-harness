@@ -76,7 +76,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 このハーネスが、いつ・何を・どうやって動かしているかの案内書です。
 専門用語をなるべく避けて書いています。正確な用語で読みたい方は、同じフォルダの一つ上にある
 <code>GUIDE.md</code>（しくみ）と <code>USAGE.md</code>（使い方）をどうぞ。<br>
-対象バージョン: v1.3.1（2026-09-13 時点）
+対象バージョン: v1.3.2（2026-09-13 時点）
 </p>
 
 <div class="box tip">
@@ -271,7 +271,7 @@ CI の設定です。作られるアプリは <code>apps/&lt;アプリ名&gt;/</
 <thead><tr><th>タイミング</th><th>プログラム</th><th>何をするか</th><th>制限時間</th></tr></thead>
 <tbody>
 <tr><td>会話を始めたとき</td><td><code>session_start_healthcheck.py</code></td>
-<td>見張りの仕組み自体が壊れていないか自己診断。壊れていれば警告し、「この会話では強制が効いていない」と AI にも伝える</td><td>5 秒</td></tr>
+<td>見張りの仕組み自体が壊れていないか自己診断。壊れていれば警告し、「この会話では強制が効いていない」と AI にも伝える。スクリプトが使う部品（PyYAML など）が入っていないときも警告する</td><td>5 秒</td></tr>
 <tr><td><strong>ファイルを読み書き・検索する直前</strong></td><td><code>pre_tool_use_guard.py</code></td>
 <td>13 の規則のうち、操作の直前に判定するもの（規則4・8 以外）に照らして、ダメなら<strong>実行させない</strong>。ここが本体</td><td>5 秒</td></tr>
 <tr><td>ファイルを書いた直後</td><td><code>post_tool_use_sync.py</code></td>
@@ -416,7 +416,7 @@ AI に何かを伝えたいときは、文書を読ませるのではなく、<s
 <tbody>
 <tr><td>アプリの雛形作り</td><td><code>app/&lt;アプリ名&gt;/bootstrap</code></td><td><code>app/todo/bootstrap</code></td><td>そのアプリのフォルダ</td></tr>
 <tr><td>機能の実装</td><td><code>feature/&lt;アプリ名&gt;/&lt;機能名&gt;</code></td><td><code>feature/todo/todo-list-api</code></td><td>その機能のフォルダだけ</td></tr>
-<tr><td><strong>ハーネス本体の改修・更新</strong></td><td><code>harness/&lt;内容&gt;</code></td><td><code>harness/update-1.3.1</code></td><td><strong>ハーネス本体を書き換えられる唯一の場所</strong></td></tr>
+<tr><td><strong>ハーネス本体の改修・更新</strong></td><td><code>harness/&lt;内容&gt;</code></td><td><code>harness/update-1.3.2</code></td><td><strong>ハーネス本体を書き換えられる唯一の場所</strong></td></tr>
 <tr><td>組み上げ（任意）</td><td><code>integration/&lt;アプリ名&gt;</code></td><td><code>integration/todo</code></td><td>組み上げフォルダ</td></tr>
 </tbody>
 </table>
@@ -735,7 +735,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 </p>
 
 <footer>
-harness/docs/flow/harness-flow-plain.html ― apparness ハーネス v1.3.1 / 2026-09-13 時点<br>
+harness/docs/flow/harness-flow-plain.html ― apparness ハーネス v1.3.2 / 2026-09-13 時点<br>
 使い方: <code>harness/docs/USAGE.md</code>　しくみ: <code>harness/docs/GUIDE.md</code>　規約本体（AI 向け）: <code>harness/CONVENTIONS.md</code>
 </footer>
 

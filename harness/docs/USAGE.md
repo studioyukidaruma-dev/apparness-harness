@@ -17,21 +17,32 @@
 
 ## 1. 導入後のセットアップ
 
-ハーネスの導入方法は、配布元リポジトリの `README.md` にあります。導入したら、スクリプトが使う
+ハーネスの導入方法は、配布元リポジトリの `README.md` にあります。導入してコミットしたら、スクリプトが使う
 依存を入れて、強制レイヤが健全かを確認します。
 
 ```
-pip install -r harness/requirements.txt
+python3 -m pip install -r harness/requirements.txt
 python3 harness/hooks/session_start_healthcheck.py < /dev/null   # 無出力（exit 0）なら成功
 ```
 
-`harness/hooks/` は依存ゼロ（標準ライブラリのみ）で動きます。`harness/scripts/` は PyYAML と
-jsonschema を使います。`pip` が使えない環境（PEP 668 の管理下にある system python など）では、
-仮想環境か [uv](https://docs.astral.sh/uv/) を使ってください。
+`harness/hooks/` は依存ゼロ（標準ライブラリのみ）で動きます。`harness/scripts/` は PyYAML と jsonschema を使います。
+
+**依存は、Claude Code が使う `python3` に入っている必要があります。** Hook によるダッシュボードの自動再生成
+（Rule 4）も、agent・skill が実行するスクリプトも、Claude Code が見つけた `python3` で動くためです。
+`uv run --with ...` のようにその場の 1 回だけ依存を用意する方法では、Claude Code の作業には使えません。
+
+`pip` が使えない環境（PEP 668 の管理下にある Ubuntu などの標準の Python）では、プロジェクトの外に仮想環境を作り、
+有効化したシェルから Claude Code を起動します（プロジェクトの中に作ると `git add -A` でコミットされてしまいます）。
 
 ```
-uv run --with-requirements harness/requirements.txt python3 harness/scripts/<script>.py ...
+python3 -m venv ~/.venvs/apparness
+~/.venvs/apparness/bin/pip install -r harness/requirements.txt
+source ~/.venvs/apparness/bin/activate    # このシェルで Claude Code を起動する
 ```
+
+依存が入っていない `python3` で動いていると、動作確認とセッション開始時の自己診断が警告します。
+コミットの前に動作確認をすると、コミットが 1 件も無いリポジトリでは「HEAD のコミットを特定できません」という
+警告が出ます。導入をコミットしてから確認してください。
 
 ---
 
@@ -170,6 +181,7 @@ Rule 12 の危険操作フロアです。リポジトリ配下に留まると確
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-### No module named 'yaml' / 'jsonschema'
+### No module named 'yaml' / 'jsonschema'、または「harness/scripts が使う依存が … 入っていません」
 
-`harness/scripts/` の依存が入っていません。1節のセットアップを行ってください。
+`harness/scripts/` の依存が、Claude Code が使う `python3` に入っていません。1節のセットアップを行ってください。
+仮想環境に入れた場合は、その仮想環境を有効化したシェルから Claude Code を起動し直してください。

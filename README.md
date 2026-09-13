@@ -66,14 +66,27 @@ apparness — Claude Code 駆動でアプリを自動生成するためのハー
 **インストーラで、ハーネスを導入先のプロジェクトへコピーします。** リリースのタグを指定して取得してください。
 
 ```
-git clone --branch v1.3.1 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
-cd <導入先プロジェクト>
+git clone --branch v1.3.2 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
+cd <導入先プロジェクト>                     # git リポジトリであること（新規なら先に git init）
 python3 ~/apparness-harness/harness/scripts/install.py . --dry-run   # 何が起きるかを確認
 python3 ~/apparness-harness/harness/scripts/install.py .
-pip install -r harness/requirements.txt
-python3 harness/hooks/session_start_healthcheck.py < /dev/null        # 無出力（exit 0）なら成功
 git add -A && git commit -m "apparness ハーネスを導入"
+python3 -m pip install -r harness/requirements.txt                   # Claude Code が使う python3 に入れる
+python3 harness/hooks/session_start_healthcheck.py < /dev/null       # コミット後に実行。無出力（exit 0）なら成功
 ```
+
+**依存（PyYAML・jsonschema）は、Claude Code が使う `python3` に入れてください。** Hook によるダッシュボードの
+再生成も、agent・skill が実行するスクリプトも、その `python3` で動きます。`pip` が使えない環境
+（PEP 668 の管理下にある Ubuntu などの標準の Python）では、プロジェクトの外に仮想環境を作り、
+**有効化したシェルから Claude Code を起動**します。
+
+```
+python3 -m venv ~/.venvs/apparness
+~/.venvs/apparness/bin/pip install -r harness/requirements.txt
+source ~/.venvs/apparness/bin/activate    # このシェルで動作確認を行い、Claude Code を起動する
+```
+
+依存が入っていなければ、動作確認とセッション開始時の自己診断が警告します。
 
 導入されるのは `harness/`（`harness/docs/` を含む）、`.claude/agents/`・`.claude/skills/`、
 `.github/workflows/harness-checks.yml` と、`.claude/settings.json` への Hook の登録、`.gitignore` の追記です。

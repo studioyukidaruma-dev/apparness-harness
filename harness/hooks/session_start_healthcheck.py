@@ -204,6 +204,21 @@ def diagnose_git_enforcement(cwd: str) -> list[str]:
     return degraded
 
 
+# `harness/scripts/` が import する外部パッケージ（`harness/requirements.txt` の名前 → import 名）。
+# Hook（Rule 4 のダッシュボード再生成）も agent・skill も、Claude Code が見つけた `python3` で
+# スクリプトを動かすので、依存はその `python3` に入っていなければならない。
+SCRIPT_DEPENDENCIES = (("pyyaml", "yaml"), ("jsonschema", "jsonschema"))
+
+
+def diagnose_script_dependencies() -> list[str]:
+    """この `python3` に `harness/scripts/` の依存が入っていなければ、欠けている要件名を返す。
+
+    `diagnose()` とは別関数にしている。依存の有無は実行環境の話なので、コミットされる
+    `PROGRESS.md` には出せない（CI 項目 G）。セッション開始時の警告だけで伝える。
+    """
+    return [name for name, module in SCRIPT_DEPENDENCIES if importlib.util.find_spec(module) is None]
+
+
 GIT_WARNING_HINT = (
     "次の一手: git リポジトリの中（`git init` 済みで、コミットが 1 件以上あるディレクトリ）で"
     "セッションを開始してください。git を使わない場所での作業は妨げませんが、"
@@ -246,30 +261,49 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    problems = diagnose(repo_root)
-    if not problems:
-        return 0
+    contexts: list[str] = []
 
-    message = (
-        "警告: ハーネスの強制レイヤが健全ではありません。"
-        "このセッションでは決定論的強制が効いていない可能性があります:\n"
-        + "\n".join(f"  - {p}" for p in problems)
-        + "\n直してからセッションをやり直してください"
-        "（`python3 harness/hooks/session_start_healthcheck.py < /dev/null` で再確認できます）。"
-    )
-    print(message, file=sys.stderr)
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": (
-                "【重要】このセッションではハーネスの決定論的強制（CONVENTIONS.md 7節 Rule 1-13）が"
-                "効いていない可能性があります。検出された異常:\n"
-                + "\n".join(f"- {p}" for p in problems)
-                + "\nハーネス本体の修復を最優先し、それが済むまでアプリの作業を進めないでください。"
-                "Hook が止めないからといって、規約に反する書き込みが許可されたわけではありません。"
-            ),
-        }
-    }, ensure_ascii=False))
+    missing = diagnose_script_dependencies()
+    if missing:
+        print(
+            f"警告: harness/scripts が使う依存が、この python3（{sys.executable}）に入っていません: "
+            f"{', '.join(missing)}\n"
+            "雛形の生成・検証の実行・ダッシュボードの自動再生成（Rule 4）が失敗します。\n"
+            f"次の一手: {sys.executable} -m pip install -r harness/requirements.txt"
+            "（pip が使えない環境では、仮想環境に入れて有効化してから Claude Code を起動してください）",
+            file=sys.stderr,
+        )
+        contexts.append(
+            f"【重要】harness/scripts の依存（{', '.join(missing)}）がこの python3 に入っていないため、"
+            "ハーネスのスクリプトは失敗します。依存なしで動かす回避策を探さず、"
+            "`harness/requirements.txt` の依存を導入するようユーザーに依頼してください。"
+        )
+
+    problems = diagnose(repo_root)
+    if problems:
+        print(
+            "警告: ハーネスの強制レイヤが健全ではありません。"
+            "このセッションでは決定論的強制が効いていない可能性があります:\n"
+            + "\n".join(f"  - {p}" for p in problems)
+            + "\n直してからセッションをやり直してください"
+            "（`python3 harness/hooks/session_start_healthcheck.py < /dev/null` で再確認できます）。",
+            file=sys.stderr,
+        )
+        contexts.append(
+            "【重要】このセッションではハーネスの決定論的強制（CONVENTIONS.md 7節 Rule 1-13）が"
+            "効いていない可能性があります。検出された異常:\n"
+            + "\n".join(f"- {p}" for p in problems)
+            + "\nハーネス本体の修復を最優先し、それが済むまでアプリの作業を進めないでください。"
+            "Hook が止めないからといって、規約に反する書き込みが許可されたわけではありません。"
+        )
+
+    if contexts:
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "\n\n".join(contexts),
+            }
+        }, ensure_ascii=False))
     return 0
 
 

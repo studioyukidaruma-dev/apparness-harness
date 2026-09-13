@@ -202,7 +202,8 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
 **強制レイヤ自身の健全性は起動時に自己診断します。** `SessionStart` フック
 （`session_start_healthcheck.py`）が、hooks の import 可否・`path_utils` の主要関数・
 `.claude/settings.json` の Hook 登録を検査し、異常があれば警告とセッションへの追加コンテキストで
-知らせます。`PROGRESS.md` の先頭にも同じ診断結果が出ます。git 情報（作業ツリー・ブランチ・HEAD）が
+知らせます。`PROGRESS.md` の先頭にも同じ診断結果が出ます。`harness/scripts` の依存が起動した `python3` に
+無い場合も警告します（`PROGRESS.md` には出しません）。git 情報（作業ツリー・ブランチ・HEAD）が
 取れず Rule 1・2・6・10・11・13 の判定が劣化している場合も、影響する Rule を名指しして警告します
 （止めはしません。exit 0 固定）。
 

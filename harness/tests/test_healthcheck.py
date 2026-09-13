@@ -7,8 +7,10 @@ Hook は exit != 2 で終わると Claude Code から「判断なし＝通過」
 """
 from __future__ import annotations
 
+import io
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -325,3 +327,47 @@ def test_git_enforcement_diagnosis_is_excluded_from_the_dashboard(tmp_path) -> N
     root = build(tmp_path, git=False)
     assert hc.diagnose_git_enforcement(str(root)) != []
     assert "OK" in hc.progress_line(str(root))
+
+
+# --------------------------------------------------------------------------------------
+# harness/scripts の依存
+# --------------------------------------------------------------------------------------
+
+def _without_module(monkeypatch, missing: str) -> None:
+    real = hc.importlib.util.find_spec
+    monkeypatch.setattr(
+        hc.importlib.util, "find_spec", lambda name, *a, **k: None if name == missing else real(name, *a, **k)
+    )
+
+
+def test_script_dependencies_are_healthy_when_installed() -> None:
+    assert hc.diagnose_script_dependencies() == []
+
+
+def test_a_missing_script_dependency_is_reported(monkeypatch) -> None:
+    _without_module(monkeypatch, "yaml")
+    assert hc.diagnose_script_dependencies() == ["pyyaml"]
+
+
+def test_session_start_warns_and_injects_context_when_a_dependency_is_missing(tmp_path, monkeypatch, capsys) -> None:
+    """Hook も agent も Claude Code の python3 でスクリプトを動かすので、入っていなければ導入時に知らせる。"""
+    root = build(tmp_path)
+    _without_module(monkeypatch, "jsonschema")
+    monkeypatch.setattr(hc.sys, "stdin", io.StringIO(json.dumps({"cwd": str(root)})))
+    assert hc.main() == 0
+    captured = capsys.readouterr()
+    assert "jsonschema" in captured.err and "pip install -r harness/requirements.txt" in captured.err
+    context = json.loads(captured.out)["hookSpecificOutput"]["additionalContext"]
+    assert "jsonschema" in context and "ユーザーに依頼" in context
+
+
+def test_a_missing_dependency_is_not_shown_on_the_dashboard(tmp_path, monkeypatch) -> None:
+    """依存の有無は実行環境の話。コミットされる PROGRESS.md に出すと CI 項目 G が環境ごとにずれる。"""
+    _without_module(monkeypatch, "yaml")
+    assert "OK" in hc.progress_line(str(build(tmp_path)))
+
+
+def test_the_dependency_list_matches_requirements_txt() -> None:
+    lines = (REPO_ROOT / "harness" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    required = {re.split(r"[<>=!~\[ ]", line.strip(), maxsplit=1)[0].lower() for line in lines if line.strip() and not line.startswith("#")}
+    assert required == {name for name, _module in hc.SCRIPT_DEPENDENCIES}
