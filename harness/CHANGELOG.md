@@ -52,6 +52,13 @@
 - `solution-architect` の「引数は `harness/README.md` 参照」を「`--help` で確認」に変えた。
 - `session_start_healthcheck.py` の git 劣化警告に、ブランチが取れないと Rule 13 も拒否に倒れることを加えた。
 
+### Fixed
+
+- **ハーネスを更新すると、既存アプリの `PROGRESS.md` が古くなり CI 項目 G が不合格になることを案内していなかった。**
+  `PROGRESS.md` はハーネスの版を表示するため、版が変わると再生成が要る。`install.py` は導入先にアプリがあるとき、
+  次の手順に `render_progress.py --all` を出すようにした（インストーラは標準ライブラリだけで動かすため、
+  PyYAML を要する再生成そのものは実行しない）。`harness/docs/USAGE.md` の更新手順にも追記した。
+
 ### Removed
 
 - **`harness/README.md`**。人間向けの内容は `harness/docs/USAGE.md` に統合し、スクリプトの引数の説明は

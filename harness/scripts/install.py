@@ -275,13 +275,20 @@ def main(argv: list[str]) -> int:
         return 0
 
     apply(src, dst, contents)
-    print(
-        "\n次の手順:\n"
-        "  1. 依存を入れる: pip install -r harness/requirements.txt\n"
-        "  2. 動作確認: python3 harness/hooks/session_start_healthcheck.py < /dev/null\n"
-        "  3. 変更をコミットする（ハーネス本体の変更なので harness/<topic> ブランチか main で行う）"
-    )
+    print("\n" + next_steps(dst))
     return 0
+
+
+def next_steps(dst: pathlib.Path) -> str:
+    steps = [
+        "依存を入れる: pip install -r harness/requirements.txt",
+        "動作確認: python3 harness/hooks/session_start_healthcheck.py < /dev/null",
+    ]
+    if any((dst / "apps").glob("*/PROGRESS.md")):
+        # PROGRESS.md はハーネスの版を表示するため、版が変わると CI 項目 G（鮮度）が不合格になる。
+        steps.append("既存アプリのダッシュボードを再生成する: python3 harness/scripts/render_progress.py --all")
+    steps.append("変更をコミットする（ハーネス本体の変更なので harness/<topic> ブランチか main で行う）")
+    return "次の手順:\n" + "\n".join(f"  {i}. {s}" for i, s in enumerate(steps, 1))
 
 
 if __name__ == "__main__":

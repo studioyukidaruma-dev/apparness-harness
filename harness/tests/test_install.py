@@ -270,3 +270,12 @@ def test_the_managed_gitignore_lines_match_this_repository() -> None:
     ours = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     missing = [line for line in install.GITIGNORE_LINES if line not in ours]
     assert missing == []
+
+
+def test_next_steps_ask_to_regenerate_dashboards_when_apps_exist(tmp_path) -> None:
+    """PROGRESS.md はハーネスの版を表示するので、更新後に再生成しないと CI 項目 G が落ちる。"""
+    dst = git_init(tmp_path / "dst")
+    assert "render_progress.py --all" not in install.next_steps(dst)
+    (dst / "apps" / "demo").mkdir(parents=True)
+    (dst / "apps" / "demo" / "PROGRESS.md").write_text("x\n", encoding="utf-8")
+    assert "render_progress.py --all" in install.next_steps(dst)
