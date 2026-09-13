@@ -238,6 +238,29 @@ def test_dry_run_writes_nothing(tmp_path, capsys, monkeypatch) -> None:
     assert "追加: harness/VERSION" in capsys.readouterr().out
 
 
+def test_installing_unreleased_changes_warns(tmp_path, capsys, monkeypatch) -> None:
+    """未リリースの状態を導入すると導入先の CI 項目 Q が落ちるので、導入前に知らせる。"""
+    src, dst = fake_source(tmp_path), git_init(tmp_path / "dst")
+    (src / "harness" / "CHANGELOG.md").write_text(
+        "# CHANGELOG\n\n## [Unreleased]\n\n### Added\n\n- 何か\n\n## [1.0.0] - 2026-01-01\n\n- 初版\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(install, "source_root", lambda: src)
+    assert install.main([str(dst), "--dry-run"]) == 0
+    assert "未リリースの変更" in capsys.readouterr().err
+
+
+def test_installing_a_release_does_not_warn(tmp_path, capsys, monkeypatch) -> None:
+    src, dst = fake_source(tmp_path), git_init(tmp_path / "dst")
+    (src / "harness" / "CHANGELOG.md").write_text(
+        "# CHANGELOG\n\n## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- 初版\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(install, "source_root", lambda: src)
+    assert install.main([str(dst), "--dry-run"]) == 0
+    assert "未リリース" not in capsys.readouterr().err
+
+
 # --------------------------------------------------------------------------------------
 # 本体リポジトリとの drift
 # --------------------------------------------------------------------------------------

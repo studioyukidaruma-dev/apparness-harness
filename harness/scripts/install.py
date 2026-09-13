@@ -119,6 +119,25 @@ def render_gitignore(existing: str) -> str:
     return existing + ("\n" if existing else "") + block
 
 
+def has_unreleased_changes(src: pathlib.Path) -> bool:
+    """導入元の CHANGELOG の `## [Unreleased]` に項目があるか（＝リリースされていない状態か）。
+
+    未リリースの状態を導入すると、版は同じなのに中身が違うものが入り、導入先の CI 項目 Q が
+    「ハーネス本体の変更に記録が無い」として落ちる。
+    """
+    try:
+        text = (src / "harness" / "CHANGELOG.md").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    in_unreleased = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            in_unreleased = line[3:].strip().strip("[]").lower() == "unreleased"
+        elif in_unreleased and line.strip().startswith("- "):
+            return True
+    return False
+
+
 def plan(src: pathlib.Path, dst: pathlib.Path, force: bool) -> tuple[list[tuple[str, str]], dict]:
     """(操作, パス) の一覧と、書き込む内容を返す。ファイルシステムは変更しない。"""
     if not dst.is_dir():
@@ -239,6 +258,13 @@ def main(argv: list[str]) -> int:
     after = contents["manifest"]["version"]
     header = f"v{before} → v{after}" if before else f"v{after} を新規導入"
     print(f"apparness ハーネス: {header}（導入先: {dst}）")
+    if has_unreleased_changes(src):
+        print(
+            f"警告: 導入元に未リリースの変更があります（harness/CHANGELOG.md の Unreleased）。\n"
+            f"  v{after} と同じ中身ではないため、導入先の CI 項目 Q が不合格になります。\n"
+            f"  リリースのタグ（例: git -C {src} checkout v{after}）から導入してください",
+            file=sys.stderr,
+        )
     for op, rel in actions:
         print(f"  {op}: {rel}")
     if not actions:

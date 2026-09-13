@@ -71,7 +71,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 | 依存ゼロの強制レイヤ | `harness/hooks/**` は Python 標準ライブラリのみ。**縛る側のコードが読める** |
 | 実行ベースの検証 | 受領書・JUnit XML・JSON Schema 突合。自己申告に頼らない |
 | アプリ非依存 | 技術スタックを規定しない。検証コマンドはアプリ側が宣言する |
-| 自己テスト | 724 件（`harness/tests/`）。CI で毎回実行 |
+| 自己テスト | 726 件（`harness/tests/`）。CI で毎回実行 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -132,7 +132,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   ├── schemas/                     ← 機械可読ファイルの JSON Schema（8 種）
 │   ├── scripts/                     ← 決定論ロジックとインストーラ（19 本）
 │   ├── templates/                   ← 各種ひな形（13 種）
-│   └── tests/                       ← ハーネス自身の pytest（724 件）
+│   └── tests/                       ← ハーネス自身の pytest（726 件）
 ├── briefs/<app-id>.brief.yaml       ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力
 ├── apps/<app-id>/                   ← 生成物。init-app skill が都度生成する（未生成）
 ├── docs/                            ← **人間専用。** アプリ作成中の subagent は読まない
@@ -178,7 +178,7 @@ python3 harness/scripts/ci_check.py --branch $(git branch --show-current)
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-`724 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
+`726 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
 3 つ目は**強制レイヤ自身が健全か**の自己診断で、異常があればここに理由が出ます。
 
 ### ハーネスを改修するとき
@@ -199,7 +199,7 @@ git switch -c harness/<topic>
 導入先は git リポジトリである必要があります（ハーネスの判定が git に依存するため）。
 
 ```
-git clone https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
+git clone --branch v1.2.0 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
 cd <導入先プロジェクト>
 python3 ~/apparness-harness/harness/scripts/install.py . --dry-run   # 何が起きるかを確認
 python3 ~/apparness-harness/harness/scripts/install.py .
@@ -224,12 +224,18 @@ git add -A && git commit -m "apparness ハーネスを導入"
 
 ### 更新
 
-最新版を取得して、同じコマンドをもう一度実行します。
+導入したい版のタグに切り替えて、同じコマンドをもう一度実行します。
 
 ```
-git -C ~/apparness-harness pull
+git -C ~/apparness-harness fetch --tags
+git -C ~/apparness-harness checkout v<版>          # 例: v1.3.0
 python3 ~/apparness-harness/harness/scripts/install.py <導入先プロジェクト>
 ```
+
+- **必ずリリースのタグ（`v<版>`）から導入してください。** 版の一覧と各版の変更点は
+  [`harness/CHANGELOG.md`](harness/CHANGELOG.md) にあります。main にはリリース前の変更が含まれることがあり、
+  その状態を導入すると版番号は同じでも中身が違うため、導入先の CI 項目 Q が不合格になります
+  （インストーラも警告します）。
 
 - 前回導入したファイルは上流の内容で上書きされます。**導入先でハーネス本体を直接直した分は
   元に戻る**ので、ハーネスの改修はこのリポジトリで行ってください。
@@ -347,7 +353,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 
 | コマンド | 実行する処理 |
 | --- | --- |
-| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（724 件） |
+| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（726 件） |
 | `python3 harness/scripts/ci_check.py --branch <name>` | 規約の決定論チェック 16 項目 |
 | `python3 harness/hooks/session_start_healthcheck.py < /dev/null` | 強制レイヤの健全性診断 |
 | `python3 harness/scripts/render_progress.py --app <app-id>` | ダッシュボード再生成 |

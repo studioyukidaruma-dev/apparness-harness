@@ -37,7 +37,9 @@
   標準ライブラリのみで動く。導入した版とファイルの一覧を `harness/install-manifest.json` に
   記録し、再実行で更新する（上流で消えたファイルだけを削除し、導入先が自分で置いた agent・skill
   には触れない）。ハーネスが導入していない場所にある内容の異なるファイルは、`--force` が無い限り
-  上書きせずに止まる。`--dry-run` あり。テストは `harness/tests/test_install.py`。
+  上書きせずに止まる。`--dry-run` あり。導入元に未リリースの変更（Unreleased の項目）があると警告する。
+  テストは `harness/tests/test_install.py`。
+- **リリースは git タグ（`v<版>`）で配布する。** 導入手順はタグを指定して取得する形にした。
 - `README.md` に「他プロジェクトへの導入」節を追加した。
 
 ### Changed
