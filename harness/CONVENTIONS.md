@@ -17,14 +17,12 @@
   agents/*.md                 ← ハーネス共通 subagent
   skills/*/SKILL.md           ← ハーネス共通 skill
 /harness/                     ← ハーネス本体。書き込みガード対象（Rule 1）
-  README.md / CONVENTIONS.md / CLAIMS.md
-  hooks/ templates/ schemas/ scripts/
+  CONVENTIONS.md / CLAIMS.md / STACK_PACK.md / VERSION / CHANGELOG.md
+  hooks/ templates/ schemas/ scripts/ tests/
   quality/                    ← セキュリティ・デザインの最低ライン（10節）
   procedures/                 ← フェーズ固有の長い手順（オンデマンド読み込み。15節）
-/docs/                        ← **人間専用**。アプリ作成中の subagent は読まない（15節）
-  HARNESS_GUIDE.md            ← 設計意図・背景・既知の制約
-  flow/ plans/ archive/       ← しくみ説明・改修計画・役目を終えた調査資料
-  maintenance/                ← 実地の摩擦点と、それをテストへ変える手順
+  docs/                       ← 人間向け文書（アプリを作る人向け）。AI は読まない（Rule 13）
+/docs/                        ← 人間向け文書（ハーネス保守者向け。配布元のみ）。AI は読まない
 /briefs/<app-id>.brief.yaml    ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力。
                                  init-app が探し、あれば要件定義の出発点にする
 /apps/<app-id>/                ← 生成物。init-app skill が都度生成する
@@ -106,7 +104,7 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 
 **`shared-kernel.yaml` の `common_types` を `$ref` で参照しないこと。** 共通型は各
 `contract.yaml` に**インライン展開**して書き、`common_types` は「何を共通とみなすか」の
-単一の情報源として人間が参照するために使う（理由は `docs/HARNESS_GUIDE.md` 15節。人間向け）。
+単一の情報源として人間が参照するために使う。
 
 **`interfaces[]` の両端は機械検証されます。** `producer_output` の実体は producer の
 `contract.yaml` の `outputs[].json_schema`、`consumer_input` の実体は consumer の
@@ -117,9 +115,7 @@ NOT_STARTED → CONTRACT_DRAFTED → CONTRACT_APPROVED → IN_PROGRESS → IMPLE
 python3 harness/scripts/check_interfaces.py [--app <app-id>]
 ```
 
-## 7. Hooks が強制する 12 ルール（実装は `harness/hooks/` 配下）
-
-各ルールの経緯・実証・設計意図は `docs/HARNESS_GUIDE.md` 5節にある。ここには規範だけを置く。
+## 7. Hooks が強制する 13 ルール（実装は `harness/hooks/` 配下）
 
 1. **ハーネス非侵襲性**: `harness/**`・`.claude/**`・`.github/**`（いずれもリポジトリルート直下。
    `.github/workflows/` も「ハーネス本体」の一部として保護する）への書き込みは、現在のブランチが
@@ -179,6 +175,13 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
     **この Rule にバイパス用の環境変数は用意しない。** 誤検知は検知ロジック自体を修正して
     対応する（判定は `path_utils.detect_dangerous_bash_operation` / `detect_dangerous_read`）。
 
+13. **人間向け文書の読み取り拒否**: 人間向け文書の内容の読み取り（`Read`/`NotebookRead`/`Grep` と、
+    Bash の読み出しコマンド）は、現在のブランチが `harness/` プレフィックスでない限り拒否する。
+    対象は、配布元では人間向け文書 `docs/**`・`harness/docs/**`、導入先（`harness/install-manifest.json`
+    がある）では人間向け文書 `harness/docs/**` だけ。AI は実行物と本規約から動作を判断する。
+    範囲を絞らない検索の結果に混ざる行までは止めない。バイパス用の環境変数は用意しない
+    （判定は `path_utils.detect_human_doc_read`）。
+
 **判定対象のパスは、`.worktrees/` を通る場合その worktree を基準に読み替えてから Rule に掛けます**
 （`path_utils.resolve_worktree_scope`）。書き込み先は**それが属するリポジトリのルート**を基準に
 相対化してから Rule に掛けます（`path_utils.resolve_write_target`）。リポジトリの外は対象外です。
@@ -200,14 +203,14 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
 （`session_start_healthcheck.py`）が、hooks の import 可否・`path_utils` の主要関数・
 `.claude/settings.json` の Hook 登録を検査し、異常があれば警告とセッションへの追加コンテキストで
 知らせます。`PROGRESS.md` の先頭にも同じ診断結果が出ます。git 情報（作業ツリー・ブランチ・HEAD）が
-取れず Rule 1・2・6・10・11 の判定が劣化している場合も、影響する Rule を名指しして警告します
+取れず Rule 1・2・6・10・11・13 の判定が劣化している場合も、影響する Rule を名指しして警告します
 （止めはしません。exit 0 固定）。
 
 **ブロックする hook は、判定できない入力を通しません。** `pre_tool_use_guard.py` と
 `stop_commit_guard.py` は、想定外の例外だけでなく、**入力そのものを解釈できない場合**
 （内容があるのに JSON オブジェクトとして読めない、構造化編集なのに書き込み先が入っていない）も
 **fail-closed**（exit 2 ＋ 理由）で止まります——判定できない状態で通すと、全ルールが黙って
-無効化されたまま作業が続くためです（`docs/HARNESS_GUIDE.md` 5節）。空の stdin は通します
+無効化されたまま作業が続くためです。空の stdin は通します
 （ホストが payload 無しでイベントを呼ぶ経路を止めると通常運用が壊れるため）。
 非ブロッキングな hook（`post_tool_use_sync.py`・`post_tool_use_guard.py`）は対象外です。
 
@@ -233,7 +236,7 @@ Rule 1（ハーネス非侵襲性）を意図的に解除したい場合のみ�
 
 **モードに関わらず、要件定義 (`00-requirements`) の承認だけは常に人間の明示的な承認が必須です。**
 
-「本当に人間が承認したか」を Hook が決定論的に強制することはできません（`docs/HARNESS_GUIDE.md` 10節。人間向け）。
+「本当に人間が承認したか」を Hook が決定論的に強制することはできません。
 機械的に強制するのは次の 2 点だけです。
 
 1. `requirements.schema.json` / `architecture.schema.json` は `status: APPROVED` のとき
@@ -251,7 +254,7 @@ subagent ではなく親セッションが行います**（設計は `AUTONOMOUS
 ## 10. 品質保証の多層構造（セキュリティ・デザイン・レビュー）
 
 「専門的な外部 Skill が入っていない環境では品質が保証されない」状態と、「実装者が自分で自分を
-通す」ことを避けるため、品質保証は次の多層構造にします（設計意図は `docs/HARNESS_GUIDE.md` 9節。人間向け）。
+通す」ことを避けるため、品質保証は次の多層構造にします。
 
 **Layer 1（必須・ハーネス内蔵・外部依存ゼロ）**
 - `harness/quality/security-baseline.md`: `feature-builder` の実装時・`solution-architect` の
@@ -268,7 +271,7 @@ subagent ではなく親セッションが行います**（設計は `AUTONOMOUS
 **Layer 1.6（必須・独立レビューア `gate-reviewer`）**
 
 `state: TESTED` の前に、実装者とは**別のコンテキスト**で動く `gate-reviewer` subagent が
-審査する（設計意図は `docs/HARNESS_GUIDE.md` 16節。人間向け）。
+審査する。
 
 - 判断基準は `harness/quality/review-rubric.md` **だけ**。rubric 外の指摘は無効。
 - **verdict は深刻度の集計から機械的に決まる**（`Blocker` ≥ 1 → `NO-GO`、0 → `GO`）。
@@ -308,7 +311,6 @@ subagent ではなく親セッションが行います**（設計は `AUTONOMOUS
 
 「テストを書いて通した」を AI の自己申告に委ねないための仕組み。**ハーネスは「どのコマンドを
 走らせるか」を規定せず、アプリ側の宣言を解釈せずに実行し、終了コードだけを見る**。
-設計意図は `docs/HARNESS_GUIDE.md` 14節（人間向け）。
 
 **宣言**（`shared-kernel.yaml` に全機能共通、`contract.yaml` でキー単位に上書き）:
 
@@ -338,7 +340,9 @@ HEAD を書き込む。**受領書は手書きできない**（Rule 10 が Edit/
 `exit_code: 0` で、`commit` が現在の HEAD と一致する場合のみ許可する。
 **`commit` の一致条件が本質**——これが無ければ実装を書き換えた後も過去の成功記録を使い回せる。
 CI（項目 I）は等価条件で再検証する（受領書の `commit` が HEAD の祖先 ＋ そのコミット以降に
-機能ディレクトリが未変更）。Rule 10 と Rule 8 の噛み合わせは `docs/HARNESS_GUIDE.md` 14節（人間向け）。
+機能ディレクトリが未変更）。Rule 8 との順序: 実装をコミット → 検証を実行 → 受領書の入った
+`status.yaml` を**コミットせずに** `state: TESTED` にする → まとめて 1 回でコミットする
+（先にコミットすると HEAD が進み Rule 10 に弾かれる）。失敗した受領書はその場でコミットしてよい。
 
 **JUnit XML（任意）**: `junit_xml` を宣言すると、空振り（`tests="0"`）・失敗・スキップ率が
 言語非依存に機械判定される。出力できない技術なら宣言しなければよい。
@@ -382,7 +386,7 @@ python3 harness/scripts/check_traceability.py [--app <app-id>]
 特定の技術スタックをハーネス本体に規定することは制約違反として扱う。一方で「Python ではこう書く」
 という実務知見が無ければ実装の質は担保できない。この 2 つは**スタック固有の標準を外部プラグイン
 （スタックパック）として接続する**ことで両立する。ハーネスが規定するのは**パックの形式**だけで、
-**中身は規定しない**（設計意図は `docs/HARNESS_GUIDE.md` 17節。人間向け）。
+**中身は規定しない**。
 
 強制機構は既存のもので足りる。`solution-architect` が `shared-kernel.yaml` の `required_skills[]`
 に `kind: stack-pack` として記録し、**Rule 5** が `src/**` への最初の書き込み時に有効化状況を
@@ -411,19 +415,19 @@ agent プロンプトと、その agent が読み込む `CONVENTIONS.md` の節�
 | `.claude/agents/*.md` 各ファイル | 12,000 バイト |
 | 1 セッションの常時コスト＝ agent プロンプト ＋ 読む節 ＋ **起動直後に読むと宣言した手順書** | 46,000 バイト |
 
-上限に当たったら、まず**説明・背景・設計意図を `docs/HARNESS_GUIDE.md` へ移す**こと。
+上限に当たったら、まず**説明・背景・設計意図を人間向け文書（`docs/DESIGN.md`）へ移す**こと。
 
-### `docs/` は人間専用（アプリ作成中は読まない）
+### 人間向け文書は AI が読まない
 
-- agent / skill のプロンプトから `docs/` を**読ませない**。読ませたい内容は規範なので、
-  `CONVENTIONS.md` の該当節か `harness/procedures/*.md` に置く。
-- `harness/**`・`.claude/**` から `docs/` を指してよいのは**出典の注記**としてだけ。
-  読めという指示ではない（本文中の「人間向け」はその印）。
-- `docs/` へ出してよいのは「ハーネス内部にあるが実は人間向けで、AI が参照する必要のない記述」
-  だけ。判定ロジック・規範・手順は出さない。
+- 人間向け文書の置き場所は 2 つ: `harness/docs/`（人間向け。アプリを作る人が読む。導入先にもコピーされる）
+  と `docs/`（人間向け。ハーネスを保守する人が読む。配布元のみ）。
+- agent / skill / 手順書 / 本規約から人間向け文書を**参照しない**。AI に要る内容は規範なので
+  本規約か `harness/procedures/*.md` へ、使い方の詳細は実行物（スクリプトの `--help` を含む）へ置く。
+- 人間向け文書へ出してよいのは「AI が参照する必要のない説明」だけ。判定ロジック・規範・手順は出さない。
+- 読み取りは Rule 13 が拒否し、参照は `ci_check.py` の項目 R が不合格にする
+  （対象を名指しする規範の行は、同じ行に「人間向け」と書く）。
 - 読まれないので予算の対象外。厚くなっても常時コストは増えない。
 
-背景は `docs/HARNESS_GUIDE.md` 6節（人間向け）。
 `harness/quality/*.md`・`harness/STACK_PACK.md`・`harness/CLAIMS.md` のように
 **条件が揃ったときにだけ読まれる**文書（UI を持つ機能のときだけ／スタックパックを使うときだけ／
 ハーネスを保守するときだけ）は常時コストではないため、この予算の対象外とする。
@@ -447,7 +451,8 @@ agent プロンプトと、その agent が読み込む `CONVENTIONS.md` の節�
 | Hook/CI が機械的に強制する規範 | **`CONVENTIONS.md` だけ。** agent は節番号で参照する |
 | 機械では強制できない規範 | `CONVENTIONS.md` に**宣言だけ**置き、指示は agent プロンプトに書く |
 | フェーズ固有の手順 | **agent/skill と `harness/procedures/*.md` だけ。** ここには書かない |
-| 設計意図・背景・経緯・既知の制約（規範ではない説明） | **`docs/` だけ。** 下記のとおり人間専用 |
+| 利用者向けの説明（しくみ・使い方） | **人間向け文書 `harness/docs/` だけ** |
+| 設計意図・背景・経緯・既知の制約（規範ではない説明） | **人間向け文書 `docs/` だけ** |
 
 agent が実行時に規約の本文を要るときは、必要な節だけを読み込む:
 

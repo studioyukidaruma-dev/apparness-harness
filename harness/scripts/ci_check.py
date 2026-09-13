@@ -38,6 +38,9 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
   Q. harness/VERSION / harness/CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは
      CHANGELOG.md の Unreleased セクションが更新されているか、VERSION を上げてその版の節がある
      （導入された版を機械的に特定できるようにする）
+  R. AI が読む文書（agent・skill・手順書・CONVENTIONS.md・quality・STACK_PACK.md）が
+     人間向け文書（`docs/`・`harness/docs/`）を参照していない（Rule 13 の CI 側。
+     方針を述べる行は「人間向け」と明記すれば許可する）
 
 Rule 5（必須Skillの充足）は CI に実行環境の Skill 有効化状態が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既にコミット済みであるため、
@@ -595,7 +598,7 @@ def check_context_budget(root: pathlib.Path) -> list[str]:
         violations.append(
             f"harness/CONVENTIONS.md: {conventions_size} バイトで上限 "
             f"{CONTEXT_BUDGET_CONVENTIONS} バイトを超えています。説明・背景・設計意図を "
-            f"docs/HARNESS_GUIDE.md へ移してください（CONVENTIONS.md 15節）"
+            f"人間向け文書 docs/DESIGN.md へ移してください（CONVENTIONS.md 15節）"
         )
 
     worst_agent, worst_total = None, 0
@@ -868,6 +871,42 @@ def has_release_section(changelog_text: str, version: str) -> bool:
     return re.search(rf"^##\s*\[{re.escape(version)}\]", changelog_text, re.MULTILINE) is not None
 
 
+# 項目 R: AI が読む文書から人間向け文書への参照
+AI_READ_DOC_GLOBS = (
+    ".claude/agents/*.md",
+    ".claude/skills/*/SKILL.md",
+    "harness/procedures/*.md",
+    "harness/CONVENTIONS.md",
+    "harness/quality/*.md",
+    "harness/STACK_PACK.md",
+)
+HUMAN_DOC_REF_RE = re.compile(r"(?<![\w./-])(?:harness/)?docs/")
+HUMAN_DOC_MARKER = "人間向け"
+
+
+def check_human_doc_references(root: pathlib.Path) -> list[str]:
+    """項目 R: AI が読む文書に、人間向け文書（`docs/`・`harness/docs/`）への参照が無いこと。
+
+    AI は実行物と規約から動作を判断する。AI が読む文書に人間向け文書のパスが書かれていると、
+    「そこを読めば分かる」という誘導になり、説明と実装が食い違ったときにその食い違いが作業へ
+    持ち込まれる。読み取り自体は Rule 13 が Hook で止めるが、Hook はセッション外では効かないので、
+    誘導の側も機械的に見張る。人間向け文書の扱いを定める規範の行だけは、同じ行に「人間向け」と
+    明記すれば許可する（規範が対象を名指しできないと、何を禁じているのか書けないため）。
+    """
+    violations = []
+    for pattern in AI_READ_DOC_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            rel = path.relative_to(root).as_posix()
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if HUMAN_DOC_REF_RE.search(line) and HUMAN_DOC_MARKER not in line:
+                    violations.append(
+                        f"{rel}:{lineno}: AI が読む文書から人間向け文書を参照しています。"
+                        "AI に要る内容なら規約・手順書・実行物へ移し、説明なら参照ごと削ってください"
+                        "（CONVENTIONS.md 15節）"
+                    )
+    return violations
+
+
 def _strip_timestamp(text: str) -> str:
     return TIMESTAMP_LINE_RE.sub("", text)
 
@@ -958,6 +997,7 @@ def main(argv: list[str]) -> int:
     violations += check_conventions_frozen_section_count(root)
     violations += check_claims_coverage(root)
     violations += check_versioning(changed, root)
+    violations += check_human_doc_references(root)
 
     if violations:
         print(f"\nNG: {len(violations)} 件の違反が見つかりました:", file=sys.stderr)

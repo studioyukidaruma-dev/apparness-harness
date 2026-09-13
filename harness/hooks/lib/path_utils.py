@@ -1589,3 +1589,118 @@ def detect_dangerous_read(path: str) -> str | None:
         "設定値が必要なら、値そのものではなく `.env.example` などの見本を参照するか、"
         "ユーザーに必要な項目名を尋ねてください。" + DANGEROUS_OPS_HINT
     )
+
+
+# --- Rule 13: 人間向け文書 -----------------------------------------------------------------
+
+INSTALL_MANIFEST = "harness/install-manifest.json"
+# ハーネスの配布元リポジトリでは、直下の `docs/`（保守者向け）も人間向け文書である。
+# 導入先では直下の `docs/` は導入先プロジェクト自身のものなので、`harness/docs/` だけを対象にする。
+HUMAN_DOC_DIRS_SOURCE = ("docs", "harness/docs")
+HUMAN_DOC_DIRS_INSTALLED = ("harness/docs",)
+
+HUMAN_DOC_READ_COMMANDS = SECRET_READ_COMMANDS | {
+    "grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk", "diff",
+}
+# 最初の位置引数がパターン（またはスクリプト）であるコマンドと、それを明示指定するフラグ。
+_PATTERN_FIRST_COMMANDS = {
+    "grep": ("-e", "--regexp", "-f", "--file"),
+    "egrep": ("-e", "--regexp", "-f", "--file"),
+    "fgrep": ("-e", "--regexp", "-f", "--file"),
+    "rg": ("-e", "--regexp", "-f", "--file"),
+    "ag": (),
+    "ack": (),
+    "sed": ("-e", "--expression", "-f", "--file"),
+    "awk": ("-f", "--file"),
+}
+# 値を次のトークンで受け取るフラグ。値をパス候補と取り違えないために読み飛ばす。
+_VALUE_FLAGS = {
+    "-e", "--regexp", "-f", "--file", "--expression", "-A", "-B", "-C", "-m", "--max-count",
+    "--context", "--after-context", "--before-context", "-g", "--glob", "-t", "--type",
+    "--type-not", "--include", "--exclude", "--exclude-dir",
+}
+_GLOB_CHARS = set("*?[{")
+
+
+def human_doc_dirs(root: str) -> tuple[str, ...]:
+    """そのリポジトリで人間向け文書とみなすディレクトリ（ルートからの相対）。"""
+    if os.path.exists(os.path.join(root, INSTALL_MANIFEST)):
+        return HUMAN_DOC_DIRS_INSTALLED
+    return HUMAN_DOC_DIRS_SOURCE
+
+
+def is_human_doc_path(rel_path: str, root: str) -> bool:
+    rel = rel_path.replace("\\", "/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    rel = rel.rstrip("/")
+    return any(rel == d or rel.startswith(d + "/") for d in human_doc_dirs(root))
+
+
+def _glob_base(pattern: str) -> str:
+    """`docs/**/*.md` のような glob から、ワイルドカードを含まない先頭部分（`docs`）を返す。"""
+    parts: list[str] = []
+    for part in pattern.replace("\\", "/").split("/"):
+        if _GLOB_CHARS & set(part):
+            break
+        parts.append(part)
+    return "/".join(parts)
+
+
+def _bash_read_targets(tokens: list[str]) -> list[str]:
+    """読み出しコマンドの引数のうち、読み取り対象のパスになりうるものを返す。"""
+    cmd = os.path.basename(tokens[0])
+    if cmd not in HUMAN_DOC_READ_COMMANDS:
+        return []
+    args = tokens[1:]
+    explicit_pattern = any(
+        a in _PATTERN_FIRST_COMMANDS.get(cmd, ()) or a.split("=", 1)[0] in _PATTERN_FIRST_COMMANDS.get(cmd, ())
+        for a in args
+    )
+    positionals: list[str] = []
+    skip_next = False
+    for a in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if _is_flag(a):
+            skip_next = a in _VALUE_FLAGS
+            continue
+        positionals.append(a)
+    if cmd in _PATTERN_FIRST_COMMANDS and not explicit_pattern:
+        positionals = positionals[1:]
+    return positionals
+
+
+def human_doc_read_candidates(tool_name: str, tool_input: dict[str, Any], cwd: str) -> list[str]:
+    """ツール呼び出しが読み取ろうとしているパスの候補（Rule 13 の判定対象）。"""
+    if tool_name in ("Read", "NotebookRead"):
+        path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        return [path] if path else []
+    if tool_name == "Grep":
+        base = tool_input.get("path") or cwd
+        candidates = [base]
+        pattern = tool_input.get("glob") or ""
+        if pattern and _glob_base(pattern):
+            candidates.append(os.path.join(base, _glob_base(pattern)))
+        return candidates
+    if tool_name == "Bash":
+        targets: list[str] = []
+        for tokens in iter_bash_segments(tool_input.get("command", "") or ""):
+            targets.extend(_bash_read_targets(tokens))
+        return targets
+    return []
+
+
+def detect_human_doc_read(
+    tool_name: str, tool_input: dict[str, Any], cwd: str, toplevel: str
+) -> str | None:
+    """人間向け文書を読み取ろうとしているなら、その文書のパス（リポジトリルートからの相対）を返す。"""
+    for candidate in human_doc_read_candidates(tool_name, tool_input, cwd):
+        rel, root = resolve_write_target(candidate, cwd, toplevel)
+        if rel.startswith("/") or rel == ".." or rel.startswith("../"):
+            continue
+        scoped, scope_root = resolve_worktree_scope(rel, root)
+        if is_human_doc_path(scoped, scope_root):
+            return scoped
+    return None

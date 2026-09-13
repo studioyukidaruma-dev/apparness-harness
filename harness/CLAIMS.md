@@ -34,6 +34,7 @@
 | Rule 10 | 受領書なし／失敗／HEAD 不一致の `TESTED`、および受領書の手書き | `test_pre_tool_use_guard.py::test_rule10_rejects_tested_without_receipt` / `test_pre_tool_use_guard.py::test_rule10_rejects_a_receipt_from_another_commit` / `test_pre_tool_use_guard.py::test_rule10_rejects_handwritten_receipts` / `test_worktree_scope.py::test_rule10_blocks_tested_without_receipt_via_worktree_path` | 2026-08-24 | 宣言されたコマンドが**意味のあるテストか**は判定しない（ハーネスは規定しない。12節） |
 | Rule 11 | 結線カバレッジ・受領書を欠いた `INTEGRATED` | `test_pre_tool_use_guard.py::test_rule11_blocks_integrated_without_integration_record` / `test_pre_tool_use_guard.py::test_rule11_blocks_integrated_with_a_coverage_gap` / `test_pre_tool_use_guard.py::test_rule11_rejects_handwritten_integration_receipt` | 2026-08-24 | — |
 | Rule 12 | 危険操作（再帰削除・秘密ファイル読み取り・履歴破壊・検証スキップ・外部送信・sudo） | `test_dangerous_ops.py::test_d1_blocks_recursive_delete_outside_the_repository` / `test_dangerous_ops.py::test_d2_blocks_reading_secrets` / `test_dangerous_ops.py::test_d3_blocks_history_destruction` / `test_dangerous_ops.py::test_d4_blocks_skipping_verification` / `test_dangerous_ops.py::test_d5_blocks_external_upload` / `test_dangerous_ops.py::test_d6_blocks_sudo` / `test_dangerous_ops.py::test_rule12_has_no_bypass_environment_variable` | 2026-08-24 | 変数展開・エイリアス・自作スクリプト経由の間接実行は静的検知の原理的な限界。事後検証（`post_tool_use_guard.py`）は書き込みしか見ないため、読み取り・送信の事後検知は無い |
+| Rule 13 | 人間向け文書（`docs/`・`harness/docs/`）の内容を読んで作業すること | `test_human_docs.py::test_rule13_blocks_reading_human_docs` / `test_human_docs.py::test_rule13_blocks_grep_into_human_docs` / `test_human_docs.py::test_rule13_blocks_bash_reads_of_human_docs` / `test_human_docs.py::test_rule13_in_an_installed_project_protects_only_harness_docs` / `test_human_docs.py::test_rule13_has_no_bypass_environment_variable` | 2026-09-13 | 範囲を絞らない検索（リポジトリ全体への Grep や `grep -r .`）の結果に混ざる行、`cd docs && cat x` のような作業ディレクトリの移動、スクリプト経由の読み取りは止めない。`harness/<topic>` ブランチでは読める |
 
 ## Bash 経由の間接書き込み（7節末尾）
 
@@ -63,6 +64,7 @@
 | 項目 O | CONVENTIONS.md への節の新設 | `test_conventions_frozen.py::test_new_section_is_rejected` | 2026-08-24 | 節の削除・既存節の変更は凍結の対象外（意図的） |
 | 項目 P | この表に書かれた実証テストが実在しないこと | `test_claims.py::test_unknown_test_name_is_rejected` / `test_claims.py::test_missing_evidence_without_a_reason_is_rejected` | 2026-08-24 | この表に**行を足し忘れた**規則は検出できない（規則の追加は人間の判断） |
 | 項目 Q | ハーネス本体の変更に CHANGELOG の追随が無いこと | `test_versioning.py::test_harness_change_without_a_changelog_entry_is_rejected` / `test_versioning.py::test_an_empty_unreleased_section_is_rejected` / `test_versioning.py::test_a_version_bump_without_its_section_is_rejected` | 2026-08-24 | CHANGELOG の内容が正しいかは判定しない（記述の有無だけを見る） |
+| 項目 R | AI が読む文書（agent・skill・手順書・CONVENTIONS.md・quality・STACK_PACK.md）から人間向け文書への参照 | `test_human_docs.py::test_item_r_rejects_a_reference_to_human_docs` / `test_human_docs.py::test_item_r_passes_on_this_repository` | 2026-09-13 | 「人間向け」と同じ行に書いた参照は通す（規範が対象を名指しするため）。パスを書かずに言い換えた誘導は検出しない |
 
 ## 脆弱性走査（`vuln_scan.py` / `vuln-scan` job）
 

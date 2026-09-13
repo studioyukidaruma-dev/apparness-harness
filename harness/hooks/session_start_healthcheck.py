@@ -36,7 +36,7 @@ MIN_PYTHON = (3, 9)
 # `.claude/settings.json` に登録されていなければならない Hook。
 # ここが欠けると、そのイベントに紐づく Rule がまるごと効かなくなる。
 REQUIRED_HOOKS = {
-    "PreToolUse": ("pre_tool_use_guard.py", "Rule 1・2・3・5・6・7・9・10・11・12"),
+    "PreToolUse": ("pre_tool_use_guard.py", "Rule 1・2・3・5・6・7・9・10・11・12・13"),
     "PostToolUse": ("post_tool_use_sync.py", "Rule 4"),
     "Stop": ("stop_commit_guard.py", "Rule 8"),
     "SubagentStop": ("stop_commit_guard.py", "Rule 8（subagent）"),
@@ -167,8 +167,8 @@ GIT_ENFORCEMENT_CHECKS = (
     (
         "get_current_branch",
         "現在のブランチ",
-        "Rule 1 が `harness/` ブランチかどうかを判定できず、ハーネス本体への書き込みを"
-        "一律**拒否**します",
+        "Rule 1・13 が `harness/` ブランチかどうかを判定できず、ハーネス本体への書き込みと"
+        "人間向け文書の読み取りを一律**拒否**します",
     ),
     (
         "get_head_commit",
@@ -262,7 +262,7 @@ def main() -> int:
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
             "additionalContext": (
-                "【重要】このセッションではハーネスの決定論的強制（CONVENTIONS.md 7節 Rule 1-12）が"
+                "【重要】このセッションではハーネスの決定論的強制（CONVENTIONS.md 7節 Rule 1-13）が"
                 "効いていない可能性があります。検出された異常:\n"
                 + "\n".join(f"- {p}" for p in problems)
                 + "\nハーネス本体の修復を最優先し、それが済むまでアプリの作業を進めないでください。"

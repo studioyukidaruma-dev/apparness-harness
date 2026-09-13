@@ -13,7 +13,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Read|NotebookRead",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Read|NotebookRead|Grep",
         "hooks": [
           {
             "type": "command",

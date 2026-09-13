@@ -113,7 +113,7 @@ python3 harness/scripts/print_conventions.py --sections 6,9,10,11,12,13,14
 
 ## 完了条件
 
-12. `validate_yaml.py` でスキーマ適合を確認する（引数は `harness/README.md` 参照）。
+12. `validate_yaml.py` でスキーマ適合を確認する（引数は `--help` で確認する）。
 13. `architecture.machine.yaml` の `status: APPROVED` / `approved_by` / `approved_at` を
     **同じ書き込みで**設定する（`status` だけ先に変える中間状態は Hook が拒否する）。
     書き込んでよいのは `mode: AUTONOMOUS` のときだけ（`approved_by` は自分の役割名）。

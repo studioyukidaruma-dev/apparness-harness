@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9, 10〜12 を強制する（Rule 4/8 は別 hook）。
+"""PreToolUse hook: harness/CONVENTIONS.md 7節の Rule 1〜3, 5〜7, 9〜13 を強制する（Rule 4/8 は別 hook）。
 Rule 3・7・9・10・11 は書き込み前後の内容比較に依存するため、書き込み後の内容を再現できない手段
 （Bash・NotebookEdit 等）による該当ファイルへの書き込みは `check_requires_simulatable_tool` が一律拒否する。
 **依存ゼロ**（標準ライブラリのみ）。Edit/Write/MultiEdit/NotebookEdit は確実にブロックする。
@@ -15,7 +15,7 @@ Bash コマンド（Claude Code が渡す典型的な形）でも `cp`/`mv`/`tee
 
 解除路があるのは Rule 1 だけである（`HARNESS_UNLOCK=1`。ハーネス本体を `harness/` ブランチ以外
 から直す必要がある場合の緊急避難路で、使うと警告を stderr に出す。`CONVENTIONS.md` 8節・
-`CLAIMS.md` の Rule 1 行にも明記してある）。Rule 2〜12 には解除路が無く、とりわけ Rule 12
+`CLAIMS.md` の Rule 1 行にも明記してある）。Rule 2〜13 には解除路が無く、とりわけ Rule 12
 （危険操作フロア）に環境変数を足さないことは INV-4 であり、
 `test_dangerous_ops.py::test_rule12_has_no_bypass_environment_variable` が固定している。
 
@@ -573,6 +573,30 @@ def check_rule12_dangerous_operation(
     return None
 
 
+def check_rule13_human_docs(
+    tool_name: str, tool_input: dict[str, Any], cwd: str, toplevel: str
+) -> str | None:
+    """Rule 13: 人間向け文書（CONVENTIONS.md 7節）の読み取りを、`harness/<topic>` ブランチ以外で拒否する。
+
+    AI は実行物（hooks・scripts・agents・skills）と規約から動作を判断する。人間向けの説明を
+    根拠に作業すると、説明と実装の食い違いがそのまま作業に持ち込まれる。文書そのものを
+    保守するときは Edit の前に Read が要るため、ハーネス保守ブランチでは許可する。
+    Rule 12 と同じく書き込み先ごとではなく、ツール呼び出しごとに 1 回だけ判定する。
+    """
+    doc = path_utils.detect_human_doc_read(tool_name, tool_input, cwd, toplevel)
+    if doc is None:
+        return None
+    branch = path_utils.get_current_branch(cwd) or ""
+    if branch.startswith("harness/"):
+        return None
+    return (
+        f"拒否: {doc} は人間向けの文書です。AI はこれを読んで作業しません（Rule 13）。\n"
+        "動作や手順は、実行物（`harness/hooks/`・`harness/scripts/`・`.claude/agents/`・`.claude/skills/`）と"
+        "`harness/CONVENTIONS.md` から判断してください。スクリプトの使い方は `--help` で確認できます。\n"
+        "文書そのものを保守する場合は `harness/<topic>` ブランチで作業してください。"
+    )
+
+
 def run_checks(
     rel_path: str, cwd: str, toplevel: str, tool_name: str = "", tool_input: dict[str, Any] | None = None
 ) -> str | None:
@@ -683,6 +707,11 @@ def main() -> int:
         print(reason, file=sys.stderr)
         return 2
 
+    reason = check_rule13_human_docs(tool_name, tool_input, cwd, toplevel)
+    if reason:
+        print(reason, file=sys.stderr)
+        return 2
+
     if tool_name == "Bash":
         command = tool_input.get("command", "")
         candidates = path_utils.extract_bash_candidate_paths(command)
@@ -732,7 +761,7 @@ def _fail_closed_main() -> int:
         print(
             "拒否: ハーネスの強制レイヤ（pre_tool_use_guard.py）が hook の入力を解釈できませんでした。\n"
             f"  {exc}\n"
-            "何に対する操作かが分からない状態では Rule 1〜12 のどれも判定できません。"
+            "何に対する操作かが分からない状態では Rule 1〜13 のどれも判定できません。"
             "通すのではなく止めます。\n"
             "PreToolUse に渡される payload（JSON）が壊れています。"
             "Hook の起動方法（`.claude/settings.json` の command）を確認してください。",
