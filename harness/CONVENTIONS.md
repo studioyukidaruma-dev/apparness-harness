@@ -164,7 +164,7 @@ python3 harness/scripts/check_interfaces.py [--app <app-id>]
     - D-1: リポジトリルート外への再帰削除（`rm -r` / `find ... -delete`）。`..` を含む綴り・
       未展開の変数・`/`・`.`・先頭ワイルドカードは、解決するまでもなく拒否する。
     - D-2: 秘密ファイルの読み取り（`.env`/`.env.*`/`*.pem`/`*.key`/`*id_rsa*`/`*id_ed25519*`/
-      `.ssh/**`/`.aws/**`/`.npmrc`/`.netrc`）。`.env.example`・`.env.sample` 等の見本は除外。
+      `.ssh/**`/`.aws/**`/`.npmrc`/`.netrc`/`credentials.json`）。`.env.example`・`.env.sample` 等の見本は除外。
       `Read` ツールと Bash の読み出しコマンドの両方を対象にする。
     - D-3: 履歴の破壊（`git push --force`/`--force-with-lease`、`git reset --hard`、
       `git clean -fdx`、`git filter-branch`）。

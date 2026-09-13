@@ -55,7 +55,8 @@ python3 <ハーネスのリポジトリ>/harness/scripts/install.py <導入先�
   上書きしてよいときだけ `--force` を付けてください。
 - 既存のアプリがある場合は、更新後に `python3 harness/scripts/render_progress.py --all` でダッシュボードを
   再生成してからコミットしてください。`PROGRESS.md` はハーネスの版を表示するため、再生成しないと CI 項目 G が不合格になります。
-- 更新はハーネス本体の変更なので、`harness/<topic>` ブランチで行ってコミットしてください（Rule 1）。
+- 更新は `harness/<topic>` ブランチか main で行ってコミットしてください（CI 項目 B はそれ以外のブランチでの
+  ハーネス本体の変更を拒否します）。
 
 ---
 

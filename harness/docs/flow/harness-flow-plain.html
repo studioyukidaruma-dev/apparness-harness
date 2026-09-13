@@ -73,11 +73,19 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 
 <h1>ハーネスのしくみ案内（やさしい版）</h1>
 <p class="lead">
-このリポジトリの「ハーネス」が、いつ・何を・どうやって動かしているかの案内書です。
-専門用語をなるべく避けて書いています。正確な用語で読みたい方は
-配布元リポジトリの <code>docs/flow/harness-flow-technical.html</code> をどうぞ。<br>
-対象バージョン: v1.0.0（Unreleased の変更を含む・2026-08-24 時点）
+このハーネスが、いつ・何を・どうやって動かしているかの案内書です。
+専門用語をなるべく避けて書いています。正確な用語で読みたい方は、同じフォルダの一つ上にある
+<code>GUIDE.md</code>（しくみ）と <code>USAGE.md</code>（使い方）をどうぞ。<br>
+対象バージョン: v1.3.1（2026-09-13 時点）
 </p>
+
+<div class="box tip">
+<h4>この案内書は人間向けです</h4>
+<p style="margin-bottom:0">
+AI（Claude Code の担当者や手順書）は、この案内書を<strong>読みません</strong>。読もうとすると見張りが止めます（規則13）。
+AI は実際に動くプログラムと規約だけを見て動きます。理由は「5. AI が読むもの・人間が読むもの」にあります。
+</p>
+</div>
 
 <div class="toc">
 <strong>目次</strong>
@@ -86,8 +94,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <li><a href="#flow">全体の流れ（1 枚図）</a></li>
 <li><a href="#who">登場人物 ― 3 種類の働き手</a></li>
 <li><a href="#when">いつ何が動くのか（時間順）</a></li>
-<li><a href="#read">誰がどの文書を読むのか（読む量の一覧）</a></li>
-<li><a href="#docs">文書の役割分担 ― 書き足すときはどこへ</a></li>
+<li><a href="#read">AI が読むもの・人間が読むもの</a></li>
 <li><a href="#git">git のブランチと「触ってよい場所」</a></li>
 <li><a href="#gate">通過チェックのしくみ ― 機械が決めるか、AI が決めるか</a></li>
 <li><a href="#care">気をつけて見たほうがいいところ</a></li>
@@ -113,7 +120,11 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 </p>
 </div>
 
-<p>作られるアプリは <code>apps/&lt;アプリ名&gt;/</code> の下に置かれ、次の 5 段階で進みます。</p>
+<p>
+ハーネスは、使いたいプロジェクトに<strong>インストーラでコピーして</strong>使います。コピーされるのは
+<code>harness/</code>（見張りのプログラム・規約・この案内書など）と <code>.claude/</code>（担当者と手順書）と
+CI の設定です。作られるアプリは <code>apps/&lt;アプリ名&gt;/</code> の下に置かれ、次の 5 段階で進みます。
+</p>
 
 <ol>
 <li><strong>要件定義</strong> ― 何を作るかを決める（<code>00-requirements/</code>）</li>
@@ -134,13 +145,11 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
   </defs>
   <g font-family="system-ui, sans-serif" font-size="13" color="currentColor">
 
-    <!-- レーン見出し -->
     <text x="10" y="24" font-size="12" font-weight="700" fill="var(--muted)">工程</text>
     <text x="250" y="24" font-size="12" font-weight="700" fill="var(--muted)">動くもの（Skill / Agent）</text>
     <text x="600" y="24" font-size="12" font-weight="700" fill="var(--muted)">機械が止めるところ</text>
     <line x1="0" y1="34" x2="900" y2="34" stroke="var(--line)" stroke-width="1"/>
 
-    <!-- 1 要件定義 -->
     <rect x="10" y="50" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
     <text x="24" y="72" font-weight="700" fill="var(--ink)">① 要件定義</text>
     <text x="24" y="90" font-size="11.5" fill="var(--muted)">何を作るかを決める</text>
@@ -151,7 +160,6 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
     <text x="604" y="70" font-size="11.5" fill="var(--ink)">承認は必ず人間（モード問わず）</text>
     <text x="604" y="88" font-size="11.5" fill="var(--ink)">承認者・日時なしの承認は拒否（規則7）</text>
 
-    <!-- 2 設計 -->
     <rect x="10" y="120" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
     <text x="24" y="142" font-weight="700" fill="var(--ink)">② 土台 ＋ 設計</text>
     <text x="24" y="160" font-size="11.5" fill="var(--muted)">独立した機能に分ける</text>
@@ -162,7 +170,6 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
     <text x="604" y="140" font-size="11.5" fill="var(--ink)">要件の版とズレた設計は承認できない（規則7）</text>
     <text x="604" y="158" font-size="11.5" fill="var(--ink)">テスト実行コマンドの宣言もここで必須</text>
 
-    <!-- 3 実装 -->
     <rect x="10" y="190" width="200" height="120" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
     <text x="24" y="212" font-weight="700" fill="var(--ink)">③ 機能ごとの実装</text>
     <text x="24" y="230" font-size="11.5" fill="var(--muted)">機能 1 つ = 作業場所 1 つ</text>
@@ -182,7 +189,6 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
     <text x="604" y="264" font-size="11.5" fill="var(--ink)">状態の飛び越し・後退は拒否（規則9）</text>
     <text x="604" y="288" font-size="11.5" font-weight="700" fill="var(--ink)">受領書なしで「テスト完了」不可（規則10）</text>
 
-    <!-- 4 統合 -->
     <rect x="10" y="328" width="200" height="52" rx="8" fill="var(--accent-bg)" stroke="var(--accent)"/>
     <text x="24" y="350" font-weight="700" fill="var(--ink)">④ 組み上げ</text>
     <text x="24" y="368" font-size="11.5" fill="var(--muted)">機能どうしをつなぐ</text>
@@ -193,7 +199,6 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
     <text x="604" y="348" font-size="11.5" fill="var(--ink)">つなぎ目を全部テストしていないと</text>
     <text x="604" y="366" font-size="11.5" fill="var(--ink)">「統合済み」にできない（規則11）</text>
 
-    <!-- 常時 -->
     <line x1="0" y1="404" x2="900" y2="404" stroke="var(--line)" stroke-width="1"/>
     <text x="10" y="428" font-size="12" font-weight="700" fill="var(--muted)">ずっと効いているもの</text>
 
@@ -203,7 +208,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 
     <rect x="310" y="440" width="280" height="46" rx="8" fill="var(--ok-bg)" stroke="var(--ok)"/>
     <text x="324" y="460" font-size="12" font-weight="700" fill="var(--ink)">ファイル操作のたび</text>
-    <text x="324" y="478" font-size="11.5" fill="var(--ink)">12 の規則で事前チェック／危険操作は拒否</text>
+    <text x="324" y="478" font-size="11.5" fill="var(--ink)">13 の規則で事前チェック／危険操作は拒否</text>
 
     <rect x="610" y="440" width="280" height="46" rx="8" fill="var(--ok-bg)" stroke="var(--ok)"/>
     <text x="624" y="460" font-size="12" font-weight="700" fill="var(--ink)">応答を終える直前</text>
@@ -211,9 +216,8 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 
     <rect x="10" y="500" width="880" height="46" rx="8" fill="var(--warn-bg)" stroke="var(--warn)"/>
     <text x="24" y="520" font-size="12" font-weight="700" fill="var(--ink)">GitHub に push したあと（CI）</text>
-    <text x="24" y="538" font-size="11.5" fill="var(--ink)">セッションの外で行われた編集もすり抜けられないよう、16 項目（A〜Q）を再チェック</text>
+    <text x="24" y="538" font-size="11.5" fill="var(--ink)">セッションの外で行われた編集もすり抜けられないよう、17 項目（A〜R。H は欠番）を再チェック</text>
 
-    <!-- 矢印 -->
     <line x1="110" y1="102" x2="110" y2="118" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
     <line x1="110" y1="172" x2="110" y2="188" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
     <line x1="110" y1="310" x2="110" y2="326" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -268,14 +272,14 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <tbody>
 <tr><td>会話を始めたとき</td><td><code>session_start_healthcheck.py</code></td>
 <td>見張りの仕組み自体が壊れていないか自己診断。壊れていれば警告し、「この会話では強制が効いていない」と AI にも伝える</td><td>5 秒</td></tr>
-<tr><td><strong>ファイルを読み書きする直前</strong></td><td><code>pre_tool_use_guard.py</code></td>
-<td>12 の規則に照らして、ダメなら<strong>実行させない</strong>。ここが本体</td><td>5 秒</td></tr>
+<tr><td><strong>ファイルを読み書き・検索する直前</strong></td><td><code>pre_tool_use_guard.py</code></td>
+<td>13 の規則のうち、操作の直前に判定するもの（規則4・8 以外）に照らして、ダメなら<strong>実行させない</strong>。ここが本体</td><td>5 秒</td></tr>
 <tr><td>ファイルを書いた直後</td><td><code>post_tool_use_sync.py</code></td>
-<td>進捗ダッシュボードを作り直す（止めない）</td><td>15 秒</td></tr>
+<td>進捗ダッシュボードを作り直す（止めない。規則4）</td><td>15 秒</td></tr>
 <tr><td>コマンドを実行した直後</td><td><code>post_tool_use_guard.py</code></td>
 <td>事前チェックをすり抜けた書き込みを見つけて<strong>元に戻す</strong></td><td>10 秒</td></tr>
 <tr><td>返事を終えようとしたとき</td><td><code>stop_commit_guard.py</code></td>
-<td>大事な記録の保存漏れがあれば<strong>終了させない</strong></td><td>5 秒</td></tr>
+<td>大事な記録の保存漏れがあれば<strong>終了させない</strong>（規則8）</td><td>5 秒</td></tr>
 </tbody>
 </table>
 </div>
@@ -344,9 +348,9 @@ Claude Code はそれを「問題なし」と解釈して通してしまいま�
 
 <h3>会話を 1 回始めてから終わるまで</h3>
 <ol>
-<li><strong>開始</strong> ― 見張りの自己診断が走る（0.05 秒くらい。異常がなければ何も表示されない）</li>
+<li><strong>開始</strong> ― 見張りの自己診断が走る（異常がなければ何も表示されない）</li>
 <li><strong>AI が考える</strong> ― ここには誰も介入しない</li>
-<li><strong>AI がファイルを読もう／書こうとする</strong> ― <span class="tag t-stop">直前に見張りが判定</span>。ダメなら実行されず、AI には「なぜ止まったか」と「正しい進み方」が返る</li>
+<li><strong>AI がファイルを読もう／書こう／検索しようとする</strong> ― <span class="tag t-stop">直前に見張りが判定</span>。ダメなら実行されず、AI には「なぜ止まったか」と「正しい進み方」が返る</li>
 <li><strong>書けた場合</strong> ― 直後に進捗ダッシュボードが自動で作り直される</li>
 <li><strong>コマンドを実行した場合</strong> ― 直後に「事前チェックをすり抜けた書き込みが無いか」を実際のファイル内容で確認し、あれば元に戻す</li>
 <li><strong>返事を終えようとする</strong> ― 大事な記録に保存漏れがあれば<span class="tag t-stop">終了を拒否</span>され、保存してからでないと終われない</li>
@@ -365,170 +369,44 @@ Claude Code はそれを「問題なし」と解釈して通してしまいま�
   </ul>
 </li>
 <li>全機能が「テスト完了」になったら <code>integrator</code> が組み上げ、つなぎ目のテストを実行</li>
-<li>GitHub に push すると CI が 16 項目を再チェック</li>
+<li>GitHub に push すると CI が 17 項目を再チェック</li>
 </ol>
 
-<h2 id="read">5. 誰がどの文書を読むのか（読む量の一覧）</h2>
+<h2 id="read">5. AI が読むもの・人間が読むもの</h2>
 
 <p>
-AI に読ませる文字が多いほど、実際の作業に使える注意力が減ります。そこで<strong>「常にかかる読み込み量」に上限を決め、
-機械的に守らせています</strong>（1 つの担当者につき 46,000 バイトまで）。
+このハーネスでは、<strong>AI が読む文書と人間が読む文書をはっきり分けています</strong>。理由は 2 つです。
 </p>
-
-<h3>担当者ごとの「必ず読む量」</h3>
+<ol>
+<li><strong>AI の注意力を無駄にしないため。</strong>AI に読ませる文字が多いほど、実際の作業に使える注意力が減ります。
+  AI が読む文書には、判断に必要な決まりと手順だけを置きます。</li>
+<li><strong>AI に正確に理解させるため。</strong>人間向けの説明文は、実際のプログラムより古くなることがあります。
+  AI がそれを根拠に作業すると、説明と実物のずれをそのまま作業に持ち込んでしまいます。
+  AI には、実際に動くプログラムと規約だけを見て判断させます。</li>
+</ol>
 
 <div class="scroll">
 <table>
-<thead><tr>
-<th>担当者</th><th class="num">指示書</th><th class="num">規約から読む節</th><th class="num">手順書</th>
-<th class="num">合計（上限 46,000）</th></tr></thead>
+<thead><tr><th>置き場所</th><th>読むのは</th><th>中身</th></tr></thead>
 <tbody>
-<tr><td><code>requirements-analyst</code></td><td class="num">4,164</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>4,164</strong></td></tr>
-<tr><td><code>solution-architect</code></td><td class="num">11,352</td><td class="num">13,647<br><small>（6,9,10〜14節）</small></td><td class="num">0</td><td class="num"><strong>24,999</strong></td></tr>
-<tr><td><code>feature-builder</code></td><td class="num">3,696</td><td class="num">0<br><small>（読まない）</small></td><td class="num">4,701<br><small>（実装手順）</small></td><td class="num"><strong>8,397</strong></td></tr>
-<tr><td><code>gate-reviewer</code></td><td class="num">4,907</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>4,907</strong></td></tr>
-<tr><td><code>integrator</code></td><td class="num">8,224</td><td class="num">0<br><small>（読まない）</small></td><td class="num">0</td><td class="num"><strong>8,224</strong></td></tr>
+<tr><td><code>harness/CONVENTIONS.md</code>（規約）</td><td><span class="tag t-ai">AI</span></td><td>機械が強制する決まり。担当者は自分に必要な節だけを読む</td></tr>
+<tr><td><code>.claude/agents/</code>・<code>.claude/skills/</code>・<code>harness/procedures/</code></td><td><span class="tag t-ai">AI</span></td><td>担当者の指示書と作業手順</td></tr>
+<tr><td><code>harness/quality/</code></td><td><span class="tag t-ai">AI</span></td><td>セキュリティ・デザイン・点検の最低ライン。必要なときだけ読む</td></tr>
+<tr><td><code>harness/docs/</code>（この案内書・<code>USAGE.md</code>・<code>GUIDE.md</code>）</td><td><span class="tag t-auto">人間</span></td><td>しくみの説明と使い方。<strong>AI は読みません</strong></td></tr>
 </tbody>
 </table>
 </div>
 
 <div class="box tip">
-<h4>「規約を全部読む担当者はいない」のがポイント</h4>
+<h4>機械が 2 か所で見張っています</h4>
 <p style="margin-bottom:0">
-規約（<code>harness/CONVENTIONS.md</code>）は全体で 31,975 バイトありますが、これを丸ごと読む担当者は 1 人もいません。
-各担当者は指示書の先頭に「私は 6・9・10〜14 節だけ読みます」と<strong>宣言</strong>し、その節だけを取り出して読みます。
-宣言が「読まない」の担当者は、規約の本文を 1 文字も読みません（「7節 規則7」のような<strong>出典の書き置き</strong>はしてよい。
-これは読みに行けという指示ではなく、人が後で辿るための手がかりです）。
+①<strong>見張り（規則13）</strong>が、AI が人間向けの文書を読もうとしたら止めます。<br>
+②<strong>push 後の CI（項目 R）</strong>が、AI が読む文書の中に「人間向けの文書を見よ」という書き方が紛れ込んでいたら不合格にします。<br>
+AI に何かを伝えたいときは、文書を読ませるのではなく、<strong>会話で直接伝えてください</strong>。
 </p>
 </div>
 
-<h3>そのときだけ読む文書（上の表には入りません）</h3>
-
-<div class="scroll">
-<table>
-<thead><tr><th>文書</th><th class="num">大きさ</th><th>誰が、どういうときに読むか</th></tr></thead>
-<tbody>
-<tr><td><code>quality/security-baseline.md</code></td><td class="num">4,165</td><td>実装・技術選定・組み上げ・第三者点検のとき（実質いつも読む）</td></tr>
-<tr><td><code>quality/design-baseline.md</code></td><td class="num">3,576</td><td><strong>画面のある機能のときだけ</strong></td></tr>
-<tr><td><code>quality/review-rubric.md</code></td><td class="num">4,871</td><td><code>gate-reviewer</code> が点検するとき（点検の唯一の判断基準）</td></tr>
-<tr><td><code>STACK_PACK.md</code></td><td class="num">7,011</td><td>技術ごとの流儀パックを採用したときだけ</td></tr>
-<tr><td><code>docs/maintenance/friction-to-test.md</code></td><td class="num">5,432</td><td>ハーネスを直す人が、失敗の記録をテストに変えるとき</td></tr>
-<tr><td><code>CLAIMS.md</code></td><td class="num">20,793</td><td><strong>アプリ作成では一切読まれない</strong>。CI のプログラムと、ハーネスを保守する人だけ</td></tr>
-</tbody>
-</table>
-</div>
-
-<div class="box warn">
-<h4>正直に書いておきます ― 測定にはまだ隙間があります</h4>
-<p>
-上の「必ず読む量」の表が数えているのは、①指示書 ②規約から読む節 ③<code>harness/procedures/</code> の手順書 の 3 つです。
-ところが <code>quality/</code> の文書は、実際には<strong>ほぼ必ず読まれます</strong>（実装なら security-baseline、点検なら review-rubric）。
-これは数に入っていません。実際に読まれる量を足すとこうなります。
-</p>
-<div class="scroll" style="margin:.8rem 0 0">
-<table>
-<thead><tr><th>担当者</th><th class="num">表の数字</th><th class="num">実際に読む量</th><th class="num">画面ありのとき</th></tr></thead>
-<tbody>
-<tr><td><code>requirements-analyst</code></td><td class="num">4,164</td><td class="num">4,164</td><td class="num">4,164</td></tr>
-<tr><td><code>solution-architect</code></td><td class="num">24,999</td><td class="num">29,164</td><td class="num">29,164</td></tr>
-<tr><td><code>feature-builder</code></td><td class="num">8,397</td><td class="num">12,562</td><td class="num">16,138</td></tr>
-<tr><td><code>gate-reviewer</code></td><td class="num">4,907</td><td class="num">13,943</td><td class="num">17,519</td></tr>
-<tr><td><code>integrator</code></td><td class="num">8,224</td><td class="num">12,389</td><td class="num">15,965</td></tr>
-</tbody>
-</table>
-</div>
-<p style="margin-bottom:0">
-<strong>実際の量でも全員 46,000 の上限内には収まっています</strong>が、機械が数えているのは左の列だけ、というのは事実です。
-<code>quality/</code> を数えていない理由は「画面のあるアプリかどうかで読む・読まないが変わり、ファイルを見ただけでは決まらないから」です。
-数え方を厳しくすることは可能なので、必要なら対応できます。
-</p>
-</div>
-
-<h2 id="docs">6. 文書の役割分担 ― 書き足すときはどこへ</h2>
-
-<p>
-<strong>同じことを 2 箇所に書かない</strong>のが、この仕組みの一貫した方針です。
-2 箇所にあると必ず片方だけ直されて食い違うからです（実際に起きて、手順どおりやると機械に拒否される状態になりました）。
-食い違いは CI が機械的に検出します。
-</p>
-
-<div class="scroll">
-<table>
-<thead><tr><th>書きたいこと</th><th>置き場所</th><th>理由・注意</th></tr></thead>
-<tbody>
-<tr>
-<td><strong>機械が強制する決まり</strong><br>（破ったら止まるもの）</td>
-<td><code>harness/CONVENTIONS.md</code></td>
-<td><strong>ここだけに書く。</strong>担当者の指示書には「7節 規則7」のように番号で参照させる。
-<strong>いま 15 節で凍結中で、16 節以降を作ると CI が落ちます</strong>。既存の節に足してください</td>
-</tr>
-<tr>
-<td><strong>なぜそうしているか</strong><br>（背景・設計の意図・経緯）</td>
-<td><code>docs/DESIGN.md</code>（配布元のみ）</td>
-<td>規約が太ると全担当者の読み込み量が増えるので、説明はこちらへ。8 節が「規約から移した説明」の置き場。AI は読みません</td>
-</tr>
-<tr>
-<td><strong>誰が何をどの順でやるか</strong><br>（手順）</td>
-<td>その担当者の指示書、または<br><code>harness/procedures/*.md</code></td>
-<td>規約には書かない。<code>procedures/</code> に置いたら指示書に
-<code>always-reads</code> の宣言を足すこと（足さないと CI が落ちます）</td>
-</tr>
-<tr>
-<td><strong>品質の下限</strong><br>（セキュリティ・デザイン・点検基準）</td>
-<td><code>harness/quality/*.md</code></td>
-<td>必要なときだけ読まれる。何もインストールしなくても常に効く「最低ライン」</td>
-</tr>
-<tr>
-<td><strong>「これを止める」という主張とその証拠</strong></td>
-<td><code>harness/CLAIMS.md</code></td>
-<td>規則を足したら<strong>必ずここに行を足す</strong>。書いたテスト名が実在するか CI が確認します</td>
-</tr>
-<tr>
-<td><strong>技術ごとの流儀</strong><br>（Python ではこう書く 等）</td>
-<td>外部の「スタックパック」<br>形式は <code>harness/STACK_PACK.md</code></td>
-<td><strong>ハーネス本体には絶対に書かない。</strong>特定技術に依存しないことが売りなので</td>
-</tr>
-<tr>
-<td><strong>ファイルの形式の決まり</strong></td>
-<td><code>harness/schemas/*.json</code></td>
-<td>機械が読むファイルの形。CI の項目 A が全部チェックする</td>
-</tr>
-<tr>
-<td><strong>雛形</strong></td>
-<td><code>harness/templates/</code></td>
-<td>新しく作るファイルのひな形</td>
-</tr>
-<tr>
-<td><strong>使ってみて困ったこと</strong></td>
-<td><code>docs/maintenance/DOGFOODING-LOG.md</code></td>
-<td>深刻度が「高」「最高」なら、<strong>再発を見つけるテストを書くまで完了にしない</strong>ルール</td>
-</tr>
-<tr>
-<td><strong>ハーネス自体の変更履歴</strong></td>
-<td><code>harness/CHANGELOG.md</code> / <code>harness/VERSION</code></td>
-<td>ハーネス本体を触ったら<strong>CHANGELOG の追記が必須</strong>（CI の項目 Q が確認）</td>
-</tr>
-<tr>
-<td><strong>エディタ・型チェッカの設定</strong></td>
-<td><code>pyrightconfig.json</code></td>
-<td>見張りのプログラムは実行時に読み込み先を足すため、この宣言が無いとエディタが
-「インポートを解決できません」と誤って言い、そこから大量のエラーが出る（実測 210 件）。
-<strong>実行には一切影響しません</strong></td>
-</tr>
-</tbody>
-</table>
-</div>
-
-<div class="box tip">
-<h4>迷ったときの 3 つの質問</h4>
-<ol style="margin-bottom:0">
-<li><strong>破ったら機械が止めるか？</strong> → はい なら <code>CONVENTIONS.md</code>（既存の節に）</li>
-<li><strong>「なぜ」の話か？</strong> → はい なら <code>docs/DESIGN.md</code></li>
-<li><strong>特定の担当者の作業手順か？</strong> → はい なら その指示書か <code>procedures/</code></li>
-</ol>
-</div>
-
-<h2 id="git">7. git のブランチと「触ってよい場所」</h2>
+<h2 id="git">6. git のブランチと「触ってよい場所」</h2>
 
 <h3>ブランチの名前は 4 種類だけ</h3>
 
@@ -538,7 +416,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <tbody>
 <tr><td>アプリの雛形作り</td><td><code>app/&lt;アプリ名&gt;/bootstrap</code></td><td><code>app/todo/bootstrap</code></td><td>そのアプリのフォルダ</td></tr>
 <tr><td>機能の実装</td><td><code>feature/&lt;アプリ名&gt;/&lt;機能名&gt;</code></td><td><code>feature/todo/todo-list-api</code></td><td>その機能のフォルダだけ</td></tr>
-<tr><td><strong>ハーネス本体の改修</strong></td><td><code>harness/&lt;内容&gt;</code></td><td><code>harness/fix-guard</code></td><td><strong>ハーネス本体を触れる唯一の場所</strong></td></tr>
+<tr><td><strong>ハーネス本体の改修・更新</strong></td><td><code>harness/&lt;内容&gt;</code></td><td><code>harness/update-1.3.1</code></td><td><strong>ハーネス本体を書き換えられる唯一の場所</strong></td></tr>
 <tr><td>組み上げ（任意）</td><td><code>integration/&lt;アプリ名&gt;</code></td><td><code>integration/todo</code></td><td>組み上げフォルダ</td></tr>
 </tbody>
 </table>
@@ -548,13 +426,18 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 
 <div class="scroll">
 <table>
-<thead><tr><th>保護される場所</th><th>誰なら書けるか</th><th>止めるもの</th></tr></thead>
+<thead><tr><th>保護される場所</th><th>AI が扱えるのは</th><th>止めるもの</th></tr></thead>
 <tbody>
 <tr>
-<td><code>harness/</code> <code>.claude/</code> <code>.github/</code><br>（＝ハーネス本体）</td>
+<td><code>harness/</code> <code>.claude/</code> <code>.github/</code><br>（＝ハーネス本体）への書き込み</td>
 <td><strong><code>harness/</code> で始まるブランチにいるときだけ</strong><br>
 （例外: <code>.claude/settings.local.json</code> は個人設定なのでいつでも可）</td>
 <td>規則1（実行前）＋ CI の項目 B（push 後）</td>
+</tr>
+<tr>
+<td><code>harness/docs/</code>（人間向けの文書）の読み取り</td>
+<td><strong><code>harness/</code> で始まるブランチにいるときだけ</strong>（文書そのものを直すときのため）</td>
+<td>規則13（実行前）＋ CI の項目 R（push 後）</td>
 </tr>
 <tr>
 <td>他の機能のフォルダ</td>
@@ -580,7 +463,8 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <p style="margin-bottom:0">
 ハーネス本体の保護（規則1）だけは、<code>HARNESS_UNLOCK=1</code> という設定で一時的に外せます。
 外すと警告が出ます。<strong>ふだんの運用では使いません。</strong><br>
-それ以外の規則（とくにコマンド経由の書き込み検知や危険操作の拒否）には、<strong>解除するしくみを意図的に作っていません</strong>。
+それ以外の規則（とくにコマンド経由の書き込み検知、危険操作の拒否、人間向け文書の読み取り拒否）には、
+<strong>解除するしくみを意図的に作っていません</strong>。
 AI が自分で解除できてしまったら、「機械が強制する」という前提そのものが崩れるからです。
 誤って止まる場合は、設定で逃げるのではなく<strong>検知のプログラム自体を直します</strong>。
 </p>
@@ -595,11 +479,11 @@ AI が自分で解除できてしまったら、「機械が強制する」と�
 ここに落とし穴があって、<strong>作業場所の中にも同じ形のフォルダ構造がもう一度現れます</strong>。
 以前、この二重構造のせいで規則 1・2・3・5・9・10 が<strong>まとめて素通り</strong>していたことがありました
 （受領書なしで「テスト完了」を書き込めてしまった）。
-いまは書き込み先のパスを「どの作業場所に属するか」で読み替えてから判定しているので、
-どこから書いても同じ規則が同じ意味で効きます。
+いまはパスを「どの作業場所に属するか」で読み替えてから判定しているので、
+どこから操作しても同じ規則が同じ意味で効きます。
 </p>
 
-<h2 id="gate">8. 通過チェックのしくみ ― 機械が決めるか、AI が決めるか</h2>
+<h2 id="gate">7. 通過チェックのしくみ ― 機械が決めるか、AI が決めるか</h2>
 
 <p>これがこのハーネスの中心です。<strong>「何を機械が決め、何を AI に任せているか」を曖昧にしない</strong>ことを重視しています。</p>
 
@@ -609,9 +493,9 @@ AI が自分で解除できてしまったら、「機械が強制する」と�
 <table>
 <thead><tr><th>層</th><th>誰が判定</th><th>いつ</th><th>すり抜けられるか</th></tr></thead>
 <tbody>
-<tr><td><strong>① 見張り（12 の規則）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>操作の直前</td><td>Claude Code を使わない編集ならすり抜ける</td></tr>
+<tr><td><strong>① 見張り（13 の規則）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>操作の直前</td><td>Claude Code を使わない編集ならすり抜ける</td></tr>
 <tr><td><strong>② 事後チェック</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>コマンド実行の直後</td><td>すり抜けた書き込みを元に戻す（実行自体は止められない）</td></tr>
-<tr><td><strong>③ CI（16 項目 A〜Q）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>push したあと</td><td>①②をすり抜けた分をここで弾く</td></tr>
+<tr><td><strong>③ CI（17 項目 A〜R）</strong></td><td><span class="tag t-auto">機械だけ</span></td><td>push したあと</td><td>①②をすり抜けた分をここで弾く</td></tr>
 </tbody>
 </table>
 </div>
@@ -633,9 +517,10 @@ AI が自分で解除できてしまったら、「機械が強制する」と�
   commit: "a1b2c3d..."     ← 検証した時点のコミット。ここが要
   test:
     exit_code: 0           ← 0 以外なら「テスト完了」にできない
-    at:        "2026-08-24T10:00:00Z"
+    at:        "2026-09-13T10:00:00Z"
     tests:     42          ← テストが 0 件なら「空振り」として拒否
     failures:  0
+    errors:    0
     skipped:   1           ← 飛ばした割合が多すぎると拒否
   build:     { exit_code: 0, at: ... }   ← 宣言したものだけ検証される
   typecheck: { exit_code: 0, at: ... }
@@ -668,7 +553,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <p>記録の形はこうです。<strong>件数は数字で書きます</strong>（指摘の文章を並べるのは形式違反）。</p>
 <pre><code>review:
   verdict: GO          ← GO / NO-GO / ESCALATED（3 回まとまらず人へ）
-  at:      "2026-08-24T10:00:00Z"
+  at:      "2026-09-13T10:00:00Z"
   rounds:  2           ← 何回やったか
   blockers: 0          ← 重大の件数（1 以上なら自動的に NO-GO）
   majors:   1
@@ -691,6 +576,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <tr><td>機能どうしのつなぎ目が合っているか</td><td><span class="tag t-auto">機械</span></td><td>入出力の形式定義どうしを突き合わせる</td></tr>
 <tr><td>要件が全部テストで覆われているか</td><td><span class="tag t-auto">機械</span></td><td>要件 ID とテスト名の対応表</td></tr>
 <tr><td>危険な操作かどうか</td><td><span class="tag t-auto">機械</span></td><td>コマンド文字列の解析（規則12）</td></tr>
+<tr><td>AI が人間向けの文書を読もうとしていないか</td><td><span class="tag t-auto">機械</span></td><td>読み取り先のパスとブランチ名の照合（規則13）</td></tr>
 <tr><td>実装の品質が十分か</td><td><span class="tag t-mix">AI が指摘 → 機械が集計</span></td><td>点検基準の文書＋重大件数の足し算</td></tr>
 <tr><td>機能の分け方が適切か</td><td><span class="tag t-ai">AI</span></td><td>意図的に AI に任せている（機械には判定できない）</td></tr>
 <tr><td>要件の内容が正しいか</td><td><span class="tag t-ai">人 ＋ AI</span></td><td><strong>要件の承認だけは常に人が必須</strong></td></tr>
@@ -706,7 +592,7 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <thead><tr><th>種別</th><th>拒否される例</th><th>通る例</th></tr></thead>
 <tbody>
 <tr><td>リポジトリの外を消す</td><td><code>rm -rf /</code>、<code>rm -rf ../別プロジェクト</code>、<code>rm -rf $変数</code></td><td><code>rm -rf ./build</code></td></tr>
-<tr><td>秘密ファイルを読む</td><td><code>.env</code>、<code>*.pem</code>、<code>*.key</code>、SSH や AWS の設定</td><td><code>.env.example</code>（見本）</td></tr>
+<tr><td>秘密ファイルを読む</td><td><code>.env</code>、<code>*.pem</code>、<code>*.key</code>、<code>credentials.json</code>、SSH や AWS の設定</td><td><code>.env.example</code>（見本）</td></tr>
 <tr><td>履歴を壊す</td><td><code>git push --force</code>、<code>git reset --hard</code>、<code>git clean -fdx</code></td><td><code>git push</code>、<code>git revert</code></td></tr>
 <tr><td>検証を飛ばす</td><td><code>git commit --no-verify</code></td><td>ふつうの <code>git commit</code></td></tr>
 <tr><td>外部に送る</td><td>データを付けた POST、貼り付けサイトへの送信</td><td>ふつうの読み取りダウンロード</td></tr>
@@ -720,22 +606,40 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 人の判断を挟みたい操作は、<strong>拒否したうえで人が自分の手で実行する</strong>運用にしています。
 </p>
 
-<h2 id="care">9. 気をつけて見たほうがいいところ</h2>
+<h3>人間向け文書の読み取り拒否（規則13）</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>拒否される例</th><th>通る例</th></tr></thead>
+<tbody>
+<tr><td><code>harness/docs/</code> の文書を開く、そのフォルダの中を検索する、<code>cat</code> や <code>grep</code> で中身を読む</td>
+<td>プロジェクト直下の <code>docs/</code>（そのプロジェクト自身の文書）を読む／ファイル名の一覧を見る／<code>harness/</code> で始まるブランチでの読み取り</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+止めるのは「読む場所をはっきり指定した読み取り」です。リポジトリ全体を検索した結果にたまたま文書の行が混ざること、
+フォルダを移動してからの読み取り、スクリプト経由の読み取りまでは止められません。
+その代わり、AI が読む文書に「人間向けの文書を見よ」と書かれていないことを CI（項目 R）が確認し、
+<strong>読みに行く理由そのものを作らない</strong>ようにしています。
+</p>
+
+<h2 id="care">8. 気をつけて見たほうがいいところ</h2>
 
 <dl class="qa">
 <dt>Q. 見張りが止めてきたら、回り道を探していい？</dt>
 <dd>いいえ。<strong>止まったこと自体が「いまやろうとしていることが工程上おかしい」という信号</strong>です。
 エラーメッセージに正しい進み方が書いてあるので、そちらに従ってください。</dd>
 
-<dt>Q. 見張りが「判断できない」ときはどうなる？ ― <strong>通します</strong></dt>
+<dt>Q. 見張りが「判断できない」ときはどうなる？ ― <strong>ほとんどの規則は通します</strong></dt>
 <dd>
 これは知っておいたほうがいい性質です。見張りには 2 つの止まり方があり、<strong>挙動が逆になります</strong>。
 <ul>
-<li><strong>壊れたとき</strong>（判定の途中でエラー） → <strong>止める</strong>。
+<li><strong>壊れたとき</strong>（判定の途中でエラー、渡された情報が読めない） → <strong>止める</strong>。
 「判定できなかったのに通す」と、全部の規則が黙って無効になるからです。</li>
-<li><strong>判断材料が無いとき</strong> → <strong>通す</strong>。
+<li><strong>判断材料が無いとき</strong> → <strong>ほとんどの規則は通す</strong>。
 たとえば「対応する設定ファイルがまだ無い」「git の情報が取れない」「まだ 1 度もコミットしていない」
-といった場合、見張りは判定をあきらめて通します。</li>
+といった場合、見張りは判定をあきらめて通します。ただし、ブランチ名で判定する<strong>規則1と規則13は、
+ブランチが分からないと逆に止めます</strong>。どの規則がどちらに倒れたかは、会話の開始時の自己診断が警告します。</li>
 </ul>
 つまり<strong>「材料を消せば、その規則は発火しなくなる」</strong>ということでもあります。
 これは見張り単体では塞げないので、<strong>push 後の CI 側は逆に「無ければ違反」で判定します</strong>
@@ -743,18 +647,24 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 実行前の見張りは寛容に、push 後の CI は厳格に、という非対称は意図的な設計です。
 </dd>
 
-<dt>Q. すべてのファイル操作に、12 の規則が全部かかる？</dt>
+<dt>Q. すべてのファイル操作に、13 の規則が全部かかる？</dt>
 <dd>いいえ。<strong>操作の種類によって効く規則が変わります</strong>。
-ふつうの読み書き（Edit / Write / MultiEdit）には 12 個すべてが効きます。
-それ以外の手段（コマンド実行やノートブック編集）では、<strong>書き込んだ後にファイルがどうなるかを
-機械が予測できない</strong>ため、承認・状態遷移・受領書といった「中身を見比べて判定する規則」が働きません。
+<ul>
+<li><strong>ふつうの書き込み（Edit / Write / MultiEdit）</strong>には、書き込みに関わる規則がすべて効きます。</li>
+<li><strong>それ以外の書き込み手段（コマンド実行やノートブック編集）</strong>では、書き込んだ後にファイルがどうなるかを
+機械が予測できないため、承認・状態遷移・受領書といった「中身を見比べて判定する規則」が働きません。
 そこで<strong>その 4 つのファイル（状態・要件・設計・統合記録）については、予測できない手段での
-書き込みそのものを拒否</strong>しています。ファイルを読むだけの操作には、危険操作の規則
-（秘密ファイルの読み取り）だけがかかります。
-<br><br>
+書き込みそのものを拒否</strong>しています。</li>
+<li><strong>読み取りと検索（Read / Grep や <code>cat</code> など）</strong>には、秘密ファイルの読み取り禁止（規則12）と
+人間向け文書の読み取り禁止（規則13）がかかります。</li>
+</ul>
 なお、ハーネス自身の検証スクリプトが受領書を書き込む経路は<strong>止めません</strong>。
 止めてしまうと受領書が作れず、永久に「テスト完了」へ進めなくなるためです。
 </dd>
+
+<dt>Q. AI に「文書を読んで」と頼んだら断られた</dt>
+<dd>正常な動作です（規則13）。AI は人間向けの文書を読まずに、実際のプログラムと規約から判断します。
+文書の内容を AI に伝えたいときは、<strong>必要な部分を会話で直接伝えてください</strong>。</dd>
 
 <dt>Q. 進捗ダッシュボードを手で直していい？</dt>
 <dd>いけません。<code>PROGRESS.md</code> と <code>STATE.machine.yaml</code> は<strong>自動生成</strong>です。
@@ -770,16 +680,14 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 ③宣言したテスト名が実在しない。<strong>いちばん多いのは②</strong>で、受領書を作ったあとに
 うっかり先にコミットして、記録と現状がずれるパターンです。</dd>
 
-<dt>Q. ハーネス自体を直したいときは？</dt>
-<dd><code>harness/&lt;内容&gt;</code> という名前のブランチを作ってください。それ以外のブランチでは書き込めません。
-直したら <code>harness/CHANGELOG.md</code> への追記も必須です（忘れると CI が落ちます）。</dd>
-
-<dt>Q. 規約に新しい節を足したい</dt>
-<dd>できません。<strong>15 節で凍結されています</strong>。既存の節の中に足してください。
-どうしても新設が必要なら、人の明示的な許可を取ってから凍結の設定を変える必要があります。</dd>
+<dt>Q. ハーネスを新しい版にしたいときは？</dt>
+<dd>ハーネスのリポジトリで新しい版のタグに切り替えて、インストーラをもう一度実行します。
+アプリがすでにある場合は、ダッシュボードを作り直してからコミットしてください（ダッシュボードにハーネスの版が
+表示されるため）。手順は <code>USAGE.md</code> の「ハーネスの更新」にあります。
+ハーネス本体を直接書き換えた分は、更新のたびに元へ戻ります。</dd>
 </dl>
 
-<h2 id="words">10. 用語の言いかえ表</h2>
+<h2 id="words">9. 用語の言いかえ表</h2>
 
 <div class="scroll">
 <table>
@@ -791,53 +699,44 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 <tr><td>作業場所</td><td>git worktree</td><td>同じリポジトリを複数の場所に展開して並行作業する仕組み</td></tr>
 <tr><td>受領書</td><td>verification_receipt</td><td>検証を実際に実行した記録。手書き禁止</td></tr>
 <tr><td>契約書</td><td>contract.yaml</td><td>機能の入出力の約束。承認後は凍結される</td></tr>
-<tr><td>規約</td><td>CONVENTIONS.md</td><td>機械が強制する決まりの唯一の置き場所</td></tr>
-<tr><td>読み込み量の上限</td><td>コンテキスト予算</td><td>AI が常に読む文字数の上限。CI が機械的に守らせる</td></tr>
+<tr><td>規約</td><td>CONVENTIONS.md</td><td>機械が強制する決まりの唯一の置き場所。AI が読む</td></tr>
+<tr><td>人間向けの文書</td><td><code>harness/docs/</code></td><td>しくみの説明と使い方。AI は読まない</td></tr>
+<tr><td>インストーラ</td><td><code>harness/scripts/install.py</code></td><td>ハーネスを使いたいプロジェクトにコピーし、更新もするプログラム</td></tr>
 <tr><td>push 後のチェック</td><td>CI（継続的インテグレーション）</td><td>GitHub 上で走るサーバー側の再チェック</td></tr>
 </tbody>
 </table>
 </div>
 
-<h2 id="source">11. この案内書は何を見て書かれているか</h2>
+<h2 id="source">10. この案内書は何を見て書かれているか</h2>
 
 <p>
 説明書が実物とずれていると、読んだ人が間違った前提で動いてしまいます。そこでこの案内書は、
-<strong>実際に動くもの（プログラム・設定ファイル・AI への指示書）だけを見て書いています</strong>。
-「人が読むために書かれた説明文」は、更新が追いついていない可能性があるので出典にしていません。
+<strong>実際に動くもの（プログラム・設定ファイル・AI への指示書）を見て書いています</strong>。
 </p>
 
 <div class="scroll">
 <table>
 <thead><tr><th>書いてあること</th><th>どこから取ったか</th></tr></thead>
 <tbody>
-<tr><td>見張りが動くタイミング・制限時間</td><td>Claude Code が実際に読む設定ファイル <code>.claude/settings.json</code></td></tr>
-<tr><td>push 後のチェック 16 項目</td><td>チェックプログラムが<strong>実際に呼び出している関数</strong>（説明コメントではなく）</td></tr>
-<tr><td>どの操作にどの規則が効くか</td><td>見張りプログラムの分岐そのもの</td></tr>
-<tr><td>危険操作として止まるもの</td><td>プログラム内の判定リストを実際に読み込んで取得</td></tr>
-<tr><td>状態の並び・受領書やレビューの書式</td><td>形式定義ファイル（機械が検証に使うもの）＋ 記録を書き込むプログラム</td></tr>
-<tr><td>フォルダ構成・ブランチ名・作業場所のパス</td><td>それらを<strong>実際に作るスクリプト</strong></td></tr>
-<tr><td>担当者ごとの読み込み量</td><td>CI が使っている計算関数を実際に呼び出して算出</td></tr>
-<tr><td>テスト件数</td><td>テストを実際に実行した結果（702 件）</td></tr>
+<tr><td>見張りが動くタイミング・制限時間・対象の操作</td><td>Claude Code が実際に読む設定ファイル <code>.claude/settings.json</code></td></tr>
+<tr><td>13 の規則と、どの操作にどの規則が効くか</td><td>見張りプログラム（<code>harness/hooks/</code>）の分岐そのもの</td></tr>
+<tr><td>push 後のチェック 17 項目</td><td>チェックプログラム（<code>ci_check.py</code>）が<strong>実際に呼び出している関数</strong></td></tr>
+<tr><td>危険操作・人間向け文書として止まるもの</td><td>プログラム内の判定リスト</td></tr>
+<tr><td>状態の並び・受領書やレビューの書式</td><td>形式定義ファイル（<code>harness/schemas/status.schema.json</code>）</td></tr>
+<tr><td>担当者・手順書の数と役割</td><td><code>.claude/agents/</code>・<code>.claude/skills/</code> の定義</td></tr>
+<tr><td>コピーされるもの・更新のしかた</td><td>インストーラ（<code>harness/scripts/install.py</code>）</td></tr>
 </tbody>
 </table>
 </div>
 
-<div class="box tip">
-<h4>照合してわかったこと</h4>
-<p style="margin-bottom:0">
-説明文と実物のあいだに食い違いは見つかりませんでした。ただし<strong>実物にしか書かれていない性質が
-2 つ</strong>あり、どちらもこの版で追記しました ―
-①見張りが「判断材料が無い」ときは通すこと ②操作の種類によって効く規則が変わること。
-そして②を調べる過程で、<strong>実際に 3 つの抜け道が見つかったので塞ぎました</strong>
-（ノートブック編集で「テスト完了」にできた／コマンド実行とノートブック編集で統合の受領書を
-手書きできた）。
-（どちらも「9. 気をつけて見たほうがいいところ」にあります）
+<p>
+版が上がって見張りの規則や CI の項目が変わったときは、この案内書も合わせて直します。
+食い違いに気づいたら、実物（プログラム）のほうが正しいと考えてください。
 </p>
-</div>
 
 <footer>
-harness/docs/flow/harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点（文書の置き場所のみ v1.3.0 に合わせて更新）<br>
-しくみの説明: <code>harness/docs/GUIDE.md</code>　規約本体: <code>harness/CONVENTIONS.md</code>　保守者向けの技術版と設計意図: 配布元リポジトリの <code>docs/</code>
+harness/docs/flow/harness-flow-plain.html ― apparness ハーネス v1.3.1 / 2026-09-13 時点<br>
+使い方: <code>harness/docs/USAGE.md</code>　しくみ: <code>harness/docs/GUIDE.md</code>　規約本体（AI 向け）: <code>harness/CONVENTIONS.md</code>
 </footer>
 
 </div>

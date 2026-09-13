@@ -73,8 +73,8 @@ graph TB
             PROC["procedures/<br/>フェーズ固有の長い手順<br/>（always-reads 宣言が必須）"]
             CLAIMS["CLAIMS.md<br/>主張と証跡の対応表"]
             TESTS["tests/<br/>ハーネス自身のpytest"]
-        end
             VERSION["VERSION / CHANGELOG.md<br/>版と変更履歴（CI項目Q）"]
+        end
         subgraph GHACTIONS[".github/workflows/  ハーネス本体（書き込み保護対象）"]
             CIYML["harness-checks.yml<br/>push/PRごとにci_check.pyを実行"]
         end
@@ -165,7 +165,7 @@ flowchart TD
 |---|---|
 | 使われるタイミング | `init-app` の直後。要件定義フェーズ |
 | tools | Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash |
-| 読み込むファイル | `harness/CONVENTIONS.md`（全文）、`apps/<app-id>/00-requirements/requirements.md`・`requirements.machine.yaml`・`brief.yaml`（あれば。記入済みは聞き直さず、未記入だけを対話で補う） |
+| 読み込むファイル | `harness/CONVENTIONS.md` は読まない（担当範囲の規約はプロンプト本文に書き切ってある）、`apps/<app-id>/00-requirements/requirements.md`・`requirements.machine.yaml`・`brief.yaml`（あれば。記入済みは聞き直さず、未記入だけを対話で補う） |
 | 触ってよい範囲 | `apps/<app-id>/00-requirements/` 配下のみ |
 | 実行するスクリプト | `harness/scripts/validate_yaml.py`（**決定論**：`requirements.schema.json` に対する検証。更新のたびに実行） |
 | AIが判断する部分 | ユーザーとの対話内容（目的・ゴール・機能要件など）、`open_questions` が解消されたかの判断 |
@@ -177,7 +177,7 @@ flowchart TD
 |---|---|
 | 使われるタイミング | 要件承認後。設計フェーズ |
 | tools | Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, AskUserQuestion |
-| 読み込むファイル | `harness/CONVENTIONS.md`（6, 9, 10, 11節）、`apps/<app-id>/AUTONOMY.yaml`、`00-requirements/requirements.machine.yaml`、`harness/quality/security-baseline.md` |
+| 読み込むファイル | `harness/CONVENTIONS.md`（6, 9, 10, 11, 12, 13, 14節。`print_conventions.py` で該当節だけ）、`apps/<app-id>/AUTONOMY.yaml`、`00-requirements/requirements.machine.yaml`、`harness/quality/security-baseline.md` |
 | 触ってよい範囲 | `apps/<app-id>/01-foundation/` と `02-design/` のみ |
 | 進め方の特徴 | `shared-kernel.yaml`（共通部分）と `architecture.machine.yaml`（機能分割）を**逐次ではなく反復**して収束させる（[CONVENTIONS.md 11節](../CONVENTIONS.md)） |
 | AIが判断する部分 | 機能分割案、技術スタック選定（ライセンス・脆弱性をWebSearchで調査）、`required_skills[]` に追加するかどうかの判断 |
@@ -199,7 +199,7 @@ flowchart TD
 |---|---|
 | 使われるタイミング | 機能ごとの worktree 内で、担当者が新規セッションを開始したとき |
 | tools / skills | Read, Write, Edit, MultiEdit, Bash, Glob, Grep, Skill, Task／`skills: code-review`（frontmatterでプリロード） |
-| 読み込むファイル | `SPEC.md`、`contract.yaml`、`status.yaml`、`apps/<app-id>/AUTONOMY.yaml`、`harness/quality/security-baseline.md`、（UIありなら）`harness/quality/design-baseline.md`、`../../01-foundation/shared-kernel.yaml`（`required_skills[]` 確認用） |
+| 読み込むファイル | `harness/procedures/feature-build.md`（起動直後に読む実装手順）、`SPEC.md`、`contract.yaml`、`status.yaml`、`apps/<app-id>/AUTONOMY.yaml`、`harness/quality/security-baseline.md`、（UIありなら）`harness/quality/design-baseline.md`、`../../01-foundation/shared-kernel.yaml`（`required_skills[]` 確認用） |
 | 触ってよい範囲 | 自分の `03-features/<feature-id>/` 配下のみ |
 | AIが判断する部分 | 実装そのもの、テスト内容、レビュー指摘への対応 |
 | **決定論で強制される部分** | ①他機能・要件・共有基盤・設計・ハーネス本体への書き込みは **すべて Hook が拒否**（Rule 1, 2, 6）。②**`src/**` への最初の書き込み時、`required_skills[]` の各Skillが有効化されていなければ実装そのものをブロック**（Rule 5）。③承認済み `contract.yaml` は凍結され書き込み拒否（Rule 3）。④**`TESTED` にするには、宣言された検証コマンドを実際に実行した受領書が必要**（Rule 10、12節）。受領書の手書きも拒否される |
@@ -371,6 +371,7 @@ sequenceDiagram
 | 内容比較で判定するファイルを、結果を再現できない手段（Bash / NotebookEdit）で書くこと | ✅ 手段そのものを拒否（`check_requires_simulatable_tool`。5節） | — |
 | 全機能を結線した結合テストを実際に実行して通したか | ✅ Rule 11 ＋ 統合受領書の `commit` 一致と `interface_coverage[]` の全エッジ充足（13節） | — |
 | 危険操作（リポジトリ外への再帰削除・秘密ファイルの読み取り・履歴の破壊・検証のスキップ・外部送信・`sudo`） | ✅ Rule 12（他 Rule と独立に deny。確認ではなく拒否） | ⚠️ 変数展開・エイリアス・自作スクリプト経由の間接実行は静的検知の原理的限界 |
+| AI が人間向けの説明文を根拠に作業すること | ✅ Rule 13（人間向け文書の読み取りを拒否）＋ CI 項目 R（AI が読む文書からの参照を検出） | ⚠️ 範囲を絞らない検索に混ざる行・作業ディレクトリ移動後やスクリプト経由の読み取りは止めない |
 | 常時読み込みコンテキストの肥大化 | ✅ CI 項目 L（コンテキスト予算） | — |
 | 強制レイヤ自体が壊れていないか | ✅ SessionStart の自己診断＋`PROGRESS.md` 表示。ガードは判定できないとき通過ではなく拒否（fail-closed） | ⚠️ Hook の**起動**自体が失敗した場合はハーネスから止められない（16節） |
 | git 情報が取れない環境での判定の劣化 | ⚠️ 止めずに**警告する**（SessionStart。影響を受ける Rule と倒れる向きを名指しする） | — |

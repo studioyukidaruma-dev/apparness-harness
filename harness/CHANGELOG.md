@@ -16,6 +16,29 @@
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-13
+
+プロジェクト全体の整合性を点検し、見つかった食い違いを直した。強制の範囲は変えていない。
+
+### Fixed
+
+- **`harness/docs/flow/harness-flow-plain.html` を現在の実装に合わせて作り直した。** v1.0.0 時点の内容のまま
+  （12 ルール・CI 16 項目・テスト件数など）で、Rule 13・CI 項目 R・インストーラが載っていなかった。
+  保守者向けだった「読み込み量の一覧」と「文書の役割分担」の節は、利用者向けの「AI が読むもの・人間が読むもの」に
+  置き換えた。受領書の書式例に `errors` を加えた。
+- `docs/flow/harness-flow-technical.html` の冒頭に、v1.0.0 時点の記録であり以降の変更を反映していないことと、
+  最新の参照先を明記した。
+- `harness/docs/GUIDE.md` の 4節で、agent が読むファイルが実際の定義と違っていた（`requirements-analyst` は
+  `CONVENTIONS.md` を読まない／`solution-architect` は 6, 9, 10, 11, 12, 13, 14 節を読む／`feature-builder` は
+  起動直後に `harness/procedures/feature-build.md` を読む）。6節の対照表に Rule 13・CI 項目 R の行を加え、
+  2節の図で `VERSION` / `CHANGELOG.md` を `harness/` の中に置き直した。
+- `harness/docs/USAGE.md` が「ハーネスの更新は `harness/<topic>` ブランチで行う」としていたが、インストーラの案内と
+  CI 項目 B は main も許可している。記述をそちらに合わせた。
+- `docs/DESIGN.md` の「Rule 1〜12」「項目 A〜Q」を現在の数に直し、コンテキスト予算の実測値を更新した。
+  既知の制約（9節）に Rule 13 の限界（B-6）を 4 点セットで加えた。
+- `CONVENTIONS.md` 7節 Rule 12 D-2 の対象一覧に、実装が拒否している `credentials.json` が抜けていた。
+- 版のタグが v1.2.0 からしか無かったため、v1.0.0（`851f07a`）と v1.1.0（`43d2c9a`）にもタグを打った。
+
 ## [1.3.0] - 2026-09-13
 
 ### Added
