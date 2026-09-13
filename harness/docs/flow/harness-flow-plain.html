@@ -75,7 +75,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 <p class="lead">
 このリポジトリの「ハーネス」が、いつ・何を・どうやって動かしているかの案内書です。
 専門用語をなるべく避けて書いています。正確な用語で読みたい方は
-<code>docs/flow/harness-flow-technical.html</code> をどうぞ。<br>
+配布元リポジトリの <code>docs/flow/harness-flow-technical.html</code> をどうぞ。<br>
 対象バージョン: v1.0.0（Unreleased の変更を含む・2026-08-24 時点）
 </p>
 
@@ -464,8 +464,8 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 </tr>
 <tr>
 <td><strong>なぜそうしているか</strong><br>（背景・設計の意図・経緯）</td>
-<td><code>docs/HARNESS_GUIDE.md</code></td>
-<td>規約が太ると全担当者の読み込み量が増えるので、説明はこちらへ。18 節が「規約から移した説明」の置き場</td>
+<td><code>docs/DESIGN.md</code>（配布元のみ）</td>
+<td>規約が太ると全担当者の読み込み量が増えるので、説明はこちらへ。8 節が「規約から移した説明」の置き場。AI は読みません</td>
 </tr>
 <tr>
 <td><strong>誰が何をどの順でやるか</strong><br>（手順）</td>
@@ -523,7 +523,7 @@ AI に読ませる文字が多いほど、実際の作業に使える注意力�
 <h4>迷ったときの 3 つの質問</h4>
 <ol style="margin-bottom:0">
 <li><strong>破ったら機械が止めるか？</strong> → はい なら <code>CONVENTIONS.md</code>（既存の節に）</li>
-<li><strong>「なぜ」の話か？</strong> → はい なら <code>docs/HARNESS_GUIDE.md</code></li>
+<li><strong>「なぜ」の話か？</strong> → はい なら <code>docs/DESIGN.md</code></li>
 <li><strong>特定の担当者の作業手順か？</strong> → はい なら その指示書か <code>procedures/</code></li>
 </ol>
 </div>
@@ -836,8 +836,8 @@ AI の判定なので、<strong>そのままでは通過の根拠にしません
 </div>
 
 <footer>
-docs/flow/harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
-正確な用語版: <code>docs/flow/harness-flow-technical.html</code>　規約本体: <code>harness/CONVENTIONS.md</code>　設計意図: <code>docs/HARNESS_GUIDE.md</code>
+harness/docs/flow/harness-flow-plain.html ― apparness ハーネス v1.0.0（Unreleased 含む）/ 2026-08-24 時点（文書の置き場所のみ v1.3.0 に合わせて更新）<br>
+しくみの説明: <code>harness/docs/GUIDE.md</code>　規約本体: <code>harness/CONVENTIONS.md</code>　保守者向けの技術版と設計意図: 配布元リポジトリの <code>docs/</code>
 </footer>
 
 </div>

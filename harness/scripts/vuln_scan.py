@@ -6,7 +6,7 @@
 初期のロードマップ（このリポジトリには残っていない）では「npm audit/pip-audit/OSV等」を候補として
 挙げていたが、npm audit・pip-audit は
 それぞれ npm・pip という特定のパッケージマネージャの CLI に同梱された、エコシステム固有のツールで
-ある。このハーネスは「どんなアプリでも作れる」ことを前提にしており（docs/HARNESS_GUIDE.md 12節）、
+ある。このハーネスは「どんなアプリでも作れる」ことを前提にしており、
 solution-architect がどの言語・パッケージマネージャを選ぶかは実行時にしか決まらない。
 エコシステムごとに `npm audit` / `pip-audit` / `cargo audit` / `govulncheck` ... を出し分ける
 ロジックを自前で持つと、対応エコシステットを増やすたびにハーネス側の保守が必要になる。
@@ -18,7 +18,7 @@ lockfile の種類（package-lock.json / requirements.txt / poetry.lock / Cargo.
 
 ## なぜ Hook ではなく CI に置くか
 
-`harness/hooks/*.py` は「依存ゼロの標準ライブラリのみ」（CONVENTIONS.md 1節・docs/HARNESS_GUIDE.md 5節）
+`harness/hooks/*.py` は「依存ゼロの標準ライブラリのみ」（CONVENTIONS.md 1節）
 で、ツール呼び出しのたびに毎回起動される。OSV-Scanner は外部バイナリであり、かつ既定では OSV.dev
 への問い合わせにネットワークアクセスを要する。これを PreToolUse Hook に組み込むと、Edit/Write の
 たびにネットワーク越しの脆弱性DB照会が走ることになり、決定論的・低コストであるべき Hook 層の

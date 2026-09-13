@@ -76,7 +76,7 @@ footer{margin-top:4rem;padding-top:1.2rem;border-top:1px solid var(--line);color
 apparness ハーネスの実行時アーキテクチャ。介入点・参照文書・コンテキスト予算・ブランチ保護・
 ゲート判定の書式と決定性を、実装に対応づけて記述する。<br>
 対象: <code>VERSION</code> = 1.0.0（Unreleased 変更を含む） / 2026-08-24 時点 / 自己テスト 702 件緑<br>
-平易版: <code>docs/flow/harness-flow-plain.html</code>
+平易版: <code>harness/docs/flow/harness-flow-plain.html</code>
 </p>
 
 <div class="toc">
@@ -320,7 +320,7 @@ INV-5 は監査可能性の根拠でもある。<code>harness/hooks/</code> 配�
 </ol>
 
 <div class="box warn">
-<h4>fail-open — 構造的に残る穴（docs/HARNESS_GUIDE.md 11節 A-1）</h4>
+<h4>fail-open — 構造的に残る穴（docs/DESIGN.md 9節 A-1）</h4>
 <p>
 Hook を起動するのは Claude Code である。<code>python3</code> 不在・import 失敗・タイムアウトの
 いずれでも Hook は exit != 2 で終わり、<strong>Rule 1–12 が黙って無効化された状態で作業が継続する</strong>。
@@ -722,7 +722,7 @@ CONVENTIONS.md 1・15節の言及はどの agent も読まない節）</td></tr>
 <td><strong>15 節で凍結。16 節以降は CI 項目 O が拒否</strong>。既存節への追記のみ。参照は節番号で</td></tr>
 <tr><td>機械では強制できない規範</td><td><code>CONVENTIONS.md</code> に宣言 ＋ agent プロンプトに指示</td><td>同上</td>
 <td>宣言と指示を分ける。両方に本文を書くと項目 M が落ちる</td></tr>
-<tr><td>設計意図・背景・経緯・既知の制約</td><td><code>docs/HARNESS_GUIDE.md</code></td><td>対象外</td>
+<tr><td>設計意図・背景・経緯・既知の制約</td><td><code>docs/DESIGN.md</code></td><td>対象外</td>
 <td>18節が「CONVENTIONS.md から移設した説明」の受け皿。11節の制約は<strong>4 点セット</strong>
 （症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）で書く</td></tr>
 <tr><td>フェーズ固有の手順</td><td>該当 agent/skill プロンプト、または <code>harness/procedures/*.md</code></td>
@@ -978,7 +978,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 
 <p>
 記録形式は <strong>4 点セット</strong>（症状 / 根本原因 / 適用中の緩和策 / <strong>再検討の条件</strong>）に統一。
-全文は <code>docs/HARNESS_GUIDE.md</code> 11節。<strong>A = ハーネスの制御外</strong>、<strong>B = apparness 側で直せる</strong>。
+全文は <code>docs/DESIGN.md</code> 9節。<strong>A = ハーネスの制御外</strong>、<strong>B = apparness 側で直せる</strong>。
 </p>
 
 <div class="scroll">
@@ -1023,7 +1023,7 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 
 <p>
 記載した事実は<strong>実行物（コード・設定・スキーマ・agent/skill プロンプト）から機械的に抽出した</strong>。
-人間向け文書（<code>CONVENTIONS.md</code>・<code>docs/HARNESS_GUIDE.md</code>・<code>README.md</code>）は、
+人間向け文書（<code>CONVENTIONS.md</code>・<code>harness/docs/</code>・<code>docs/</code>・<code>README.md</code>）は、
 実装より古い可能性があるため<strong>一次情報として採用していない</strong>。
 </p>
 
@@ -1079,8 +1079,8 @@ F-029/F-030 では中核 Rule 群が丸ごと空振りしていたにもかか�
 
 <footer>
 docs/flow/harness-flow-technical.html ― apparness ハーネス <code>VERSION</code> 1.0.0（Unreleased 含む）/ 2026-08-24 時点<br>
-平易版: <code>docs/flow/harness-flow-plain.html</code>　規範: <code>harness/CONVENTIONS.md</code>（15 節・凍結中）
-設計意図: <code>docs/HARNESS_GUIDE.md</code>　主張と証跡: <code>harness/CLAIMS.md</code>
+平易版: <code>harness/docs/flow/harness-flow-plain.html</code>　規範: <code>harness/CONVENTIONS.md</code>（15 節・凍結中）
+設計意図: <code>docs/DESIGN.md</code>　主張と証跡: <code>harness/CLAIMS.md</code>
 </footer>
 
 </div>

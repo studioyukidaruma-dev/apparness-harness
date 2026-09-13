@@ -16,6 +16,47 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-13
+
+### Added
+
+- **Rule 13（人間向け文書の読み取り拒否）**: AI が読む文書と人間が読む文書を明確に分け、AI は実行物と
+  `CONVENTIONS.md` だけから動作を判断する方針を Hook で強制する。人間向け文書（配布元では `docs/**` と
+  `harness/docs/**`、導入先（`harness/install-manifest.json` がある）では `harness/docs/**` だけ）の
+  読み取りを、`Read`/`NotebookRead`/`Grep` と Bash の読み出しコマンド（`cat`・`grep`・`sed` 等）について
+  `harness/<topic>` ブランチ以外で拒否する。文書の保守には Edit の前の Read が要るため保守ブランチでは許可する。
+  範囲を絞らない検索に混ざる行・作業ディレクトリ移動後の読み取り・スクリプト経由の読み取りは止めない
+  （`CLAIMS.md` に残余として明記）。`.claude/settings.json` の `PreToolUse` の matcher に `Grep` を追加した。
+  テストは `harness/tests/test_human_docs.py`。
+- **CI 項目 R**: AI が読む文書（agent・skill・手順書・`CONVENTIONS.md`・`quality/`・`STACK_PACK.md`）から
+  人間向け文書への参照を不合格にする。Hook はセッション外で効かないため、「そこを読めば分かる」という
+  誘導の側も見張る。規範が対象を名指しする行は、同じ行に「人間向け」とあれば許可する。
+- **`harness/docs/`（利用者向けの人間向け文書）**: `USAGE.md`（使い方）・`GUIDE.md`（しくみ）・
+  `flow/harness-flow-plain.html`（図解）。`harness/` の中にあるので導入先にもコピーされる。
+- **`docs/DESIGN.md`・`docs/DEVELOPMENT.md`（保守者向け）**: 設計意図・経緯・既知の制約と、改修・リリースの手順。
+
+### Changed
+
+- **文書を「読む人」で再編した。** ルートの `README.md` は概要と導入方法だけにし、詳細は `harness/docs/` に譲る。
+  `docs/` にはアプリ作成に必要のない保守者向けの文書だけを残した。
+  - `docs/HARNESS_GUIDE.md` を分割した。利用者向けの節は `harness/docs/GUIDE.md` へ、保守者向けの
+    6節（コンテキスト消費マップ）・11節（既知の制約）・18節（規約から移した設計意図）と、各節に混ざっていた
+    経緯・「なぜ」の説明は `docs/DESIGN.md` へ移した。
+  - `docs/flow/harness-flow-plain.html` → `harness/docs/flow/harness-flow-plain.html`。
+    技術版（監査・保守者向け）は `docs/flow/` に残した。
+  - `docs/README.md` → `docs/INDEX.md`（README をルートの 1 つにするため）。過去の記録に出てくる古いパスとの対応表を置いた。
+- **`CONVENTIONS.md` から人間向け文書への出典の注記をすべて外した。** AI が読む文書から人間向け文書への導線を
+  なくし、常時コストも減らす。AI の作業に要る内容だった「Rule 10 と Rule 8 の順序」は 12節の本文に移した。
+  15節の「`docs/` は人間専用」を、`docs/` と `harness/docs/` の両方を対象にした方針へ書き直し、
+  1節のディレクトリ構造を更新した。7節は 13 ルールになった（節の数は 15 のまま）。
+- `solution-architect` の「引数は `harness/README.md` 参照」を「`--help` で確認」に変えた。
+- `session_start_healthcheck.py` の git 劣化警告に、ブランチが取れないと Rule 13 も拒否に倒れることを加えた。
+
+### Removed
+
+- **`harness/README.md`**。人間向けの内容は `harness/docs/USAGE.md` に統合し、スクリプトの引数の説明は
+  各スクリプトの `--help` を唯一の情報源にした。
+
 ## [1.2.1] - 2026-09-13
 
 ### Fixed
