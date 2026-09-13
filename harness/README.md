@@ -91,8 +91,10 @@ uv run --python 3.12 --with pytest --with pyyaml --with jsonschema python -m pyt
 - `harness/CLAIMS.md` — **主張と証跡の対応表。** 「何をブロックすると主張するか」と
   「それを実証しているテスト」の対応。CI の項目 P が表と実体の drift を機械的に見張る
 - `harness/STACK_PACK.md` — スタック固有の標準を外部プラグインとして接続するための仕様
-- `VERSION` / `CHANGELOG.md`（リポジトリルート）— ハーネスの版と変更履歴。CI の項目 Q が、
-  ハーネス本体を触ったコミットで CHANGELOG が更新されていることを要求する
+- `harness/VERSION` / `harness/CHANGELOG.md` — ハーネスの版と変更履歴。CI の項目 Q が、
+  ハーネス本体を触ったコミットで CHANGELOG が更新されている（またはリリースである）ことを要求する
+- `harness/scripts/install.py` — 別のプロジェクトへハーネスをコピーして導入・更新する（標準ライブラリのみ）。
+  導入した版とファイルの一覧は導入先の `harness/install-manifest.json` に記録される
 - `docs/`（リポジトリルート）— **人間専用**。設計意図・しくみの説明書・改修計画の置き場所で、
   アプリ作成中の subagent は読まない（`CONVENTIONS.md` 15節）。ここから `docs/` を指している
   のは出典の注記であって、読めという指示ではない

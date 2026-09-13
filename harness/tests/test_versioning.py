@@ -42,10 +42,11 @@ CHANGELOG_EMPTY_UNRELEASED = """# CHANGELOG
 
 
 def build(tmp_path: pathlib.Path, version: str | None = "1.0.0", changelog: str | None = CHANGELOG_WITH_ENTRY):
+    (tmp_path / "harness").mkdir(exist_ok=True)
     if version is not None:
-        (tmp_path / "VERSION").write_text(version + "\n", encoding="utf-8")
+        (tmp_path / "harness" / "VERSION").write_text(version + "\n", encoding="utf-8")
     if changelog is not None:
-        (tmp_path / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+        (tmp_path / "harness" / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
     return tmp_path
 
 
@@ -88,16 +89,67 @@ def test_harness_change_without_a_changelog_entry_is_rejected(tmp_path) -> None:
 
 
 def test_harness_change_with_a_changelog_entry_passes(tmp_path) -> None:
-    changed = HARNESS_CHANGE + [("M", "CHANGELOG.md")]
+    changed = HARNESS_CHANGE + [("M", "harness/CHANGELOG.md")]
     assert ci_check.check_versioning(changed, build(tmp_path)) == []
 
 
 def test_an_empty_unreleased_section_is_rejected(tmp_path) -> None:
     """見出しだけ足しても、何が変わったのかは導入側から分からない。"""
-    changed = HARNESS_CHANGE + [("M", "CHANGELOG.md")]
+    changed = HARNESS_CHANGE + [("M", "harness/CHANGELOG.md")]
     root = build(tmp_path, changelog=CHANGELOG_EMPTY_UNRELEASED)
     violations = ci_check.check_versioning(changed, root)
     assert len(violations) == 1 and "Unreleased" in violations[0]
+
+
+CHANGELOG_RELEASED = """# CHANGELOG
+
+## [Unreleased]
+
+## [1.1.0] - 2026-09-13
+
+- 何かを足した
+
+## [1.0.0] - 2026-08-23
+
+- 初版
+"""
+
+
+def test_a_release_with_an_empty_unreleased_section_passes(tmp_path) -> None:
+    """リリースでは Unreleased が版の節へ移って空になる。版を上げていれば記録として足りる。"""
+    changed = HARNESS_CHANGE + [("M", "harness/CHANGELOG.md"), ("M", "harness/VERSION")]
+    root = build(tmp_path, version="1.1.0", changelog=CHANGELOG_RELEASED)
+    assert ci_check.check_versioning(changed, root) == []
+
+
+def test_an_install_of_a_released_version_passes(tmp_path) -> None:
+    """`install.py` で導入したプロジェクトでは、版と CHANGELOG が新規追加として入る。"""
+    changed = HARNESS_CHANGE + [("A", "harness/CHANGELOG.md"), ("A", "harness/VERSION")]
+    root = build(tmp_path, version="1.1.0", changelog=CHANGELOG_RELEASED)
+    assert ci_check.check_versioning(changed, root) == []
+
+
+def test_a_version_bump_without_its_section_is_rejected(tmp_path) -> None:
+    """版だけ上げて CHANGELOG にその版の節が無いと、何が入った版なのか分からない。"""
+    changed = HARNESS_CHANGE + [("M", "harness/CHANGELOG.md"), ("M", "harness/VERSION")]
+    root = build(tmp_path, version="1.2.0", changelog=CHANGELOG_RELEASED)
+    violations = ci_check.check_versioning(changed, root)
+    assert len(violations) == 1 and "Unreleased" in violations[0]
+
+
+def test_an_empty_unreleased_section_without_a_version_bump_is_rejected(tmp_path) -> None:
+    """既存の版の節があるだけでは、今回の変更の記録にならない。"""
+    changed = HARNESS_CHANGE + [("M", "harness/CHANGELOG.md")]
+    root = build(tmp_path, version="1.1.0", changelog=CHANGELOG_RELEASED)
+    violations = ci_check.check_versioning(changed, root)
+    assert len(violations) == 1
+
+
+def test_editing_only_the_version_records_does_not_require_an_entry(tmp_path) -> None:
+    """VERSION / CHANGELOG.md 自体は記録そのものなので、それだけの変更に追記は要らない。"""
+    changed = [("M", "harness/CHANGELOG.md"), ("M", "harness/VERSION")]
+    root = build(tmp_path, version="1.1.0", changelog=CHANGELOG_RELEASED)
+    assert ci_check.check_versioning(changed, root) == []
 
 
 def test_app_only_changes_do_not_require_a_changelog_entry(tmp_path) -> None:
@@ -138,7 +190,7 @@ def test_unreleased_entries_is_empty_without_the_section() -> None:
 
 def test_this_repository_has_a_version_and_a_changelog() -> None:
     assert ci_check.read_harness_version(REPO_ROOT) is not None
-    assert (REPO_ROOT / "CHANGELOG.md").exists()
+    assert (REPO_ROOT / "harness" / "CHANGELOG.md").exists()
 
 
 def test_the_dashboard_shows_the_harness_version() -> None:

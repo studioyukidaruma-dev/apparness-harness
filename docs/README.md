@@ -21,7 +21,7 @@
 | **なぜ今の形に落ち着いたのか**（役目を終えた調査） | [archive/](archive/) |
 
 規約そのもの（機械が強制する規範）は、ここではなく `../harness/CONVENTIONS.md` にあります。
-ハーネスの変更履歴は `../CHANGELOG.md` です。
+ハーネスの変更履歴は `../harness/CHANGELOG.md` です。
 
 ## 中身
 

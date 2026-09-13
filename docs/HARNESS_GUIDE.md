@@ -11,7 +11,7 @@ CI 連携（12節）・依存ライブラリの脆弱性スキャン（13節）�
 → Rule 10**（14節）・**契約と要件の機械検証**（15節）・**独立レビューア**（16節）・
 **スタックパック規約**（17節）・ハーネス自身の pytest（12節）・**統合の受領書ゲート（Rule 11）**・
 **危険操作フロア（Rule 12）**・**強制レイヤ自身の健全性の自己診断と fail-closed 化**（5節）・
-**主張と証跡の対応表 `harness/CLAIMS.md`**（CI 項目 P）・**`VERSION` / `CHANGELOG.md`**（CI 項目 Q）。
+**主張と証跡の対応表 `harness/CLAIMS.md`**（CI 項目 P）・**`harness/VERSION` / `harness/CHANGELOG.md`**（CI 項目 Q）。
 
 未着手・保留中の項目は `docs/plans/IMPROVEMENT-PLAN.machine.yaml` の `tasks[]`（`status` 付き）と
 `docs/plans/REPAIR-ORDER.machine.yaml` を参照してください。既知の制約とその再検討条件は 11節にあります。
@@ -80,7 +80,7 @@ graph TB
             TESTS["tests/<br/>ハーネス自身のpytest"]
         end
         subgraph VER["リポジトリルート直下"]
-            VERSION["VERSION / CHANGELOG.md<br/>版と変更履歴（CI項目Q）"]
+            VERSION["harness/VERSION / CHANGELOG.md<br/>版と変更履歴（CI項目Q）"]
         end
         subgraph GHACTIONS[".github/workflows/  ハーネス本体（書き込み保護対象）"]
             CIYML["harness-checks.yml<br/>push/PRごとにci_check.pyを実行"]
@@ -782,7 +782,7 @@ graph TD
 かつてこの節に並んでいた「未対応」の多くは v1 で実装済みです（Rule 8・Rule 9・Bash 経由の
 実ブロック化と事後検証・CI 連携・脆弱性スキャン・ハーネス自身の pytest・検証受領書と Rule 10・
 `interfaces[]` の JSON Schema 突合・トレーサビリティ・`gate-reviewer`・スタックパック規約・
-コンテキスト予算の CI 化）。**個々の内訳は `CHANGELOG.md` にあります**——「何が済んだか」の
+コンテキスト予算の CI 化）。**個々の内訳は `harness/CHANGELOG.md` にあります**——「何が済んだか」の
 一覧を 2 箇所で持つと必ず drift するため、この節は**残っている制約だけ**を扱います。
 
 ---
@@ -842,7 +842,7 @@ flowchart LR
 | N | `interfaces[]` の全エッジが結合テストに対応づけられているか | Rule 11（宣言レベル） | `check_integration_traceability.py`。実行結果の真偽は `run_integration_verification.py` が JUnit XML と突合する |
 | O | `CONVENTIONS.md` への節の新設拒否 | （Hookでは未実施） | `## <数字>.` の見出し数が 15 のままかを検証（節の削除・既存節の変更は対象外） |
 | P | `CLAIMS.md` と実体の drift | （Hookでは未実施） | 表に書かれた `<file>.py::<test>` が `harness/tests/` に実在するか。実証テストが `—` の行に「未実証の残余」が書かれているか |
-| Q | `VERSION` / `CHANGELOG.md` の追随 | （Hookでは未実施） | `harness/`・`.claude/`・`.github/` に差分のあるコミットで、`CHANGELOG.md` が変更ファイルに含まれ `## [Unreleased]` に `- ` 始まりの項目が 1 件以上あるか（内容の妥当性は見ない） |
+| Q | `harness/VERSION` / `harness/CHANGELOG.md` の追随 | （Hookでは未実施） | `harness/`・`.claude/`・`.github/` に差分のあるコミットで、`harness/CHANGELOG.md` が変更ファイルに含まれ、`## [Unreleased]` に `- ` 始まりの項目が 1 件以上あるか、`harness/VERSION` も変更されていてその版の `## [<版>]` 節があるか（リリース・導入の場合。内容の妥当性は見ない） |
 
 **H は欠番です。** `ci_check.py` にも `CLAIMS.md` にも H の項目は存在しません
 （経緯は記録に残っていません）。記号は `CLAIMS.md`・CI の出力・過去の記録が参照する

@@ -25,11 +25,35 @@
 
 ### Added
 
-- **他プロジェクトへの導入手順（git submodule + symlink）**: `README.md` に、本リポジトリを
-  git submodule として取り込み、`.claude/` と `harness/` を利用側プロジェクトのルートへ
-  symlink する手順を追加した。`.claude/settings.json` の Hook は
-  `$CLAUDE_PROJECT_DIR/harness/hooks/...` を直接参照するため、サブモジュールを
-  サブディレクトリに置くだけでは動作しない制約への対応。
+- **コピー型インストーラ（`harness/scripts/install.py`）**: 別のプロジェクトへ `harness/`・
+  `.claude/agents/`・`.claude/skills/`・`.github/workflows/harness-checks.yml` をコピーし、
+  `.claude/settings.json` には Hook の登録だけを合成し、`.gitignore` に管理ブロックを足す。
+  標準ライブラリのみで動く。導入した版とファイルの一覧を `harness/install-manifest.json` に
+  記録し、再実行で更新する（上流で消えたファイルだけを削除し、導入先が自分で置いた agent・skill
+  には触れない）。ハーネスが導入していない場所にある内容の異なるファイルは、`--force` が無い限り
+  上書きせずに止まる。`--dry-run` あり。テストは `harness/tests/test_install.py`。
+- `README.md` に「他プロジェクトへの導入」節を追加した。
+
+### Changed
+
+- **`VERSION` / `CHANGELOG.md` をリポジトリ直下から `harness/` へ移した。** 導入先のプロジェクトが
+  持つ同名ファイルと衝突させないため。ハーネスが導入先へ持ち込むものが `harness/`・`.claude/`・
+  `.github/` にそろう。`ci_check.py`（項目 Q）・`render_progress.py`・関連文書の参照を更新した。
+
+### Fixed
+
+- **CI 項目 Q がリリースのコミットを誤って不合格にしていた。** リリースでは Unreleased を版の節へ
+  移すので空になり、ハーネス本体の差分を含むと「Unreleased に項目が無い」で落ちていた。
+  `harness/VERSION` が変更され、CHANGELOG にその版の `## [<版>]` 節があれば記録として認める。
+  `install.py` で導入・更新したプロジェクトのコミットも同じ形になる。`harness/VERSION` と
+  `harness/CHANGELOG.md` 自体の変更は「ハーネス本体の変更」に数えない。
+
+### Removed
+
+- 一時的に `README.md` に書いていた git submodule + symlink による導入手順を削除した（未リリース）。
+  実測で、①機能ごとの git worktree の中では submodule の中身が空になり `.claude/` と `harness/` の
+  リンクが切れる、②実体のパス（`vendor/.../harness/...`）を指定すると Rule 1 の保護を
+  すり抜けられる、の 2 点を確認したため。
 
 ## [1.1.0] - 2026-09-13
 

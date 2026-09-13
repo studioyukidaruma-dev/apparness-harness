@@ -35,8 +35,9 @@ feature-builder/integrator が書く単体・結合テストの自動実行は�
   O. CONVENTIONS.md 凍結中の節新設拒否（15節で固定。経緯は check_conventions_frozen_section_count の docstring）
   P. harness/CLAIMS.md（主張と証跡の対応表）に書かれた実証テストが harness/tests/ に実在し、
      実証テストが無い行には「なぜ実証できないか」が書かれている（表と実体の drift 防止）
-  Q. VERSION / CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは CHANGELOG.md の
-     Unreleased セクションが更新されている（導入された版を機械的に特定できるようにする）
+  Q. harness/VERSION / harness/CHANGELOG.md が存在し、ハーネス本体に差分があるコミットでは
+     CHANGELOG.md の Unreleased セクションが更新されているか、VERSION を上げてその版の節がある
+     （導入された版を機械的に特定できるようにする）
 
 Rule 5（必須Skillの充足）は CI に実行環境の Skill 有効化状態が存在しないため、
 Rule 8（フェーズ節目のコミット強制）は push された時点で既にコミット済みであるため、
@@ -782,16 +783,18 @@ def check_claims_coverage(root: pathlib.Path) -> list[str]:
     return violations
 
 
-# 項目 Q: 版管理（VERSION / CHANGELOG.md）
+# 項目 Q: 版管理（harness/VERSION / harness/CHANGELOG.md）
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 HARNESS_PREFIXES = ("harness/", ".claude/", ".github/")
+VERSION_PATH = "harness/VERSION"
+CHANGELOG_PATH = "harness/CHANGELOG.md"
 UNRELEASED_HEADING_RE = re.compile(r"^##\s*\[?Unreleased\]?", re.MULTILINE | re.IGNORECASE)
 
 
 def read_harness_version(root: pathlib.Path) -> str | None:
-    """`VERSION` の内容（`1.2.3`）。無い・書式違反なら None。"""
+    """`harness/VERSION` の内容（`1.2.3`）。無い・書式違反なら None。"""
     try:
-        value = (root / "VERSION").read_text(encoding="utf-8").strip()
+        value = (root / VERSION_PATH).read_text(encoding="utf-8").strip()
     except OSError:
         return None
     return value if SEMVER_RE.match(value) else None
@@ -815,39 +818,54 @@ def check_versioning(changed: list[tuple[str, str]], root: pathlib.Path) -> list
     `VERSION` の存在だけでは腐るので、**ハーネス本体を触ったコミットでは `CHANGELOG.md` の
     Unreleased セクションが更新されていること**まで機械的に要求する。
 
+    **リリース**（`VERSION` を上げ、その版の節が CHANGELOG にある）も記録として認める。
+    リリース時は Unreleased を版の節へ移すので空になるうえ、`install.py` で導入・更新した
+    プロジェクトではコミットの中身が常にリリース済みの版になるため。
+
     CHANGELOG の**内容が正しいか**は判定しない（記述の有無だけを見る。文章の妥当性を
     機械が判定できるふりをしない、というのがこのハーネスの一貫した方針）。
     """
     violations = []
-    if read_harness_version(root) is None:
+    version = read_harness_version(root)
+    if version is None:
         violations.append(
-            "VERSION: 存在しないか、セマンティック バージョニングの書式（例 1.2.3）ではありません"
+            f"{VERSION_PATH}: 存在しないか、セマンティック バージョニングの書式（例 1.2.3）ではありません"
         )
-    changelog_path = root / "CHANGELOG.md"
+    changelog_path = root / CHANGELOG_PATH
     if not changelog_path.exists():
-        return violations + ["CHANGELOG.md: 存在しません（Keep a Changelog 形式で作成してください）"]
+        return violations + [f"{CHANGELOG_PATH}: 存在しません（Keep a Changelog 形式で作成してください）"]
 
     harness_changes = [
         path for _status, path in changed
-        if path.startswith(HARNESS_PREFIXES) and path != ".claude/settings.local.json"
+        if path.startswith(HARNESS_PREFIXES)
+        and path not in (".claude/settings.local.json", VERSION_PATH, CHANGELOG_PATH)
     ]
     if not harness_changes:
         return violations
 
     changed_paths = {path for _status, path in changed}
-    if "CHANGELOG.md" not in changed_paths:
+    if CHANGELOG_PATH not in changed_paths:
         violations.append(
-            f"CHANGELOG.md: ハーネス本体に {len(harness_changes)} 件の変更"
+            f"{CHANGELOG_PATH}: ハーネス本体に {len(harness_changes)} 件の変更"
             f"（{harness_changes[0]} ほか）がありますが、CHANGELOG.md が更新されていません。"
             "`## [Unreleased]` に何を変えたかを追記してください"
         )
         return violations
-    if not unreleased_entries(changelog_path.read_text(encoding="utf-8")):
-        violations.append(
-            "CHANGELOG.md: `## [Unreleased]` セクションに項目がありません"
-            "（見出しだけでは、何が変わったのか導入側から分かりません）"
-        )
+    changelog_text = changelog_path.read_text(encoding="utf-8")
+    if unreleased_entries(changelog_text):
+        return violations
+    if VERSION_PATH in changed_paths and version is not None and has_release_section(changelog_text, version):
+        return violations
+    violations.append(
+        f"{CHANGELOG_PATH}: `## [Unreleased]` セクションに項目がありません"
+        "（見出しだけでは、何が変わったのか導入側から分かりません）。"
+        f"リリースなら {VERSION_PATH} を上げ、`## [<版>]` の節を置いてください"
+    )
     return violations
+
+
+def has_release_section(changelog_text: str, version: str) -> bool:
+    return re.search(rf"^##\s*\[{re.escape(version)}\]", changelog_text, re.MULTILINE) is not None
 
 
 def _strip_timestamp(text: str) -> str:

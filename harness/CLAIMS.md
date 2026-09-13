@@ -62,7 +62,7 @@
 | 項目 N | `interfaces[]` のエッジが結合テストに対応づけられていないこと | `test_check_integration_traceability.py::test_partial_coverage_still_reports_gaps` | 2026-08-24 | — |
 | 項目 O | CONVENTIONS.md への節の新設 | `test_conventions_frozen.py::test_new_section_is_rejected` | 2026-08-24 | 節の削除・既存節の変更は凍結の対象外（意図的） |
 | 項目 P | この表に書かれた実証テストが実在しないこと | `test_claims.py::test_unknown_test_name_is_rejected` / `test_claims.py::test_missing_evidence_without_a_reason_is_rejected` | 2026-08-24 | この表に**行を足し忘れた**規則は検出できない（規則の追加は人間の判断） |
-| 項目 Q | ハーネス本体の変更に CHANGELOG の追随が無いこと | `test_versioning.py::test_harness_change_without_a_changelog_entry_is_rejected` / `test_versioning.py::test_an_empty_unreleased_section_is_rejected` | 2026-08-24 | CHANGELOG の内容が正しいかは判定しない（記述の有無だけを見る） |
+| 項目 Q | ハーネス本体の変更に CHANGELOG の追随が無いこと | `test_versioning.py::test_harness_change_without_a_changelog_entry_is_rejected` / `test_versioning.py::test_an_empty_unreleased_section_is_rejected` / `test_versioning.py::test_a_version_bump_without_its_section_is_rejected` | 2026-08-24 | CHANGELOG の内容が正しいかは判定しない（記述の有無だけを見る） |
 
 ## 脆弱性走査（`vuln_scan.py` / `vuln-scan` job）
 

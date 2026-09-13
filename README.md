@@ -71,7 +71,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 | 依存ゼロの強制レイヤ | `harness/hooks/**` は Python 標準ライブラリのみ。**縛る側のコードが読める** |
 | 実行ベースの検証 | 受領書・JUnit XML・JSON Schema 突合。自己申告に頼らない |
 | アプリ非依存 | 技術スタックを規定しない。検証コマンドはアプリ側が宣言する |
-| 自己テスト | 702 件（`harness/tests/`）。CI で毎回実行 |
+| 自己テスト | 724 件（`harness/tests/`）。CI で毎回実行 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -118,6 +118,8 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   ├── CLAIMS.md                    ← 主張と証跡の対応表（CI 項目 P が検証）
 │   ├── README.md                    ← ハーネスの使い方
 │   ├── STACK_PACK.md                ← スタック固有標準の外部化仕様
+│   ├── VERSION                      ← ハーネスの版（セマンティックバージョニング）
+│   ├── CHANGELOG.md                 ← 変更履歴（CI 項目 Q が追随を要求）
 │   ├── hooks/                       ← 決定論的ガード（依存ゼロ）
 │   │   ├── lib/path_utils.py            判定ロジックの本体
 │   │   ├── pre_tool_use_guard.py        Rule 1-3,5-7,9-12
@@ -128,9 +130,9 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   ├── procedures/                  ← フェーズ固有の手順（読む agent は always-reads 宣言が必須。CI 項目 L が計上）
 │   ├── quality/                     ← セキュリティ・デザイン・レビュー基準
 │   ├── schemas/                     ← 機械可読ファイルの JSON Schema（8 種）
-│   ├── scripts/                     ← 決定論ロジック（18 本）
+│   ├── scripts/                     ← 決定論ロジックとインストーラ（19 本）
 │   ├── templates/                   ← 各種ひな形（13 種）
-│   └── tests/                       ← ハーネス自身の pytest（702 件）
+│   └── tests/                       ← ハーネス自身の pytest（724 件）
 ├── briefs/<app-id>.brief.yaml       ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力
 ├── apps/<app-id>/                   ← 生成物。init-app skill が都度生成する（未生成）
 ├── docs/                            ← **人間専用。** アプリ作成中の subagent は読まない
@@ -140,15 +142,15 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   ├── plans/                           改修計画・改修指示書（機械可読 ＋ 人間向けの双子）
 │   ├── maintenance/                     実地の摩擦点 77 件と、それをテストへ変える手順
 │   └── archive/                         役目を終えた調査資料（他ハーネスとの比較）
-├── VERSION                          ← ハーネスの版（セマンティックバージョニング）
-├── CHANGELOG.md                     ← 変更履歴（CI 項目 Q が追随を要求）
 ├── README.md
 └── pyrightconfig.json               ← 型チェッカ設定（実行には影響しない）
 ```
 
-ルート直下に残しているのは 4 つだけです。**実行物がパスとして解決するもの**
-（`VERSION` / `CHANGELOG.md` — `ci_check.py` と `render_progress.py` がルート基準で開きます）、
-**入口**（`README.md`）、**ツール設定**（`pyrightconfig.json`）。
+**他プロジェクトへ導入されるのは `harness/`・`.claude/`・`.github/workflows/harness-checks.yml` だけです**
+（[他プロジェクトへの導入](#他プロジェクトへの導入)）。版と変更履歴も `harness/` の中に置いているので、
+導入先の `VERSION` や `CHANGELOG.md` とは衝突しません。
+ルート直下に残しているのは、**入口**（`README.md`）と**ツール設定**（`pyrightconfig.json`）、
+導入先の生成物の置き場所を示す空の `apps/`・`briefs/` だけです。
 説明のための文書はすべて `docs/` にあり、**ハーネス内部（`harness/**`・`.claude/**`）から
 `docs/` 配下を名指しする箇所は 1 件もありません**（`docs/HARNESS_GUIDE.md` への出典注記を除く）。
 
@@ -156,8 +158,8 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 
 ## 開発環境構築
 
-**ハーネスを使うだけならインストールは不要です。** `harness/hooks/**` は依存ゼロで動きます。
-以下はハーネス自身を保守・改修する場合の手順です。
+**以下はハーネス自身を保守・改修する場合の手順です。** 別のプロジェクトで使う場合は
+[他プロジェクトへの導入](#他プロジェクトへの導入)を見てください。
 
 ### 依存のインストール
 
@@ -176,7 +178,7 @@ python3 harness/scripts/ci_check.py --branch $(git branch --show-current)
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-`702 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
+`724 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
 3 つ目は**強制レイヤ自身が健全か**の自己診断で、異常があればここに理由が出ます。
 
 ### ハーネスを改修するとき
@@ -186,53 +188,65 @@ git switch -c harness/<topic>
 ```
 
 **`harness/` で始まるブランチでないと `harness/`・`.claude/`・`.github/` に書き込めません**
-（Rule 1 が実行前に拒否します）。改修したら `CHANGELOG.md` の `## [Unreleased]` への追記も
+（Rule 1 が実行前に拒否します）。改修したら `harness/CHANGELOG.md` の `## [Unreleased]` への追記も
 必須です（CI 項目 Q が要求します）。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
 ## 他プロジェクトへの導入
 
-**既存プロジェクトからこのハーネスを使う場合は git submodule として取り込み、
-`.claude/` と `harness/` を利用側プロジェクトのルートへ symlink してください。**
+**インストーラで、ハーネスを導入先のプロジェクトへコピーします。**
+導入先は git リポジトリである必要があります（ハーネスの判定が git に依存するため）。
 
 ```
-git submodule add https://github.com/studioyukidaruma-dev/apparness-harness.git vendor/apparness-harness
-ln -s vendor/apparness-harness/.claude .claude
-ln -s vendor/apparness-harness/harness harness
+git clone https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
+cd <導入先プロジェクト>
+python3 ~/apparness-harness/harness/scripts/install.py . --dry-run   # 何が起きるかを確認
+python3 ~/apparness-harness/harness/scripts/install.py .
+pip install -r harness/requirements.txt
+python3 harness/hooks/session_start_healthcheck.py < /dev/null        # 無出力（exit 0）なら成功
+git add -A && git commit -m "apparness ハーネスを導入"
 ```
 
-### なぜ symlink が要るのか
+インストーラは Python の標準ライブラリだけで動きます。導入されるものは次のとおりです。
 
-`.claude/settings.json` の Hook は `$CLAUDE_PROJECT_DIR/harness/hooks/...` を直接参照します。
-`$CLAUDE_PROJECT_DIR` は Claude Code が**利用側プロジェクトのルート**に対して設定する環境変数
-なので、`harness/` がそのルート直下に見えないと Hook は起動しません。サブモジュールを
-`vendor/` 配下に置いただけでは動かないのはこのためです。同じ理由で `.claude/agents` /
-`.claude/skills` も Claude Code がプロジェクトルート直下の `.claude/` から読むため、symlink
-（または同等のコピー）が必要です。
+| 導入先のパス | 内容 |
+| --- | --- |
+| `harness/` | ハーネス本体（Hook・スクリプト・規約・テスト・版） |
+| `.claude/agents/`・`.claude/skills/` | subagent 5 種・skill 4 種 |
+| `.claude/settings.json` | **Hook の登録だけを追加**します。既存の設定（`permissions` など）や自前の Hook は残ります |
+| `.github/workflows/harness-checks.yml` | CI（selftest / ci-check / vuln-scan） |
+| `.gitignore` | 管理ブロック（`# >>> apparness-harness` 〜 `# <<< apparness-harness`）を追加 |
+| `harness/install-manifest.json` | 導入した版とファイルの一覧（更新時に使う） |
 
-### 利用時の構成
+`docs/`・`README.md`・`pyrightconfig.json` は導入されません。アプリの生成物（`apps/<app-id>/`・
+`briefs/<app-id>.brief.yaml`）は、導入後に導入先のプロジェクトで作ります。
 
-```
-<利用側プロジェクトのルート>/
-├── .claude -> vendor/apparness-harness/.claude
-├── harness -> vendor/apparness-harness/harness
-├── vendor/apparness-harness/         ← submodule 本体
-├── apps/<app-id>/                    ← init-app skill が利用側に生成する
-└── briefs/<app-id>.brief.yaml        ← 任意。利用側で記入する
-```
+### 更新
 
-`apps/` と `briefs/` は利用側プロジェクト固有の生成物です。サブモジュール（ハーネス本体）
-には含めません。
-
-### 更新の追従
+最新版を取得して、同じコマンドをもう一度実行します。
 
 ```
-git submodule update --remote vendor/apparness-harness
+git -C ~/apparness-harness pull
+python3 ~/apparness-harness/harness/scripts/install.py <導入先プロジェクト>
 ```
 
-symlink をサポートしない環境では、`ln -s` の代わりにディレクトリをコピーしてください。
-その場合、更新の追従は手動での再コピーになります。
+- 前回導入したファイルは上流の内容で上書きされます。**導入先でハーネス本体を直接直した分は
+  元に戻る**ので、ハーネスの改修はこのリポジトリで行ってください。
+- 上流で無くなったファイルは削除されます。導入先が自分で足した agent や skill には触れません。
+- ハーネスが導入していないファイルと同じ場所に、内容の違うファイルを置こうとした場合は
+  **何も書き込まずに止まります**。上書きしてよいときだけ `--force` を付けてください。
+
+### なぜコピーなのか（git submodule を使わない理由）
+
+ハーネスは `.claude/` と `harness/` が**導入先のルート直下に実体として**あることを前提にしています。
+
+- Claude Code は、プロジェクト直下の `.claude/` にある agent・skill・Hook しか読みません。
+- Hook の登録は `$CLAUDE_PROJECT_DIR/harness/hooks/...`（プロジェクト直下の `harness/`）を起動します。
+- git submodule はリポジトリを**1 つのサブフォルダ**（例: `vendor/apparness-harness/`）に置く仕組みなので、
+  直下にリンクを張る必要があります。しかし実測で、①機能ごとの git worktree の中では submodule の中身が
+  空になりリンクが切れる、②実体のパス（`vendor/.../harness/...`）を指定すると Rule 1 の保護を
+  すり抜けられる、の 2 点を確認しました。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -315,7 +329,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 | D | 契約の凍結 | N | 結線カバレッジ |
 | E | 要件と設計の版整合 | O | `CONVENTIONS.md` の節新設拒否 |
 | F | 状態遷移の妥当性 | P | `CLAIMS.md` と実体の drift |
-| G | ダッシュボードの鮮度 | Q | `VERSION` / `CHANGELOG` の追随 |
+| G | ダッシュボードの鮮度 | Q | `harness/VERSION` / `harness/CHANGELOG.md` の追随 |
 | I | 受領書の有効性 | | |
 
 ### 決定論と AI 判断の切り分け
@@ -333,7 +347,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 
 | コマンド | 実行する処理 |
 | --- | --- |
-| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（702 件） |
+| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（724 件） |
 | `python3 harness/scripts/ci_check.py --branch <name>` | 規約の決定論チェック 16 項目 |
 | `python3 harness/hooks/session_start_healthcheck.py < /dev/null` | 強制レイヤの健全性診断 |
 | `python3 harness/scripts/render_progress.py --app <app-id>` | ダッシュボード再生成 |
@@ -352,6 +366,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 | `python3 harness/scripts/check_brief.py <brief.yaml> [--json]` | ブリーフの書式検証と未記入項目の列挙 |
 | `python3 harness/scripts/new_app_scaffold.py <app-id> <app-name> [mode] [--brief <path>]` | アプリ雛形の生成（通常は skill 経由） |
 | `python3 harness/scripts/new_feature_scaffold.py <app-id> <feature-id>` | 機能 worktree の生成（通常は skill 経由） |
+| `python3 <このリポジトリ>/harness/scripts/install.py <導入先> [--dry-run] [--force]` | 他プロジェクトへの導入・更新 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -371,7 +386,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 | 技術ごとの流儀 | 外部スタックパック（形式は `harness/STACK_PACK.md`） | **ハーネス本体には書かない** |
 | 機械可読ファイルの形式 | `harness/schemas/*.schema.json` | CI 項目 A が検証 |
 | 実地で困ったこと | `docs/maintenance/DOGFOODING-LOG.md` | 深刻度 高・最高 は**再発防止テストなしでクローズ禁止**（手順は同ディレクトリの `friction-to-test.md`）。ハーネス本体からは参照しない |
-| ハーネスの変更履歴 | `CHANGELOG.md` / `VERSION` | ハーネス本体を触ったら追記必須（CI 項目 Q） |
+| ハーネスの変更履歴 | `harness/CHANGELOG.md` / `harness/VERSION` | ハーネス本体を触ったら追記必須（CI 項目 Q） |
 
 迷ったら 3 つの質問で決まります。
 **① 破ったら機械が止めるか** → `CONVENTIONS.md`　
@@ -418,9 +433,10 @@ Rule 12 の危険操作フロアです。リポジトリ配下に留まると確
 
 15 節で凍結されています（CI 項目 O）。既存の節の中に統合してください。
 
-### CHANGELOG.md: ハーネス本体に ... 変更がありますが、CHANGELOG.md が更新されていません
+### harness/CHANGELOG.md: ハーネス本体に ... 変更がありますが、CHANGELOG.md が更新されていません
 
-CI 項目 Q です。`## [Unreleased]` に何を変えたかを箇条書きで追記してください。
+CI 項目 Q です。`harness/CHANGELOG.md` の `## [Unreleased]` に何を変えたかを箇条書きで追記してください。
+リリースの場合は `harness/VERSION` を上げ、`## [<版>]` の節に移せば通ります。
 
 ### harness/CLAIMS.md: ... に ... が存在しません
 

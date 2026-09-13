@@ -235,9 +235,9 @@ def _harness_version_line(app_dir: pathlib.Path) -> str:
     対応が取れない（CI 項目 Q）。
     """
     try:
-        version = (_harness_dir(app_dir).parent / "VERSION").read_text(encoding="utf-8").strip()
+        version = (_harness_dir(app_dir) / "VERSION").read_text(encoding="utf-8").strip()
     except OSError:
-        return "- ハーネス版: **不明**（`VERSION` が読めません）"
+        return "- ハーネス版: **不明**（`harness/VERSION` が読めません）"
     return f"- ハーネス版: **v{version}**"
 
 
@@ -451,7 +451,7 @@ def _write_progress_html(app_dir, app_id, req_status, design_status, autonomy_mo
         issues_html = '<p class="empty">未解決の申し送りはありません。</p>'
 
     try:
-        version = "v" + (_harness_dir(app_dir).parent / "VERSION").read_text(
+        version = "v" + (_harness_dir(app_dir) / "VERSION").read_text(
             encoding="utf-8"
         ).strip()
     except OSError:

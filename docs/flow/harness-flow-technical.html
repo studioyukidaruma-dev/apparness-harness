@@ -740,7 +740,7 @@ feature-contract ×2 / status / integration）</td></tr>
 <tr><td>実地の摩擦点</td><td><code>docs/maintenance/DOGFOODING-LOG.md</code></td><td>対象外</td>
 <td>深刻度 最高/高 は<strong>再発防止テストなしでクローズ禁止</strong>。対応表は CLAIMS.md、手順は
 <code>docs/maintenance/friction-to-test.md</code></td></tr>
-<tr><td>ハーネスの変更履歴</td><td><code>CHANGELOG.md</code> / <code>VERSION</code></td><td>対象外</td>
+<tr><td>ハーネスの変更履歴</td><td><code>harness/CHANGELOG.md</code> / <code>harness/VERSION</code></td><td>対象外</td>
 <td><strong>CI 項目 Q</strong>: <code>harness/</code>・<code>.claude/</code>・<code>.github/</code> に差分があるコミットは
 <code>## [Unreleased]</code> に項目が要る</td></tr>
 <tr><td>改修計画</td><td><code>docs/plans/IMPROVEMENT-PLAN.machine.yaml</code> / <code>.md</code></td><td>対象外</td>
@@ -934,7 +934,7 @@ verification_receipt: { … }   # run_integration_verification.py のみが生�
 <tr><td class="id">N</td><td>Rule 11</td><td><code>interfaces[]</code> の全エッジが <code>interface_coverage[]</code> に対応</td><td><code>test_check_integration_traceability.py</code></td></tr>
 <tr><td class="id">O</td><td>―</td><td>CONVENTIONS.md の節新設拒否（15 節固定）</td><td><code>test_conventions_frozen.py</code></td></tr>
 <tr><td class="id">P</td><td>―</td><td>CLAIMS.md のテスト名の実在 ＋ 未実証行の理由の非空</td><td><code>test_claims.py</code></td></tr>
-<tr><td class="id">Q</td><td>―</td><td>VERSION の書式 ＋ ハーネス差分時の CHANGELOG Unreleased 更新</td><td><code>test_versioning.py</code></td></tr>
+<tr><td class="id">Q</td><td>―</td><td>harness/VERSION の書式 ＋ ハーネス差分時の CHANGELOG Unreleased 更新（またはリリース）</td><td><code>test_versioning.py</code></td></tr>
 </tbody>
 </table>
 </div>
