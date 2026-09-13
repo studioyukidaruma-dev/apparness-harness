@@ -16,6 +16,8 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-13
+
 ### Removed
 
 - **`apps/equipment-lending` と `briefs/equipment-lending.brief.yaml` を削除した。**
