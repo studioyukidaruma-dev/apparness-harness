@@ -92,6 +92,10 @@ def test_the_executable_bit_is_preserved(tmp_path) -> None:
     assert (dst / "harness" / "scripts" / "tool.py").stat().st_mode & 0o111
 
 
+@pytest.mark.skipif(
+    (REPO_ROOT / install.MANIFEST).exists(),
+    reason="導入先のリポジトリでは .claude/settings.json に導入先自身の設定が混ざるため、配布元としては使えない",
+)
 def test_the_real_repository_can_be_installed(tmp_path) -> None:
     """本物のハーネスを導入すると、自己診断が見る Hook 登録と実体がそろう。"""
     dst = git_init(tmp_path / "dst")
