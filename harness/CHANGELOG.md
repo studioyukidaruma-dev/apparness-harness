@@ -16,6 +16,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **雛形を生成してコミットしたブランチを push すると、CI 項目 A が必ず不合格になっていた。**
+  `new_app_scaffold.py` は要件（`requirements.machine.yaml`）と設計（`architecture.machine.yaml`）を
+  空の `DRAFT` として生成し、`init-app` はそれをコミットするが、スキーマが `DRAFT` でも
+  `summary` / `goals` / `functional_requirements` / `features` が空でないことを要求していた。
+  空でないことの要求を `APPROVED` / `SUPERSEDED` のときだけに移した（承認時の要求は従来と同じ）。
+  書いた機能要件・機能の書式（`id` の形式や受け入れ基準の有無など）は `DRAFT` でも従来どおり検証する。
+  テストは `harness/tests/test_schema_draft.py`（雛形を実際に生成して項目 A を通す回帰テストを含む）。
+
 ## [1.2.0] - 2026-09-13
 
 ### Removed

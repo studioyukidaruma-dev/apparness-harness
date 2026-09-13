@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://apparness.local/schemas/requirements.schema.json",
   "title": "Requirements",
-  "description": "apps/<app-id>/00-requirements/requirements.machine.yaml の検証スキーマ",
+  "description": "apps/<app-id>/00-requirements/requirements.machine.yaml の検証スキーマ。summary / goals / functional_requirements が空でないことは、DRAFT 以外（APPROVED / SUPERSEDED）でのみ要求する。雛形は空の DRAFT として生成され、要件定義の対話で埋まっていくため。",
   "type": "object",
   "required": ["app_id", "app_name", "version", "status", "summary", "goals", "functional_requirements"],
   "additionalProperties": false,
@@ -11,13 +11,12 @@
     "app_name": { "type": "string", "minLength": 1 },
     "version": { "type": "integer", "minimum": 1 },
     "status": { "type": "string", "enum": ["DRAFT", "APPROVED", "SUPERSEDED"] },
-    "summary": { "type": "string", "minLength": 1 },
-    "goals": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "summary": { "type": "string" },
+    "goals": { "type": "array", "items": { "type": "string" } },
     "non_goals": { "type": "array", "items": { "type": "string" } },
     "target_users": { "type": "array", "items": { "type": "string" } },
     "functional_requirements": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["id", "title", "description", "priority", "acceptance_criteria"],
@@ -49,9 +48,23 @@
     "approved_at": { "type": ["string", "null"], "format": "date-time" },
     "superseded_by": { "type": ["integer", "null"] }
   },
-  "if": { "properties": { "status": { "const": "APPROVED" } } },
-  "then": {
-    "required": ["approved_by", "approved_at"],
-    "properties": { "approved_by": { "type": "string", "minLength": 1 }, "approved_at": { "type": "string", "minLength": 1 } }
-  }
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "APPROVED" } } },
+      "then": {
+        "required": ["approved_by", "approved_at"],
+        "properties": { "approved_by": { "type": "string", "minLength": 1 }, "approved_at": { "type": "string", "minLength": 1 } }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["APPROVED", "SUPERSEDED"] } } },
+      "then": {
+        "properties": {
+          "summary": { "minLength": 1 },
+          "goals": { "minItems": 1 },
+          "functional_requirements": { "minItems": 1 }
+        }
+      }
+    }
+  ]
 }

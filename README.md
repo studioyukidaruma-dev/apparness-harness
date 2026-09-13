@@ -71,7 +71,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 | 依存ゼロの強制レイヤ | `harness/hooks/**` は Python 標準ライブラリのみ。**縛る側のコードが読める** |
 | 実行ベースの検証 | 受領書・JUnit XML・JSON Schema 突合。自己申告に頼らない |
 | アプリ非依存 | 技術スタックを規定しない。検証コマンドはアプリ側が宣言する |
-| 自己テスト | 726 件（`harness/tests/`）。CI で毎回実行 |
+| 自己テスト | 738 件（`harness/tests/`）。CI で毎回実行 |
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
@@ -132,7 +132,7 @@ git worktree を切って並行実装できます。中断しても `apps/<app-i
 │   ├── schemas/                     ← 機械可読ファイルの JSON Schema（8 種）
 │   ├── scripts/                     ← 決定論ロジックとインストーラ（19 本）
 │   ├── templates/                   ← 各種ひな形（13 種）
-│   └── tests/                       ← ハーネス自身の pytest（726 件）
+│   └── tests/                       ← ハーネス自身の pytest（738 件）
 ├── briefs/<app-id>.brief.yaml       ← 企画ブリーフ（任意）。要件定義の前に人間が記入する入力
 ├── apps/<app-id>/                   ← 生成物。init-app skill が都度生成する（未生成）
 ├── docs/                            ← **人間専用。** アプリ作成中の subagent は読まない
@@ -178,7 +178,7 @@ python3 harness/scripts/ci_check.py --branch $(git branch --show-current)
 python3 harness/hooks/session_start_healthcheck.py < /dev/null
 ```
 
-`726 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
+`738 passed` / `OK: すべてのチェックを通過しました` / 無出力（exit 0）なら成功です。
 3 つ目は**強制レイヤ自身が健全か**の自己診断で、異常があればここに理由が出ます。
 
 ### ハーネスを改修するとき
@@ -353,7 +353,7 @@ Rule の判定が劣化している場合は止めずに、`SessionStart` の診
 
 | コマンド | 実行する処理 |
 | --- | --- |
-| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（726 件） |
+| `python3 -m pytest harness/tests -q` | ハーネス自身のテスト（738 件） |
 | `python3 harness/scripts/ci_check.py --branch <name>` | 規約の決定論チェック 16 項目 |
 | `python3 harness/hooks/session_start_healthcheck.py < /dev/null` | 強制レイヤの健全性診断 |
 | `python3 harness/scripts/render_progress.py --app <app-id>` | ダッシュボード再生成 |

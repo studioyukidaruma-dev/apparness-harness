@@ -47,7 +47,7 @@
 
 | 規則 | 何をブロックすると主張するか | 実証テスト | 最終実証日 | 未実証の残余 |
 |---|---|---|---|---|
-| 項目 A | JSON Schema に違反する machine-readable YAML | `test_ci_items.py::test_item_a_rejects_a_status_yaml_violating_its_schema` | 2026-08-24 | — |
+| 項目 A | JSON Schema に違反する machine-readable YAML | `test_ci_items.py::test_item_a_rejects_a_status_yaml_violating_its_schema` / `test_schema_draft.py::test_non_draft_requirements_must_not_be_blank` / `test_schema_draft.py::test_non_draft_architecture_must_have_features` | 2026-08-24 | — |
 | 項目 B | `harness/` ブランチ以外からのハーネス本体の変更 | `test_ci_items.py::test_item_b_rejects_harness_changes_from_a_feature_branch` | 2026-08-24 | `main` では判定しない（fast-forward マージ後は出自が git 上に残らない） |
 | 項目 C | feature ブランチによる担当範囲外の変更 | `test_dogfooding_fixes.py::test_feature_branch_scope_still_blocks_other_features` | 2026-08-24 | — |
 | 項目 D | 凍結後の contract.yaml の変更 | `test_dogfooding_fixes.py::test_contract_freeze_still_blocks_edit_after_approval` | 2026-08-24 | — |

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://apparness.local/schemas/architecture.schema.json",
   "title": "Architecture",
-  "description": "apps/<app-id>/02-design/architecture.machine.yaml の検証スキーマ。features[] は互いに depends_on を持たない（独立機能の原則）。機能間のつながりは interfaces[] でのみ表現する。",
+  "description": "apps/<app-id>/02-design/architecture.machine.yaml の検証スキーマ。features[] は互いに depends_on を持たない（独立機能の原則）。機能間のつながりは interfaces[] でのみ表現する。features が空でないことは DRAFT 以外（APPROVED / SUPERSEDED）でのみ要求する。雛形は空の DRAFT として生成され、設計フェーズで埋まっていくため。",
   "type": "object",
   "required": [
     "app_id",
@@ -39,7 +39,6 @@
     },
     "features": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
@@ -179,27 +178,50 @@
       "format": "date-time"
     }
   },
-  "if": {
-    "properties": {
-      "status": {
-        "const": "APPROVED"
-      }
-    }
-  },
-  "then": {
-    "required": [
-      "approved_by",
-      "approved_at"
-    ],
-    "properties": {
-      "approved_by": {
-        "type": "string",
-        "minLength": 1
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "APPROVED"
+          }
+        }
       },
-      "approved_at": {
-        "type": "string",
-        "minLength": 1
+      "then": {
+        "required": [
+          "approved_by",
+          "approved_at"
+        ],
+        "properties": {
+          "approved_by": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approved_at": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "APPROVED",
+              "SUPERSEDED"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "features": {
+            "minItems": 1
+          }
+        }
       }
     }
-  }
+  ]
 }
