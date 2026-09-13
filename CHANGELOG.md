@@ -16,6 +16,21 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **`apps/equipment-lending` と `briefs/equipment-lending.brief.yaml` を削除した。**
+  ハーネス改修中の動作確認用に作成したドッグフーディング用アプリで、継続開発の予定はない。
+  関連する feature ブランチおよび worktree も削除した。`apps/` `briefs/` はどちらも
+  `.gitkeep` のみを残し、生成物が存在しない状態に戻した。
+
+### Added
+
+- **他プロジェクトへの導入手順（git submodule + symlink）**: `README.md` に、本リポジトリを
+  git submodule として取り込み、`.claude/` と `harness/` を利用側プロジェクトのルートへ
+  symlink する手順を追加した。`.claude/settings.json` の Hook は
+  `$CLAUDE_PROJECT_DIR/harness/hooks/...` を直接参照するため、サブモジュールを
+  サブディレクトリに置くだけでは動作しない制約への対応。
+
 ## [1.1.0] - 2026-09-13
 
 ### Added

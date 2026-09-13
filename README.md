@@ -23,11 +23,12 @@
 2. [環境](#環境)
 3. [ディレクトリ構成](#ディレクトリ構成)
 4. [開発環境構築](#開発環境構築)
-5. [アプリを 1 本作る流れ](#アプリを-1-本作る流れ)
-6. [機械が強制すること](#機械が強制すること)
-7. [コマンド一覧](#コマンド一覧)
-8. [文書の役割分担](#文書の役割分担)
-9. [トラブルシューティング](#トラブルシューティング)
+5. [他プロジェクトへの導入](#他プロジェクトへの導入)
+6. [アプリを 1 本作る流れ](#アプリを-1-本作る流れ)
+7. [機械が強制すること](#機械が強制すること)
+8. [コマンド一覧](#コマンド一覧)
+9. [文書の役割分担](#文書の役割分担)
+10. [トラブルシューティング](#トラブルシューティング)
 
 <br />
 <div align="right">
@@ -187,6 +188,51 @@ git switch -c harness/<topic>
 **`harness/` で始まるブランチでないと `harness/`・`.claude/`・`.github/` に書き込めません**
 （Rule 1 が実行前に拒否します）。改修したら `CHANGELOG.md` の `## [Unreleased]` への追記も
 必須です（CI 項目 Q が要求します）。
+
+<p align="right">(<a href="#top">トップへ</a>)</p>
+
+## 他プロジェクトへの導入
+
+**既存プロジェクトからこのハーネスを使う場合は git submodule として取り込み、
+`.claude/` と `harness/` を利用側プロジェクトのルートへ symlink してください。**
+
+```
+git submodule add https://github.com/studioyukidaruma-dev/apparness-harness.git vendor/apparness-harness
+ln -s vendor/apparness-harness/.claude .claude
+ln -s vendor/apparness-harness/harness harness
+```
+
+### なぜ symlink が要るのか
+
+`.claude/settings.json` の Hook は `$CLAUDE_PROJECT_DIR/harness/hooks/...` を直接参照します。
+`$CLAUDE_PROJECT_DIR` は Claude Code が**利用側プロジェクトのルート**に対して設定する環境変数
+なので、`harness/` がそのルート直下に見えないと Hook は起動しません。サブモジュールを
+`vendor/` 配下に置いただけでは動かないのはこのためです。同じ理由で `.claude/agents` /
+`.claude/skills` も Claude Code がプロジェクトルート直下の `.claude/` から読むため、symlink
+（または同等のコピー）が必要です。
+
+### 利用時の構成
+
+```
+<利用側プロジェクトのルート>/
+├── .claude -> vendor/apparness-harness/.claude
+├── harness -> vendor/apparness-harness/harness
+├── vendor/apparness-harness/         ← submodule 本体
+├── apps/<app-id>/                    ← init-app skill が利用側に生成する
+└── briefs/<app-id>.brief.yaml        ← 任意。利用側で記入する
+```
+
+`apps/` と `briefs/` は利用側プロジェクト固有の生成物です。サブモジュール（ハーネス本体）
+には含めません。
+
+### 更新の追従
+
+```
+git submodule update --remote vendor/apparness-harness
+```
+
+symlink をサポートしない環境では、`ln -s` の代わりにディレクトリをコピーしてください。
+その場合、更新の追従は手動での再コピーになります。
 
 <p align="right">(<a href="#top">トップへ</a>)</p>
 
