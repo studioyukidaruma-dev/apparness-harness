@@ -12,7 +12,7 @@
   強制の範囲が広がる変更。
 - **PATCH**: 誤検知の修正・文言の修正・内部実装の整理など、強制の範囲を変えない変更。
 
-現在の版は `VERSION` にある。`PROGRESS.md` の先頭にも表示される。
+現在の版は `harness/VERSION` にある。`PROGRESS.md` の先頭にも表示される。
 
 ## [Unreleased]
 
@@ -24,6 +24,10 @@
   ハーネス改修中の動作確認用に作成したドッグフーディング用アプリで、継続開発の予定はない。
   関連する feature ブランチおよび worktree も削除した。`apps/` `briefs/` はどちらも
   `.gitkeep` のみを残し、生成物が存在しない状態に戻した。
+- 一時的に `README.md` に書いていた git submodule + symlink による導入手順を削除した（未リリース）。
+  実測で、①機能ごとの git worktree の中では submodule の中身が空になり `.claude/` と `harness/` の
+  リンクが切れる、②実体のパス（`vendor/.../harness/...`）を指定すると Rule 1 の保護を
+  すり抜けられる、の 2 点を確認したため。
 
 ### Added
 
@@ -49,13 +53,6 @@
   `harness/VERSION` が変更され、CHANGELOG にその版の `## [<版>]` 節があれば記録として認める。
   `install.py` で導入・更新したプロジェクトのコミットも同じ形になる。`harness/VERSION` と
   `harness/CHANGELOG.md` 自体の変更は「ハーネス本体の変更」に数えない。
-
-### Removed
-
-- 一時的に `README.md` に書いていた git submodule + symlink による導入手順を削除した（未リリース）。
-  実測で、①機能ごとの git worktree の中では submodule の中身が空になり `.claude/` と `harness/` の
-  リンクが切れる、②実体のパス（`vendor/.../harness/...`）を指定すると Rule 1 の保護を
-  すり抜けられる、の 2 点を確認したため。
 
 ## [1.1.0] - 2026-09-13
 
