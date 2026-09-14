@@ -1,11 +1,13 @@
 """企画ブリーフ（`new_brief.py` / `check_brief.py` / `--brief` 取り込み）の検証。
 
-ブリーフは要件定義の**入力**である。ここで固定したい主張は 3 つ:
+ブリーフは要件定義の**入力**である。ここで固定したい主張は 4 つ:
 
 1. 記入用フォーマットは常にスキーマを満たす（雛形とスキーマが drift しない）
 2. 項目名の綴り違いは**黙って無視されず**、書式違反として落ちる
    （黙って無視すると「書いたのに伝わらない」という最悪の失敗になる）
 3. 記入済みの項目は「未記入」に現れない＝対話で聞き直されない
+4. 記入者が記号の扱いで迷わない（空欄に消すべき記号を置かない・「書き方の例」を真似れば書式を満たす・
+   読み取れない書き方は行番号つきで案内する）
 """
 from __future__ import annotations
 
@@ -92,6 +94,71 @@ def test_new_brief_rejects_a_non_kebab_app_id(repo: pathlib.Path) -> None:
     assert not (repo / "briefs").exists()
 
 
+def test_the_generated_blank_brief_leaves_no_symbols_to_remove(repo: pathlib.Path) -> None:
+    """記入欄に `[]` や `""` や `|` を置かない。記入者が「消すのか、中に書くのか」で迷わないようにする。"""
+    import yaml
+
+    brief = new_brief(repo)
+    data = yaml.safe_load(brief.read_text(encoding="utf-8"))
+    generated = {"brief_version", "app_id", "app_name", "created_at"}
+
+    def blank_leaves(node, prefix=""):
+        for key, value in node.items():
+            path = f"{prefix}{key}"
+            if isinstance(value, dict):
+                yield from blank_leaves(value, f"{path}.")
+            else:
+                yield path, value
+
+    leaves = [(p, v) for p, v in blank_leaves(data) if p not in generated]
+    assert leaves
+    assert [(p, v) for p, v in leaves if v is not None] == []
+
+
+def _writing_examples(template: str) -> list[str]:
+    """テンプレート中の「書き方の例:」ブロックを、コメント記号を外した YAML 片として取り出す。"""
+    lines = template.splitlines()
+    blocks: list[str] = []
+    for index, line in enumerate(lines):
+        if line != "# 書き方の例:":
+            continue
+        body = []
+        for following in lines[index + 1 :]:
+            if not following.startswith("#   "):
+                break
+            body.append(following[4:])
+        blocks.append("\n".join(body) + "\n")
+    return blocks
+
+
+def test_every_writing_example_in_the_template_is_valid_and_counts_as_filled(
+    repo: pathlib.Path,
+) -> None:
+    """テンプレートの「書き方の例」を真似て書けば、そのまま書式を満たし記入済みになる。"""
+    template = (HARNESS_ROOT / "templates" / "brief.yaml.tmpl").read_text(encoding="utf-8")
+    examples = _writing_examples(template)
+    assert len(examples) >= 15
+    for number, example in enumerate(examples):
+        brief = repo / f"example-{number}.yaml"
+        brief.write_text("brief_version: 1\n" + example, encoding="utf-8")
+        result = check_brief(repo, brief)
+        assert result.returncode == 0, f"{example}\n{result.stdout}{result.stderr}"
+        data = json.loads(result.stdout)
+        key = example.split(":", 1)[0]
+        assert any(p == key or p.startswith(f"{key}.") for p in data["filled"]), example
+
+
+def test_legacy_empty_markers_are_still_valid_and_blank(repo: pathlib.Path) -> None:
+    brief = repo / "brief.yaml"
+    brief.write_text(
+        'brief_version: 1\nauthor: ""\ngoals: []\ntech:\n  preferred: []\nautonomy_mode: ""\n',
+        encoding="utf-8",
+    )
+    data = report(repo, brief)
+    missing = {m["path"] for m in data["missing"]}
+    assert {"author", "goals", "tech.preferred", "autonomy_mode"} <= missing
+
+
 # ---------------------------------------------------------------------------
 # 2. 綴り違いを黙って無視しない
 # ---------------------------------------------------------------------------
@@ -174,6 +241,27 @@ def test_whitespace_only_is_treated_as_blank(repo: pathlib.Path) -> None:
     brief.write_text('brief_version: 1\npurpose: "   "\n', encoding="utf-8")
     data = report(repo, brief)
     assert "purpose" in {m["path"] for m in data["missing"]}
+
+
+def test_a_list_with_only_empty_items_is_treated_as_blank(repo: pathlib.Path) -> None:
+    brief = repo / "brief.yaml"
+    brief.write_text("brief_version: 1\ngoals:\n  -\n  -\n", encoding="utf-8")
+    data = report(repo, brief)
+    assert "goals" in {m["path"] for m in data["missing"]}
+
+
+def test_a_yaml_syntax_error_is_a_writing_error_with_the_line(repo: pathlib.Path) -> None:
+    """YAML として読めない書き方は、記入者が直す誤りとして行番号つきで報告する（実行エラーにしない）。"""
+    brief = repo / "brief.yaml"
+    brief.write_text(
+        "brief_version: 1\npurpose:\n  貸出を記録したい\n goals:\n  - 字下げがずれた項目名\n",
+        encoding="utf-8",
+    )
+    result = check_brief(repo, brief)
+    assert result.returncode == 1
+    data = json.loads(result.stdout)
+    assert "行目付近" in data["errors"][0]
+    assert data["hints"]
 
 
 def test_a_missing_brief_file_is_an_execution_error(repo: pathlib.Path) -> None:

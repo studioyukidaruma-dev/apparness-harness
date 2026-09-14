@@ -12,7 +12,11 @@
 使い方:
     python3 harness/scripts/check_brief.py <brief.yaml> [--json]
 
-exit code: 0=書式が妥当（未記入の有無は問わない）, 1=スキーマ違反, 2=実行エラー
+exit code: 0=書式が妥当（未記入の有無は問わない）, 1=書き方の誤り（YAML として読めない・スキーマ違反）,
+2=実行エラー
+
+書き方の誤りは記入者が直すものなので、どこをどう直せばよいかが分かる言葉で報告する
+（字下げのずれ・文中の半角「: 」など、YAML に不慣れな人が踏みやすい原因を添える）。
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import _common  # noqa: E402
+import yaml  # noqa: E402
 
 SCHEMA_REL = pathlib.Path("harness/schemas/brief.schema.json")
 
@@ -89,14 +94,43 @@ LEVEL_LABEL = {
 
 
 def is_blank(value) -> bool:
-    """未記入とみなす値かどうか。空文字・空白のみ・空リスト・空辞書・None を未記入とする。"""
+    """未記入とみなす値かどうか。
+
+    None（コロンの後に何もない）・空文字・空白のみ・空辞書、および要素がすべて未記入のリスト
+    （中身を書かずに `- ` だけ置いた箇条書きなど）を未記入とする。
+    """
     if value is None:
         return True
     if isinstance(value, str):
         return value.strip() == ""
-    if isinstance(value, (list, dict)):
+    if isinstance(value, list):
+        return all(is_blank(item) for item in value)
+    if isinstance(value, dict):
         return len(value) == 0
     return False
+
+
+YAML_HINTS = [
+    "字下げ（行頭の空白）の幅が、同じ項目の中で揃っていない",
+    "字下げにタブを使っている（空白を使ってください）",
+    "文中に半角の「: 」（コロンと空白）がある（全角の「：」にしてください）",
+    "箇条書きの「-」の後に空白が無い（「- 項目」のように空白を 1 つ入れてください）",
+    "項目名の行（`goals:` など）を消した、または項目名の後のコロンを消した",
+]
+
+SCHEMA_HINTS = [
+    "項目名の綴り違い（テンプレートにある項目名だけが使えます）",
+    "箇条書きの項目（`goals` など）を 1 行の文章で書いた、またはその逆"
+    "（各項目の上にある「書き方の例」と同じ形にしてください）",
+    "数字や yes / no だけを書いた（「10 人」「不要」のように言葉を添えてください）",
+]
+
+
+def describe_yaml_error(error: Exception) -> str:
+    """YAML の構文エラーを、記入者が直す場所の分かる一文にする。"""
+    mark = getattr(error, "problem_mark", None) or getattr(error, "context_mark", None)
+    where = f"{mark.line + 1} 行目付近" if mark is not None else "どこか"
+    return f"{where}の書き方が読み取れません"
 
 
 def get_path(data: dict, dotted: str):
@@ -162,8 +196,24 @@ def main(argv: list[str]) -> int:
         return 2
 
     try:
-        data = _common.load_yaml(brief_path)
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        print(f"エラー: スキーマの読み込みに失敗しました: {e}", file=sys.stderr)
+        return 2
+
+    try:
+        data = _common.load_yaml(brief_path)
+    except yaml.YAMLError as e:
+        message = describe_yaml_error(e)
+        if args.json:
+            print(json.dumps({"ok": False, "errors": [message], "hints": YAML_HINTS}, ensure_ascii=False, indent=2))
+        else:
+            print(f"NG: {brief_path} の{message}。", file=sys.stderr)
+            print("  よくある原因:", file=sys.stderr)
+            for hint in YAML_HINTS:
+                print(f"    - {hint}", file=sys.stderr)
+            print(f"  詳細: {e}", file=sys.stderr)
+        return 1
     except Exception as e:  # noqa: BLE001
         print(f"エラー: 読み込みに失敗しました: {e}", file=sys.stderr)
         return 2
@@ -175,14 +225,16 @@ def main(argv: list[str]) -> int:
     errors = _common.validate_against_schema(data, schema)
     if errors:
         if args.json:
-            print(json.dumps({"ok": False, "errors": errors}, ensure_ascii=False, indent=2))
+            print(json.dumps({"ok": False, "errors": errors, "hints": SCHEMA_HINTS}, ensure_ascii=False, indent=2))
         else:
             print(f"NG: {brief_path} は書式を満たしていません:", file=sys.stderr)
             for err in errors:
                 print(f"  - {err}", file=sys.stderr)
+            print("  よくある原因:", file=sys.stderr)
+            for hint in SCHEMA_HINTS:
+                print(f"    - {hint}", file=sys.stderr)
             print(
-                "  ヒント: 項目名の綴り違いもここで落ちます。"
-                f"雛形は `python3 harness/scripts/new_brief.py <app_id>` で作れます。",
+                "  雛形は `python3 harness/scripts/new_brief.py <app_id>` で作れます。",
                 file=sys.stderr,
             )
         return 1
