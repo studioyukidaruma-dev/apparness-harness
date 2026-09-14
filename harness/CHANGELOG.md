@@ -16,6 +16,8 @@
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-09-14
+
 ### Changed
 
 - **企画ブリーフの記入用フォーマットを、記号の扱いで迷わない形にした**（`harness/templates/brief.yaml.tmpl`）。

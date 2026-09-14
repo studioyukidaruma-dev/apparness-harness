@@ -66,7 +66,7 @@ apparness — Claude Code 駆動でアプリを自動生成するためのハー
 **インストーラで、ハーネスを導入先のプロジェクトへコピーします。** リリースのタグを指定して取得してください。
 
 ```
-git clone --branch v1.3.2 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
+git clone --branch v1.3.3 https://github.com/studioyukidaruma-dev/apparness-harness.git ~/apparness-harness
 cd <導入先プロジェクト>                     # git リポジトリであること（新規なら先に git init）
 python3 ~/apparness-harness/harness/scripts/install.py . --dry-run   # 何が起きるかを確認
 python3 ~/apparness-harness/harness/scripts/install.py .
